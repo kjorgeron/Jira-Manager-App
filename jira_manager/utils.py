@@ -1,5 +1,6 @@
 import tkinter as tk
 
+
 def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
     # Create a canvas to draw the rounded background
     canvas = tk.Canvas(parent, bg=parent["bg"], highlightthickness=0)
@@ -9,8 +10,17 @@ def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
     content = tk.Frame(canvas, bg="white")
 
     # Add title and description
-    tk.Label(content, text=title, font=("Arial", 12, "bold"), bg="white", anchor="center", justify="center").pack(pady=(5, 2))
-    tk.Label(content, text=description, wraplength=280, justify="center", bg="white").pack(pady=(0, 5))
+    tk.Label(
+        content,
+        text=title,
+        font=("Arial", 12, "bold"),
+        bg="white",
+        anchor="center",
+        justify="center",
+    ).pack(pady=(5, 2))
+    tk.Label(
+        content, text=description, wraplength=280, justify="center", bg="white"
+    ).pack(pady=(0, 5))
 
     # Draw rounded rectangle on canvas
     def draw_rounded_rect(w, h):
@@ -18,20 +28,34 @@ def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
         x1, y1, x2, y2 = 0, 0, w, h
         r = radius
         points = [
-            x1+r, y1,
-            x2-r, y1,
-            x2, y1,
-            x2, y1+r,
-            x2, y2-r,
-            x2, y2,
-            x2-r, y2,
-            x1+r, y2,
-            x1, y2,
-            x1, y2-r,
-            x1, y1+r,
-            x1, y1
+            x1 + r,
+            y1,
+            x2 - r,
+            y1,
+            x2,
+            y1,
+            x2,
+            y1 + r,
+            x2,
+            y2 - r,
+            x2,
+            y2,
+            x2 - r,
+            y2,
+            x1 + r,
+            y2,
+            x1,
+            y2,
+            x1,
+            y2 - r,
+            x1,
+            y1 + r,
+            x1,
+            y1,
         ]
-        canvas.create_polygon(points, fill="white", outline="#ccc", smooth=True, tags="bg")
+        canvas.create_polygon(
+            points, fill="white", outline="#ccc", smooth=True, tags="bg"
+        )
 
     # Handle resizing and aspect ratio
     def enforce_aspect(event):
@@ -49,43 +73,64 @@ def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
 
     return canvas
 
+
 def create_toolbar(parent, bg="#4C30EB", padding=10):
-    """
-    Create and return a toolbar frame anchored at the top of the parent.
-
-    Args:
-        parent (tk.Widget): The container to add the toolbar to.
-        bg (str): Background color of the toolbar.
-        padding (int): Padding around the toolbar.
-
-    Returns:
-        tk.Frame: A styled toolbar frame.
-    """
     toolbar = tk.Frame(parent, bg=bg, pady=padding)
     toolbar.pack(fill="x", padx=padding, pady=(padding, 0))
     return toolbar
 
 
 def create_button(parent, text, command, **style):
-    """
-    Create and return a Tkinter button with optional styling.
-
-    Args:
-        parent (tk.Widget): The parent container.
-        text (str): The label on the button.
-        command (function): The callback function.
-        **style: Additional styling options (bg, fg, font, padx, etc.)
-
-    Returns:
-        tk.Button: A configured button widget.
-    """
     return tk.Button(parent, text=text, command=command, **style)
 
-def toolbar_action(options: dict = None):
-    if options != None:
-        if options["type"] == "configure":
-            print("configure mode")
-        if options["type"] == "search_jiras":
-            print("search_mode")
-    else:
-        pass
+
+def error_message(parent, message: str):
+    pass
+
+
+def toolbar_action(parent, options: dict, state: dict):
+    # Remove previous panel if exists
+    if state["active_panel"]:
+        state["active_panel"].destroy()
+        state["active_panel"] = None
+
+    if not options:
+        return
+
+    if options["type"] == "configure":
+        try:
+            panel = tk.Frame(parent, bg="blue")
+            tk.Label(
+                panel,
+                text="Jira Server: ",
+                font=("Arial", 12, "bold"),
+                fg="white",
+                bg="blue",
+            ).grid(row=0, column=0)
+            tk.Entry(panel).grid(row=0, column=1, rowspan=2)
+            panel.pack(fill="both", padx=10, pady=10, expand=1)
+        except Exception as e:
+            print("Error:", e)
+            panel = tk.Frame(parent, bg="red")
+            tk.Label(
+                panel,
+                text=f"Failed to create Configure Panel\nReason: {e}",
+                font=("Arial", 12, "bold"),
+                fg="white",
+                bg="red",
+                wraplength=500
+            ).pack(padx=10, pady=10)
+            panel.pack(fill="both", padx=10, pady=10)
+        state["active_panel"] = panel
+
+    elif options["type"] == "search_jiras":
+        panel = tk.Frame(parent, bg="green")
+        tk.Label(
+            panel,
+            text="Search Jira Panel",
+            font=("Arial", 12, "bold"),
+            fg="white",
+            bg="green",
+        ).pack(pady=10)
+        panel.pack(fill="both", expand=True, padx=10, pady=10)
+        state["active_panel"] = panel

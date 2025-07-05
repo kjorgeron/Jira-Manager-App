@@ -1,6 +1,11 @@
 import tkinter as tk
 from PIL import Image, ImageTk
-from jira_manager.utils import create_jira_card, create_toolbar, create_button, toolbar_action
+from getpass import getuser
+from jira_manager.utils import (
+    create_toolbar,
+    create_button,
+    toolbar_action,
+)
 
 # WINDOW SETUP
 root = tk.Tk()
@@ -12,25 +17,45 @@ resized_img = img.resize((32, 32), Image.Resampling.LANCZOS)
 icon = ImageTk.PhotoImage(resized_img)
 root.iconphoto(False, icon)
 
-
 # TOOLBAR
 toolbar = create_toolbar(root)
 toolbar.pack()
 
-config_btn = create_button(toolbar, "Configure", lambda: toolbar_action({"type": "configure"}))
-config_btn.pack(side="left", padx=10)
-search_btn = create_button(toolbar, "Search Jira", lambda: toolbar_action({"type": "search_jiras"}))
-search_btn.pack(side="left")
+ui_state = {"active_panel": None}
+create_button(toolbar, "Configure", lambda: toolbar_action(root, {"type": "configure"}, ui_state)).pack(side="left", padx=10)
+create_button(toolbar, "Search Jira", lambda: toolbar_action(root, {"type": "search_jiras"}, ui_state)).pack(side="left")
 
-# TEST LABEL
-test_label = tk.Label(root, text="Test Label")
-test_label.pack()
+# config_btn = create_button(
+#     toolbar,
+#     "Configure",
+#     lambda: toolbar_action(root, {"type": "configure"}),
+# )
+# config_btn.pack(side="left", padx=10)
+# search_btn = create_button(
+#     toolbar,
+#     "Search Jira",
+#     lambda: toolbar_action(root, {"type": "search_jiras"}),
+# )
+# search_btn.pack(side="left")
 
-# TEST JIRA CARD
-title = "SCRUM-1"
-description = "Test Jira Ticket"
-card1 = create_jira_card(root, title, description, 3.0)
-card1.pack()
+# WELCOME LABEL
+try:
+    test_label = tk.Label(
+        root,
+        text=f"Welcome {getuser()}, let's manage some jira's! ",
+        font="bold",
+        width=50,
+        wraplength=400,
+    )
+except:
+    test_label = tk.Label(
+        root,
+        text="Welcome, let's manage some jira's!",
+        font="bold",
+        width=50,
+        wraplength=400,
+    )
+test_label.pack(pady=10)
 
 # RUN APP
 root.mainloop()
