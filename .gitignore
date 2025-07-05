@@ -83,3 +83,5 @@ pylint-report.txt
 # Project-specific ignored files
 instance/
 *.db
+
+images/
