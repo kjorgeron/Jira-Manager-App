@@ -84,6 +84,170 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
 def create_button(parent, text, command, **style):
     return tk.Button(parent, text=text, command=command, **style)
 
+
+def toolbar_action(parent, options: dict, state: dict):
+    if state["active_panel"]:
+        state["active_panel"].destroy()
+        state["active_panel"] = None
+
+    # Logic for Configure Button
+    if options["type"] == "configure":
+        font_style = ("Arial", 12, "bold")
+        selected_auth = tk.StringVar(value="Basic Auth")
+        proxy_option = tk.StringVar(value="No")
+
+        panel = tk.Frame(parent, bg="white")
+        panel.pack(fill="both", padx=10, pady=10, expand=True)
+        state["active_panel"] = panel
+
+        # --- Create split layout: form and footer ---
+        form_frame = tk.Frame(panel, bg="white")
+        form_frame.pack(fill="both", expand=True)
+
+        footer_frame = tk.Frame(panel, bg="white")
+        footer_frame.pack(fill="x", side="bottom")
+
+        # --- Top Selectors Row ---
+        selector_row = tk.Frame(form_frame, bg="white")
+        selector_row.pack(fill="x", pady=5)
+
+        tk.Label(
+            selector_row,
+            text="Credential Type:",
+            font=font_style,
+            fg="#4C30EB",
+            bg="white",
+        ).pack(side="left", padx=(0, 5))
+        auth_type = ttk.Combobox(
+            selector_row,
+            textvariable=selected_auth,
+            values=["Basic Auth", "Token Auth"],
+            state="readonly",
+        )
+        auth_type.pack(side="left", padx=(0, 15))
+
+        tk.Label(
+            selector_row, text="Use Proxies:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        proxy_type = ttk.Combobox(
+            selector_row,
+            textvariable=proxy_option,
+            values=["No", "Yes"],
+            state="readonly",
+        )
+        proxy_type.pack(side="left")
+
+        # --- Separator Line ---
+        ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # --- Jira Server Input ---
+        jira_row = tk.Frame(form_frame, bg="white")
+        jira_row.pack(fill="x", pady=5)
+        jira_row.columnconfigure(1, weight=1)
+        tk.Label(
+            jira_row, text="Jira Server:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(jira_row, font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        # --- Proxy Panel ---
+        proxy_panel = tk.Frame(form_frame, bg="white")
+
+        proxy_http = tk.Frame(proxy_panel, bg="white")
+        proxy_http.pack(fill="x", pady=5)
+        proxy_http.columnconfigure(1, weight=1)
+        tk.Label(
+            proxy_http, text="HTTP Proxy:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(proxy_http, font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        proxy_https = tk.Frame(proxy_panel, bg="white")
+        proxy_https.pack(fill="x", pady=5)
+        proxy_https.columnconfigure(1, weight=1)
+        tk.Label(
+            proxy_https, text="HTTPS Proxy:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(proxy_https, font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        # --- Basic Auth Panel ---
+        basic_panel = tk.Frame(form_frame, bg="white")
+
+        user_row = tk.Frame(basic_panel, bg="white")
+        user_row.pack(fill="x", pady=5)
+        user_row.columnconfigure(1, weight=1)
+        tk.Label(
+            user_row, text="Username:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(user_row, font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        pass_row = tk.Frame(basic_panel, bg="white")
+        pass_row.pack(fill="x", pady=5)
+        pass_row.columnconfigure(1, weight=1)
+        tk.Label(
+            pass_row, text="Password:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(pass_row, show="*", font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        # --- Token Auth Panel ---
+        token_panel = tk.Frame(form_frame, bg="white")
+
+        token_row = tk.Frame(token_panel, bg="white")
+        token_row.pack(fill="x", pady=5)
+        token_row.columnconfigure(1, weight=1)
+        tk.Label(
+            token_row, text="Access Token:", font=font_style, fg="#4C30EB", bg="white"
+        ).pack(side="left", padx=(0, 5))
+        tk.Entry(token_row, show="*", font=font_style).pack(
+            side="left", fill="x", expand=True, padx=10
+        )
+
+        # --- Update Logic ---
+        def update_proxy_fields(event=None):
+            proxy_panel.pack_forget()
+            if proxy_option.get() == "Yes":
+                proxy_panel.pack(fill="x", pady=5)
+
+        def update_auth_fields(event=None):
+            basic_panel.pack_forget()
+            token_panel.pack_forget()
+            if selected_auth.get() == "Basic Auth":
+                basic_panel.pack(fill="x", pady=5)
+            else:
+                token_panel.pack(fill="x", pady=5)
+
+        proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
+        auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
+
+        update_proxy_fields()
+        update_auth_fields()
+
+        # --- Footer Separator & Save Button ---
+        ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
+        tk.Button(
+            footer_frame, text="Save", font=font_style, bg="white", fg="#4C30EB"
+        ).pack(pady=(5, 10))
+
+    elif options["type"] == "search_jiras":
+        panel = tk.Frame(parent, bg="green", bd=2, relief="solid")
+        panel.pack(fill="both", padx=10, pady=10, expand=True)
+        state["active_panel"] = panel
+
+        # Add content inside the panel (e.g. search bar, labels, etc.)
+        tk.Label(panel, text="Search JIRAs", font=("Arial", 14, "bold"), bg="green", fg="white").pack(pady=10)
+        tk.Entry(panel, font=("Arial", 12)).pack(fill="x", padx=20)
+        tk.Button(panel, text="Search", font=("Arial", 12), bg="white", fg="green").pack(pady=10)
+
+
+
 # def toolbar_action(parent, options: dict, state: dict):
 #     if state["active_panel"]:
 #         state["active_panel"].destroy()
@@ -92,195 +256,101 @@ def create_button(parent, text, command, **style):
 #     if not options or options["type"] != "configure":
 #         return
 
-#     panel = tk.Frame(parent, bg="blue")
-#     panel.pack(fill="both", padx=10, pady=10, expand=1)
-#     state["active_panel"] = panel
-
 #     font_style = ("Arial", 12, "bold")
 #     selected_auth = tk.StringVar(value="Basic Auth")
 #     proxy_option = tk.StringVar(value="No")
 
-#     # --- Top Selectors ---
-#     tk.Label(panel, text="Credential Type:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=0, column=0, sticky="e", padx=5, pady=5)
-#     auth_type = ttk.Combobox(panel, textvariable=selected_auth,
+#     panel = tk.Frame(parent, bg="blue")
+#     panel.pack(fill="both", padx=10, pady=10, expand=True)
+#     state["active_panel"] = panel
+
+#     # --- Top Selectors Row ---
+#     selector_row = tk.Frame(panel, bg="blue")
+#     selector_row.pack(fill="x", pady=5)
+
+#     tk.Label(selector_row, text="Credential Type:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     auth_type = ttk.Combobox(selector_row, textvariable=selected_auth,
 #                              values=["Basic Auth", "Token Auth"], state="readonly")
-#     auth_type.grid(row=0, column=1, sticky="w", padx=5, pady=5)
+#     auth_type.pack(side="left", padx=(0, 15))
 
-#     tk.Label(panel, text="Use Proxies:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=0, column=2, sticky="e", padx=5, pady=5)
-#     proxy_type = ttk.Combobox(panel, textvariable=proxy_option,
+#     tk.Label(selector_row, text="Use Proxies:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     proxy_type = ttk.Combobox(selector_row, textvariable=proxy_option,
 #                               values=["No", "Yes"], state="readonly")
-#     proxy_type.grid(row=0, column=3, sticky="w", padx=5, pady=5)
+#     proxy_type.pack(side="left")
 
-#     # --- Separator ---
-#     ttk.Separator(panel, orient="horizontal")\
-#         .grid(row=1, column=0, columnspan=4, sticky="ew", pady=10)
+#     # --- Separator Line ---
+#     ttk.Separator(panel, orient="horizontal").pack(fill="x", pady=10)
 
-#     # --- Jira Server ---
-#     tk.Label(panel, text="Jira Server:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=2, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(panel, font=font_style)\
-#         .grid(row=2, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
+#     # --- Jira Server Input ---
+#     jira_row = tk.Frame(panel, bg="blue")
+#     jira_row.pack(fill="x", pady=5)
+#     jira_row.columnconfigure(1, weight=1)
+#     tk.Label(jira_row, text="Jira Server:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(jira_row, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
 
 #     # --- Proxy Panel ---
 #     proxy_panel = tk.Frame(panel, bg="blue")
-#     tk.Label(proxy_panel, text="HTTP Proxy:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=0, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(proxy_panel, font=font_style)\
-#         .grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-#     tk.Label(proxy_panel, text="HTTPS Proxy:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=1, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(proxy_panel, font=font_style)\
-#         .grid(row=1, column=1, sticky="ew", padx=5, pady=5)
-#     proxy_panel.columnconfigure(1, weight=1)
 
-#     # --- Credential Panels ---
+#     proxy_http = tk.Frame(proxy_panel, bg="blue")
+#     proxy_http.pack(fill="x", pady=5)
+#     proxy_http.columnconfigure(1, weight=1)
+#     tk.Label(proxy_http, text="HTTP Proxy:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(proxy_http, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
+
+#     proxy_https = tk.Frame(proxy_panel, bg="blue")
+#     proxy_https.pack(fill="x", pady=5)
+#     proxy_https.columnconfigure(1, weight=1)
+#     tk.Label(proxy_https, text="HTTPS Proxy:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(proxy_https, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
+
+#     # --- Basic Auth Panel ---
 #     basic_panel = tk.Frame(panel, bg="blue")
-#     tk.Label(basic_panel, text="Username:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=0, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(basic_panel, font=font_style)\
-#         .grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-#     tk.Label(basic_panel, text="Password:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=1, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(basic_panel, show="*", font=font_style)\
-#         .grid(row=1, column=1, sticky="ew", padx=5, pady=5)
-#     basic_panel.columnconfigure(1, weight=1)
 
+#     user_row = tk.Frame(basic_panel, bg="blue")
+#     user_row.pack(fill="x", pady=5)
+#     user_row.columnconfigure(1, weight=1)
+#     tk.Label(user_row, text="Username:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(user_row, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
+
+#     pass_row = tk.Frame(basic_panel, bg="blue")
+#     pass_row.pack(fill="x", pady=5)
+#     pass_row.columnconfigure(1, weight=1)
+#     tk.Label(pass_row, text="Password:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(pass_row, show="*", font=font_style).pack(side="left", fill="x", expand=True, padx=10)
+
+#     # --- Token Auth Panel ---
 #     token_panel = tk.Frame(panel, bg="blue")
-#     tk.Label(token_panel, text="Access Token:", font=font_style, fg="white", bg="blue")\
-#         .grid(row=0, column=0, sticky="e", padx=5, pady=5)
-#     tk.Entry(token_panel, show="*", font=font_style)\
-#         .grid(row=0, column=1, sticky="ew", padx=5, pady=5)
-#     token_panel.columnconfigure(1, weight=1)
 
-#     # --- Column Stretching ---
-#     panel.columnconfigure(1, weight=1)
-#     panel.columnconfigure(3, weight=1)
+#     token_row = tk.Frame(token_panel, bg="blue")
+#     token_row.pack(fill="x", pady=5)
+#     token_row.columnconfigure(1, weight=1)
+#     tk.Label(token_row, text="Access Token:", font=font_style, fg="white", bg="blue")\
+#         .pack(side="left", padx=(0, 5))
+#     tk.Entry(token_row, show="*", font=font_style).pack(side="left", fill="x", expand=True, padx=10)
 
 #     # --- Update Logic ---
 #     def update_proxy_fields(event=None):
-#         proxy_panel.grid_remove()
+#         proxy_panel.pack_forget()
 #         if proxy_option.get() == "Yes":
-#             proxy_panel.grid(row=3, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
+#             proxy_panel.pack(fill="x", pady=5)
 
 #     def update_auth_fields(event=None):
-#         basic_panel.grid_remove()
-#         token_panel.grid_remove()
+#         basic_panel.pack_forget()
+#         token_panel.pack_forget()
 #         if selected_auth.get() == "Basic Auth":
-#             basic_panel.grid(row=4, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
+#             basic_panel.pack(fill="x", pady=5)
 #         else:
-#             token_panel.grid(row=4, column=0, columnspan=4, sticky="ew", padx=5, pady=5)
+#             token_panel.pack(fill="x", pady=5)
 
-#     auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
 #     proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
+#     auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
 
 #     update_proxy_fields()
 #     update_auth_fields()
-
-def toolbar_action(parent, options: dict, state: dict):
-    if state["active_panel"]:
-        state["active_panel"].destroy()
-        state["active_panel"] = None
-
-    if not options or options["type"] != "configure":
-        return
-
-    font_style = ("Arial", 12, "bold")
-    selected_auth = tk.StringVar(value="Basic Auth")
-    proxy_option = tk.StringVar(value="No")
-
-    panel = tk.Frame(parent, bg="blue")
-    panel.pack(fill="both", padx=10, pady=10, expand=True)
-    state["active_panel"] = panel
-
-    # --- Top Selectors Row ---
-    selector_row = tk.Frame(panel, bg="blue")
-    selector_row.pack(fill="x", pady=5)
-
-    tk.Label(selector_row, text="Credential Type:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    auth_type = ttk.Combobox(selector_row, textvariable=selected_auth,
-                             values=["Basic Auth", "Token Auth"], state="readonly")
-    auth_type.pack(side="left", padx=(0, 15))
-
-    tk.Label(selector_row, text="Use Proxies:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    proxy_type = ttk.Combobox(selector_row, textvariable=proxy_option,
-                              values=["No", "Yes"], state="readonly")
-    proxy_type.pack(side="left")
-
-    # --- Separator Line ---
-    ttk.Separator(panel, orient="horizontal").pack(fill="x", pady=10)
-
-    # --- Jira Server Input ---
-    jira_row = tk.Frame(panel, bg="blue")
-    jira_row.pack(fill="x", pady=5)
-    jira_row.columnconfigure(1, weight=1)
-    tk.Label(jira_row, text="Jira Server:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(jira_row, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    # --- Proxy Panel ---
-    proxy_panel = tk.Frame(panel, bg="blue")
-
-    proxy_http = tk.Frame(proxy_panel, bg="blue")
-    proxy_http.pack(fill="x", pady=5)
-    proxy_http.columnconfigure(1, weight=1)
-    tk.Label(proxy_http, text="HTTP Proxy:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(proxy_http, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    proxy_https = tk.Frame(proxy_panel, bg="blue")
-    proxy_https.pack(fill="x", pady=5)
-    proxy_https.columnconfigure(1, weight=1)
-    tk.Label(proxy_https, text="HTTPS Proxy:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(proxy_https, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    # --- Basic Auth Panel ---
-    basic_panel = tk.Frame(panel, bg="blue")
-
-    user_row = tk.Frame(basic_panel, bg="blue")
-    user_row.pack(fill="x", pady=5)
-    user_row.columnconfigure(1, weight=1)
-    tk.Label(user_row, text="Username:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(user_row, font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    pass_row = tk.Frame(basic_panel, bg="blue")
-    pass_row.pack(fill="x", pady=5)
-    pass_row.columnconfigure(1, weight=1)
-    tk.Label(pass_row, text="Password:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(pass_row, show="*", font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    # --- Token Auth Panel ---
-    token_panel = tk.Frame(panel, bg="blue")
-
-    token_row = tk.Frame(token_panel, bg="blue")
-    token_row.pack(fill="x", pady=5)
-    token_row.columnconfigure(1, weight=1)
-    tk.Label(token_row, text="Access Token:", font=font_style, fg="white", bg="blue")\
-        .pack(side="left", padx=(0, 5))
-    tk.Entry(token_row, show="*", font=font_style).pack(side="left", fill="x", expand=True, padx=10)
-
-    # --- Update Logic ---
-    def update_proxy_fields(event=None):
-        proxy_panel.pack_forget()
-        if proxy_option.get() == "Yes":
-            proxy_panel.pack(fill="x", pady=5)
-
-    def update_auth_fields(event=None):
-        basic_panel.pack_forget()
-        token_panel.pack_forget()
-        if selected_auth.get() == "Basic Auth":
-            basic_panel.pack(fill="x", pady=5)
-        else:
-            token_panel.pack(fill="x", pady=5)
-
-    proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
-    auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
-
-    update_proxy_fields()
-    update_auth_fields()

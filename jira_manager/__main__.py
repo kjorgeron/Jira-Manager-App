@@ -16,11 +16,11 @@ img = Image.open(icon_path)
 resized_img = img.resize((32, 32), Image.Resampling.LANCZOS)
 icon = ImageTk.PhotoImage(resized_img)
 root.iconphoto(False, icon)
+root.resizable(False, False)
 
 # TOOLBAR
 toolbar = create_toolbar(root)
 toolbar.pack()
-
 ui_state = {"active_panel": None}
 create_button(toolbar, "Configure", lambda: toolbar_action(root, {"type": "configure"}, ui_state)).pack(side="left", padx=10)
 create_button(toolbar, "Search Jira", lambda: toolbar_action(root, {"type": "search_jiras"}, ui_state)).pack(side="left")
