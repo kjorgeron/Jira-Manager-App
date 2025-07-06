@@ -3,7 +3,6 @@ from PIL import Image, ImageTk
 from getpass import getuser
 from jira_manager.utils import (
     create_toolbar,
-    create_button,
     toolbar_action,
 )
 
@@ -22,28 +21,38 @@ root.resizable(False, False)
 toolbar = create_toolbar(root)
 toolbar.pack()
 ui_state = {"active_panel": None}
-create_button(toolbar, "Configure", lambda: toolbar_action(root, {"type": "configure"}, ui_state)).pack(side="left", padx=10)
-create_button(toolbar, "Search Jira", lambda: toolbar_action(root, {"type": "search_jiras"}, ui_state)).pack(side="left")
 
-# config_btn = create_button(
-#     toolbar,
-#     "Configure",
-#     lambda: toolbar_action(root, {"type": "configure"}),
-# )
-# config_btn.pack(side="left", padx=10)
-# search_btn = create_button(
-#     toolbar,
-#     "Search Jira",
-#     lambda: toolbar_action(root, {"type": "search_jiras"}),
-# )
-# search_btn.pack(side="left")
+tk.Button(
+    toolbar,
+    text="Configure",
+    font=("Arial", 12, "bold"),
+    bg="#4C30EB",
+    fg="white",
+    activebackground="#6B55F8",  # Hover color
+    activeforeground="white",
+    command=lambda: toolbar_action(root, {"type": "configure"}, ui_state),
+).pack(side="left", padx=10)
+
+
+tk.Button(
+    toolbar,
+    text="Search Jira",
+    font=("Arial", 12, "bold"),
+    bg="#4C30EB",
+    fg="white",
+    activebackground="#6B55F8",  # Hover color
+    activeforeground="white",
+    command=lambda: toolbar_action(root, {"type": "search_jiras"}, ui_state),
+).pack(side="left", padx=10)
+
 
 # WELCOME LABEL
 try:
     test_label = tk.Label(
         root,
         text=f"Welcome {getuser()}, let's manage some jira's! ",
-        font="bold",
+        font=("Arial", 12, "bold"),
+        fg="#4C30EB",
         width=50,
         wraplength=400,
     )
@@ -51,7 +60,7 @@ except:
     test_label = tk.Label(
         root,
         text="Welcome, let's manage some jira's!",
-        font="bold",
+        font=("Arial", 12, "bold"),
         width=50,
         wraplength=400,
     )

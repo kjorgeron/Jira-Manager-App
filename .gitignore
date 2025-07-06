@@ -85,3 +85,6 @@ instance/
 *.db
 
 images/
+
+# My Test File
+my_file.py
