@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 import os
 import json
+import requests
+from jira import JIRAError, JIRA
 
 
 def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
@@ -109,202 +111,31 @@ def load_data() -> dict:
     return {}  # Default empty payload
 
 
-# def toolbar_action(parent, options: dict, state: dict):
-#     # Panel State Manager
-#     if state["active_panel"]:
-#         state["active_panel"].destroy()
-#         state["active_panel"] = None
+def generate_error(parent, message: str):
+    border_frame = tk.Frame(parent, bg="red", padx=2, pady=2)  # Simulated red border
+    main_frame = tk.Frame(border_frame, bg="white")
 
-#     # Logic for Configure Button
-#     if options["type"] == "configure":
-#         font_style = ("Arial", 12, "bold")
-#         selected_auth = tk.StringVar(value="Basic Auth")
-#         proxy_option = tk.StringVar(value="No")
+    tk.Label(
+        main_frame,
+        text=f"Error Occurred - {message}",
+        font=("Arial", 12, "bold"),
+        fg="red",
+        bg="white",
+        width=50,
+        wraplength=400,
+    ).pack(padx=10, pady=10)
 
-#         panel = tk.Frame(parent, bg="white")
-#         panel.pack(fill="both", padx=10, pady=10, expand=True)
-#         state["active_panel"] = panel
-
-#         # --- Create split layout: form and footer ---
-#         form_frame = tk.Frame(panel, bg="white")
-#         form_frame.pack(fill="both", expand=True)
-
-#         footer_frame = tk.Frame(panel, bg="white")
-#         footer_frame.pack(fill="x", side="bottom")
-
-#         # --- Top Selectors Row ---
-#         selector_row = tk.Frame(form_frame, bg="white")
-#         selector_row.pack(fill="x", pady=5)
-
-#         tk.Label(
-#             selector_row,
-#             text="Credential Type:",
-#             font=font_style,
-#             fg="#4C30EB",
-#             bg="white",
-#         ).pack(side="left", padx=(0, 5))
-#         auth_type = ttk.Combobox(
-#             selector_row,
-#             textvariable=selected_auth,
-#             values=["Basic Auth", "Token Auth"],
-#             state="readonly",
-#         )
-#         auth_type.pack(side="left", padx=(0, 15))
-
-#         tk.Label(
-#             selector_row, text="Use Proxies:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         proxy_type = ttk.Combobox(
-#             selector_row,
-#             textvariable=proxy_option,
-#             values=["No", "Yes"],
-#             state="readonly",
-#         )
-#         proxy_type.pack(side="left")
-
-#         # --- Separator Line ---
-#         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
-
-#         # --- Jira Server Input ---
-#         jira_row = tk.Frame(form_frame, bg="white")
-#         jira_row.pack(fill="x", pady=5)
-#         jira_row.columnconfigure(1, weight=1)
-#         tk.Label(
-#             jira_row, text="Jira Server:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         jira_server_input = tk.Entry(jira_row, font=font_style)
-#         jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         # --- Proxy Panel ---
-#         proxy_panel = tk.Frame(form_frame, bg="white")
-
-#         proxy_http = tk.Frame(proxy_panel, bg="white")
-#         proxy_http.pack(fill="x", pady=5)
-#         proxy_http.columnconfigure(1, weight=1)
-#         tk.Label(
-#             proxy_http, text="HTTP Proxy:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         http_input = tk.Entry(proxy_http, font=font_style)
-#         http_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         proxy_https = tk.Frame(proxy_panel, bg="white")
-#         proxy_https.pack(fill="x", pady=5)
-#         proxy_https.columnconfigure(1, weight=1)
-#         tk.Label(
-#             proxy_https, text="HTTPS Proxy:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         https_input = tk.Entry(proxy_https, font=font_style)
-#         https_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         # --- Basic Auth Panel ---
-#         basic_panel = tk.Frame(form_frame, bg="white")
-
-#         user_row = tk.Frame(basic_panel, bg="white")
-#         user_row.pack(fill="x", pady=5)
-#         user_row.columnconfigure(1, weight=1)
-#         tk.Label(
-#             user_row, text="Username:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         username_input = tk.Entry(user_row, font=font_style)
-#         username_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         pass_row = tk.Frame(basic_panel, bg="white")
-#         pass_row.pack(fill="x", pady=5)
-#         pass_row.columnconfigure(1, weight=1)
-#         tk.Label(
-#             pass_row, text="Password:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         password_input = tk.Entry(pass_row, show="*", font=font_style)
-#         password_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         # --- Token Auth Panel ---
-#         token_panel = tk.Frame(form_frame, bg="white")
-
-#         token_row = tk.Frame(token_panel, bg="white")
-#         token_row.pack(fill="x", pady=5)
-#         token_row.columnconfigure(1, weight=1)
-#         tk.Label(
-#             token_row, text="Access Token:", font=font_style, fg="#4C30EB", bg="white"
-#         ).pack(side="left", padx=(0, 5))
-#         token_input = tk.Entry(token_row, show="*", font=font_style)
-#         token_input.pack(side="left", fill="x", expand=True, padx=10)
-
-#         # --- Update Logic ---
-#         def update_proxy_fields(event=None):
-#             proxy_panel.pack_forget()
-#             if proxy_option.get() == "Yes":
-#                 proxy_panel.pack(fill="x", pady=5)
-
-#         def update_auth_fields(event=None):
-#             basic_panel.pack_forget()
-#             token_panel.pack_forget()
-#             if selected_auth.get() == "Basic Auth":
-#                 basic_panel.pack(fill="x", pady=5)
-#             else:
-#                 token_panel.pack(fill="x", pady=5)
-
-#         proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
-#         auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
-
-#         update_proxy_fields()
-#         update_auth_fields()
-
-#         def on_save():
-#             # User Config Data
-#             server_data = jira_server_input.get()
-#             http_data = http_input.get()
-#             https_data = https_input.get()
-#             token_data = token_input.get()
-#             username_data = username_input.get()
-#             password_data = password_input.get()
-#             payload = {
-#                 "server": server_data,
-#                 "http_proxy": http_data,
-#                 "https_proxy": https_data,
-#                 "token": token_data,
-#                 "username": username_data,
-#                 "password": password_data,
-#             }
-#             save_data(payload)
-#             toolbar_action(parent, {"type": "configure"}, state)
-
-
-#         # --- Footer Separator & Save Button ---
-#         ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
-#         tk.Button(
-#             footer_frame,
-#             text="Save",
-#             font=font_style,
-#             bg="white",
-#             fg="#4C30EB",
-#             command=on_save,
-#         ).pack(pady=(5, 10))
-
-#     # Logic for Search Jiras Button
-#     elif options["type"] == "search_jiras":
-#         panel = tk.Frame(parent, bg="green", bd=2, relief="solid")
-#         panel.pack(fill="both", padx=10, pady=10, expand=True)
-#         state["active_panel"] = panel
-
-#         # Add content inside the panel (e.g. search bar, labels, etc.)
-#         tk.Label(
-#             panel,
-#             text="Search JIRAs",
-#             font=("Arial", 14, "bold"),
-#             bg="green",
-#             fg="white",
-#         ).pack(pady=10)
-#         tk.Entry(panel, font=("Arial", 12)).pack(fill="x", padx=20)
-#         tk.Button(
-#             panel, text="Search", font=("Arial", 12), bg="white", fg="green"
-#         ).pack(pady=10)
+    main_frame.pack()
+    return border_frame
 
 
 def toolbar_action(parent, options: dict, state: dict):
+    # Handling of active frames
     if state["active_panel"]:
         state["active_panel"].destroy()
         state["active_panel"] = None
 
+    # Handling of Data Configuration
     if options["type"] == "configure":
         config = load_data()
 
@@ -464,6 +295,7 @@ def toolbar_action(parent, options: dict, state: dict):
                 "username": username_input.get(),
                 "password": password_input.get(),
                 "auth_type": selected_auth.get(),
+                "proxy_option": proxy_option.get(),
             }
             save_data(payload)
             toolbar_action(parent, {"type": "configure"}, state)
@@ -477,3 +309,93 @@ def toolbar_action(parent, options: dict, state: dict):
             fg="#4C30EB",
             command=on_save,
         ).pack(pady=(5, 10))
+
+    # Handling of Jira Searching
+    elif options["type"] == "search_jiras":
+        data = load_data()
+        if data != {}:
+            # print(data)
+            server = data["server"]
+            token = data["token"]
+            username = data["username"]
+            password = data["password"]
+            http_proxy = data["http_proxy"]
+            https_proxy = data["https_proxy"]
+            use_proxy = data["proxy_option"]
+
+            # Handles credential initialization
+            if token != "":
+                headers = {
+                    "Authorization": f"Basic {token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                }
+            elif username != "" and password != "":
+                headers = {
+                    "Authorization": f"Basic {username}:{password}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                }
+            else:
+                error_frame = generate_error(
+                    parent,
+                    "Missing login credentials.",
+                )
+                error_frame.pack()
+                state["active_panel"] = error_frame
+
+            # Handles regular requests
+            if use_proxy.lower() != "yes":
+                if server != "":
+                    jql = "summary = Test Ticket 1"
+                    params = {"jql": jql}
+                    url = f"{server}rest/api/2/search?jql={jql}"
+                    try:
+                        response = requests.get(url=url, headers=headers, params=params)
+                        print(url)
+                        print(response.status_code)
+                    except JIRAError as e:
+                        error_frame = generate_error(
+                            parent,
+                            f"{e}",
+                        )
+                        error_frame.pack()
+                        state["active_panel"] = error_frame
+
+            # Handles proxy requests
+            if use_proxy.lower() != "no":
+                if (
+                    http_proxy != ""
+                    and https_proxy != ""
+                    and use_proxy.lower() == "yes"
+                ):
+                    proxy = {"http": http_proxy, "https": https_proxy}
+                    # DO REQUEST USING PROXY
+                    if server != "":
+                        pass
+                    else:
+                        error_frame = generate_error(
+                            parent,
+                            "Check Configure to make sure you have server set",
+                        )
+                        error_frame.pack()
+                        state["active_panel"] = error_frame
+
+                elif (
+                    use_proxy.lower() == "yes" and http_proxy == "" or https_proxy == ""
+                ):
+                    error_frame = generate_error(
+                        parent,
+                        "Must have values in both HTTP and HTTPS proxies in order to use.",
+                    )
+                    error_frame.pack()
+                    state["active_panel"] = error_frame
+
+        else:
+            print("No data")
+            error_frame = generate_error(
+                parent,
+                "No Configuration Data found... please press Configure button at top left.",
+            )
+            error_frame.pack()
+            state["active_panel"] = error_frame
