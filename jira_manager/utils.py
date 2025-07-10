@@ -1,9 +1,43 @@
 import tkinter as tk
-from tkinter import ttk
 import os
 import json
 import requests
+import base64
+from tkinter import ttk
 from jira import JIRAError, JIRA
+from requests.auth import HTTPBasicAuth
+from jira_manager.custom_widgets import EntryWithPlaceholder
+
+
+def encode_basic_auth(username: str, password: str) -> str:
+    credentials = f"{username}:{password}"
+    token_bytes = credentials.encode("utf-8")
+    base64_token = base64.b64encode(token_bytes).decode("utf-8")
+    return base64_token
+
+
+def connect_to_jira(domain, email, token, operation):
+    url = f"https://{domain}/rest/api/2/{operation}"
+
+    # Try Basic Auth first
+    try:
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(email, token),
+            headers={"Accept": "application/json"},
+        )
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass  # If Basic Auth fails, try Bearer as fallback
+
+    # Fallback to Bearer Token
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+
+    return {"error": response.status_code, "message": response.text}
 
 
 def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
@@ -226,11 +260,15 @@ def toolbar_action(parent, options: dict, state: dict):
         user_row.pack(fill="x", pady=5)
         user_row.columnconfigure(1, weight=1)
         tk.Label(
-            user_row, text="Username:", font=font_style, fg="#4C30EB", bg="white"
+            user_row, text="User ID:", font=font_style, fg="#4C30EB", bg="white"
         ).pack(side="left", padx=(0, 5))
-        username_input = tk.Entry(user_row, font=font_style)
+        username_input = EntryWithPlaceholder(
+            user_row,
+            placeholder="Enter username or email...",
+            color="grey",
+            font=font_style,
+        )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
-        username_input.insert(0, config.get("username", ""))
 
         pass_row = tk.Frame(basic_panel, bg="white")
         pass_row.pack(fill="x", pady=5)
@@ -238,9 +276,14 @@ def toolbar_action(parent, options: dict, state: dict):
         tk.Label(
             pass_row, text="Password:", font=font_style, fg="#4C30EB", bg="white"
         ).pack(side="left", padx=(0, 5))
-        password_input = tk.Entry(pass_row, show="*", font=font_style)
+        password_input = EntryWithPlaceholder(
+            pass_row,
+            placeholder="Enter password or token...",
+            color="grey",
+            show="*",
+            font=font_style,
+        )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
-        password_input.insert(0, config.get("password", ""))
 
         token_panel = tk.Frame(form_frame, bg="white")
 
@@ -250,9 +293,14 @@ def toolbar_action(parent, options: dict, state: dict):
         tk.Label(
             token_row, text="Access Token:", font=font_style, fg="#4C30EB", bg="white"
         ).pack(side="left", padx=(0, 5))
-        token_input = tk.Entry(token_row, show="*", font=font_style)
+        token_input = EntryWithPlaceholder(
+            token_row,
+            placeholder="(Bearer Token) JWT or OAuth 2.0 only...",
+            color="grey",
+            show="*",
+            font=font_style,
+        )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
-        token_input.insert(0, config.get("token", ""))
 
         def update_proxy_fields(event=None):
             proxy_panel.pack_forget()
@@ -323,44 +371,75 @@ def toolbar_action(parent, options: dict, state: dict):
             https_proxy = data["https_proxy"]
             use_proxy = data["proxy_option"]
 
-            # Handles credential initialization
-            if token != "":
-                headers = {
-                    "Authorization": f"Basic {token}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                }
-            elif username != "" and password != "":
-                headers = {
-                    "Authorization": f"Basic {username}:{password}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                }
-            else:
-                error_frame = generate_error(
-                    parent,
-                    "Missing login credentials.",
-                )
-                error_frame.pack()
-                state["active_panel"] = error_frame
-
-            # Handles regular requests
-            if use_proxy.lower() != "yes":
-                if server != "":
-                    jql = "summary = Test Ticket 1"
-                    params = {"jql": jql}
-                    url = f"{server}rest/api/2/search?jql={jql}"
+            if server != "":
+                # Handles credential initialization
+                if token != "":
                     try:
-                        response = requests.get(url=url, headers=headers, params=params)
-                        print(url)
-                        print(response.status_code)
+                        # jira = JIRA(server=server, token_auth=token)
+                        headers = {
+                            "Authorization": f"Bearer {token}",
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                        }
                     except JIRAError as e:
                         error_frame = generate_error(
                             parent,
-                            f"{e}",
+                            f"Issue with token - {e}",
+                        )
+                    error_frame.pack()
+                    state["active_panel"] = error_frame
+                    raise JIRAError
+                elif username != "" and password != "":
+                    try:
+                        # jira = JIRA(server=server, basic_auth=(username, password))
+                        headers = {
+                            "Authorization": f"Basic {encode_basic_auth(username, password)}",
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                        }
+                    except JIRAError as e:
+                        error_frame = generate_error(
+                            parent,
+                            f"Issue with username/password - {e}",
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
+                        raise JIRAError
+                else:
+                    error_frame = generate_error(
+                        parent,
+                        "Missing login credentials.",
+                    )
+                    error_frame.pack()
+                    state["active_panel"] = error_frame
+            else:
+                error_frame = generate_error(
+                    parent,
+                    "Missing Jira server url.",
+                )
+                error_frame.pack()
+                state["active_panel"] = error_frame
+                raise Exception
+
+            # Handles regular requests
+            if use_proxy.lower() != "yes":
+
+                jql = "key = SCRUM-1"
+                # params = {"jql": jql}
+                url = f"{server}rest/api/2/search?jql={jql}"
+                try:
+                    # issues = jira.search_issues(jql_str=jql)
+                    # print(issues)
+                    response = requests.get(url=url, headers=headers)
+                    from pprint import pprint
+                    pprint(response.json())
+                except JIRAError as e:
+                    error_frame = generate_error(
+                        parent,
+                        f"{e}",
+                    )
+                    error_frame.pack()
+                    state["active_panel"] = error_frame
 
             # Handles proxy requests
             if use_proxy.lower() != "no":
