@@ -16,30 +16,6 @@ def encode_basic_auth(username: str, password: str) -> str:
     return base64_token
 
 
-def connect_to_jira(domain, email, token, operation):
-    url = f"https://{domain}/rest/api/2/{operation}"
-
-    # Try Basic Auth first
-    try:
-        response = requests.get(
-            url,
-            auth=HTTPBasicAuth(email, token),
-            headers={"Accept": "application/json"},
-        )
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass  # If Basic Auth fails, try Bearer as fallback
-
-    # Fallback to Bearer Token
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-
-    return {"error": response.status_code, "message": response.text}
-
-
 def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
     # Create a canvas to draw the rounded background
     canvas = tk.Canvas(parent, bg=parent["bg"], highlightthickness=0)
@@ -267,6 +243,7 @@ def toolbar_action(parent, options: dict, state: dict):
             placeholder="Enter username or email...",
             color="grey",
             font=font_style,
+            initial_text=config.get("username", "")
         )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -282,6 +259,7 @@ def toolbar_action(parent, options: dict, state: dict):
             color="grey",
             show="*",
             font=font_style,
+            initial_text=config.get("password", "")
         )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -299,6 +277,7 @@ def toolbar_action(parent, options: dict, state: dict):
             color="grey",
             show="*",
             font=font_style,
+            initial_text=config.get("token", "")
         )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -322,29 +301,39 @@ def toolbar_action(parent, options: dict, state: dict):
         update_auth_fields()
 
         def on_save():
-
             # Handles clearing of unused data for login
             if selected_auth.get() == "Basic Auth":
                 token_input.delete(0, tk.END)
+                token_input.reset_to_placeholder()
             else:  # Token Auth selected
                 username_input.delete(0, tk.END)
+                username_input.reset_to_placeholder()
                 password_input.delete(0, tk.END)
+                password_input.reset_to_placeholder()
 
             # Handles clearing of unused data for proxy
             if proxy_option.get() == "No":
                 http_input.delete(0, tk.END)
                 https_input.delete(0, tk.END)
 
+            # Helper to ignore placeholder text when saving
+            def get_clean_value(widget):
+                value = widget.get()
+                if value != widget.placeholder or widget['fg'] != widget.placeholder_color:
+                    return value
+                return ""
+
             payload = {
                 "server": jira_server_input.get(),
                 "http_proxy": http_input.get(),
                 "https_proxy": https_input.get(),
-                "token": token_input.get(),
-                "username": username_input.get(),
-                "password": password_input.get(),
+                "token": get_clean_value(token_input),
+                "username": get_clean_value(username_input),
+                "password": get_clean_value(password_input),
                 "auth_type": selected_auth.get(),
                 "proxy_option": proxy_option.get(),
             }
+
             save_data(payload)
             toolbar_action(parent, {"type": "configure"}, state)
 
@@ -412,6 +401,46 @@ def toolbar_action(parent, options: dict, state: dict):
                     )
                     error_frame.pack()
                     state["active_panel"] = error_frame
+
+                # No proxy request
+                if use_proxy.lower() != "yes":
+                    jql = "key = SCRUM-1"
+                    # params = {"jql": jql}
+                    url = f"{server}rest/api/2/search?jql={jql}"
+                    try:
+                        response = requests.get(url=url, headers=headers)
+                        from pprint import pprint
+
+                        pprint(response.json())
+                    except JIRAError as e:
+                        error_frame = generate_error(
+                            parent,
+                            f"{e}",
+                        )
+                        error_frame.pack()
+                        state["active_panel"] = error_frame
+
+                # Handles proxy requests
+                if use_proxy.lower() != "no":
+                    if (
+                        http_proxy != ""
+                        and https_proxy != ""
+                        and use_proxy.lower() == "yes"
+                    ):
+                        proxy = {"http": http_proxy, "https": https_proxy}
+                        # DO REQUEST USING PROXY
+
+                    elif (
+                        use_proxy.lower() == "yes"
+                        and http_proxy == ""
+                        or https_proxy == ""
+                    ):
+                        error_frame = generate_error(
+                            parent,
+                            "Must have values in both HTTP and HTTPS proxies in order to use.",
+                        )
+                        error_frame.pack()
+                        state["active_panel"] = error_frame
             else:
                 error_frame = generate_error(
                     parent,
@@ -420,56 +449,6 @@ def toolbar_action(parent, options: dict, state: dict):
                 error_frame.pack()
                 state["active_panel"] = error_frame
                 raise Exception
-
-            # Handles regular requests
-            if use_proxy.lower() != "yes":
-
-                jql = "key = SCRUM-1"
-                # params = {"jql": jql}
-                url = f"{server}rest/api/2/search?jql={jql}"
-                try:
-                    # issues = jira.search_issues(jql_str=jql)
-                    # print(issues)
-                    response = requests.get(url=url, headers=headers)
-                    from pprint import pprint
-                    pprint(response.json())
-                except JIRAError as e:
-                    error_frame = generate_error(
-                        parent,
-                        f"{e}",
-                    )
-                    error_frame.pack()
-                    state["active_panel"] = error_frame
-
-            # Handles proxy requests
-            if use_proxy.lower() != "no":
-                if (
-                    http_proxy != ""
-                    and https_proxy != ""
-                    and use_proxy.lower() == "yes"
-                ):
-                    proxy = {"http": http_proxy, "https": https_proxy}
-                    # DO REQUEST USING PROXY
-                    if server != "":
-                        pass
-                    else:
-                        error_frame = generate_error(
-                            parent,
-                            "Check Configure to make sure you have server set",
-                        )
-                        error_frame.pack()
-                        state["active_panel"] = error_frame
-
-                elif (
-                    use_proxy.lower() == "yes" and http_proxy == "" or https_proxy == ""
-                ):
-                    error_frame = generate_error(
-                        parent,
-                        "Must have values in both HTTP and HTTPS proxies in order to use.",
-                    )
-                    error_frame.pack()
-                    state["active_panel"] = error_frame
-
         else:
             print("No data")
             error_frame = generate_error(
