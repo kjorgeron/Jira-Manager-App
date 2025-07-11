@@ -6,7 +6,34 @@ import base64
 from tkinter import ttk
 from jira import JIRAError, JIRA
 from requests.auth import HTTPBasicAuth
-from jira_manager.custom_widgets import EntryWithPlaceholder
+from jira_manager.custom_widgets import EntryWithPlaceholder, ScrollableFrame
+from pprint import pprint
+
+
+def create_scrollable_frame(parent):
+    # Base canvas to enable scrolling
+    canvas = tk.Canvas(parent, bg="white", highlightthickness=0)
+    canvas.pack(fill="both", expand=True)
+
+    # Hidden scrollbar (scroll logic still enabled)
+    scrollbar = tk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack_forget()
+
+    # This frame is where you’ll add your actual content
+    scrollable_frame = tk.Frame(canvas, bg="white")
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
+    # Update scroll region on content change
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    # Enable mousewheel scrolling (Windows/Linux)
+    scrollable_frame.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+
+    return scrollable_frame
 
 
 def encode_basic_auth(username: str, password: str) -> str:
@@ -28,7 +55,7 @@ def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
     tk.Label(
         content,
         text=title,
-        font=("Arial", 12, "bold"),
+        font=("Trebuchet MS", 12, "bold"),
         bg="white",
         anchor="center",
         justify="center",
@@ -122,21 +149,83 @@ def load_data() -> dict:
 
 
 def generate_error(parent, message: str):
-    border_frame = tk.Frame(parent, bg="red", padx=2, pady=2)  # Simulated red border
-    main_frame = tk.Frame(border_frame, bg="white")
+    # Outer shield-frame (red border)
+    border_frame = tk.Frame(parent, bg="red", padx=3, pady=3)  # Blood-red Viking steel
 
+    # Canvas scrollable battleboard
+    canvas = tk.Canvas(border_frame, bg="#fdfdfd", highlightthickness=0, width=550, height=100)
+    canvas.pack(fill="both", expand=True)
+
+    # Hidden scrollbar (still battle-ready)
+    scrollbar = tk.Scrollbar(border_frame, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack_forget()
+
+    # Scrollable content terrain
+    content_frame = tk.Frame(canvas, bg="#fdfdfd")
+    canvas.create_window((0, 0), window=content_frame, anchor="nw")
+
+    # Expand scroll bounds as messages grow
+    content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+    # Enable trackpad & mousewheel charge
+    canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+
+    # The error rune itself
     tk.Label(
-        main_frame,
-        text=f"Error Occurred - {message}",
-        font=("Arial", 12, "bold"),
+        content_frame,
+        text=f"⚠️ Error Occurred:\n\n{message}",
+        font=("Trebuchet MS", 12, "bold"),  # Clean, heroic font
         fg="red",
-        bg="white",
-        width=50,
-        wraplength=400,
-    ).pack(padx=10, pady=10)
+        bg="#fdfdfd",
+        wraplength=500,
+        justify="left",
+        padx=12,
+        pady=12,
+    ).pack(fill="x")
 
-    main_frame.pack()
     return border_frame
+
+
+def configure_results(results, options, parent, state):
+    # Handling of Jira Data
+    try:
+        # Handlers for improper JQL queries
+        if results["errorMessages"]:
+            raise Exception(f"{results["errorMessages"]}")
+        if options["jql"] != "Enter proper JQL query..." or options["jql"] != "":
+            
+            pprint(f"{results=}")
+            
+            # CREATE SCROLLABLE FRAME FOR JIRA CARDS
+        else:
+            raise Exception("Please provide proper jql query...")
+    except Exception as e:
+        # error_frame = generate_error(
+        #     parent,
+        #     f"{e}",
+        # )
+        scroll_area = create_scrollable_frame(parent)
+        scroll_area.pack(fill="both", padx=10, expand=True)
+        error_message = generate_error(scroll_area, f"{'Error occurred with the JQL query... Please provide a proper query'}")
+        error_message.pack()
+
+
+        # error_frame.pack()
+        # state["active_panel"] = error_frame
+
+    # except Exception as e:
+    #     # Create a scrollable container for the error panel
+    #     scroll_container = ScrollableFrame(parent)
+    #     scroll_container.pack(fill="both", expand=True)
+
+    #     # Generate the error frame inside the scrollable area
+    #     error_frame = generate_error(scroll_container.scrollable_frame, str(e))
+    #     error_frame.pack(padx=10, pady=10)
+
+    #     # Track active panel
+    #     state["active_panel"] = scroll_container
+
 
 
 def toolbar_action(parent, options: dict, state: dict):
@@ -147,6 +236,8 @@ def toolbar_action(parent, options: dict, state: dict):
 
     # Handling of Data Configuration
     if options["type"] == "configure":
+
+        # Data stored in users Documents folder
         config = load_data()
 
         font_style = ("Arial", 12, "bold")
@@ -198,6 +289,7 @@ def toolbar_action(parent, options: dict, state: dict):
 
         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
 
+        # Form Inputs
         jira_row = tk.Frame(form_frame, bg="white")
         jira_row.pack(fill="x", pady=5)
         jira_row.columnconfigure(1, weight=1)
@@ -243,7 +335,7 @@ def toolbar_action(parent, options: dict, state: dict):
             placeholder="Enter username or email...",
             color="grey",
             font=font_style,
-            initial_text=config.get("username", "")
+            initial_text=config.get("username", ""),
         )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -259,7 +351,7 @@ def toolbar_action(parent, options: dict, state: dict):
             color="grey",
             show="*",
             font=font_style,
-            initial_text=config.get("password", "")
+            initial_text=config.get("password", ""),
         )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -277,7 +369,7 @@ def toolbar_action(parent, options: dict, state: dict):
             color="grey",
             show="*",
             font=font_style,
-            initial_text=config.get("token", "")
+            initial_text=config.get("token", ""),
         )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -319,7 +411,10 @@ def toolbar_action(parent, options: dict, state: dict):
             # Helper to ignore placeholder text when saving
             def get_clean_value(widget):
                 value = widget.get()
-                if value != widget.placeholder or widget['fg'] != widget.placeholder_color:
+                if (
+                    value != widget.placeholder
+                    or widget["fg"] != widget.placeholder_color
+                ):
                     return value
                 return ""
 
@@ -351,7 +446,6 @@ def toolbar_action(parent, options: dict, state: dict):
     elif options["type"] == "search_jiras":
         data = load_data()
         if data != {}:
-            # print(data)
             server = data["server"]
             token = data["token"]
             username = data["username"]
@@ -380,7 +474,6 @@ def toolbar_action(parent, options: dict, state: dict):
                     raise JIRAError
                 elif username != "" and password != "":
                     try:
-                        # jira = JIRA(server=server, basic_auth=(username, password))
                         headers = {
                             "Authorization": f"Basic {encode_basic_auth(username, password)}",
                             "Content-Type": "application/json",
@@ -404,15 +497,18 @@ def toolbar_action(parent, options: dict, state: dict):
 
                 # No proxy request
                 if use_proxy.lower() != "yes":
-                    jql = "key = SCRUM-1"
-                    # params = {"jql": jql}
-                    url = f"{server}rest/api/2/search?jql={jql}"
+                    # jql = "key = SCRUM-1"
+                    url = f"{server}rest/api/2/search?jql={options['jql']}"
                     try:
-                        response = requests.get(url=url, headers=headers)
-                        from pprint import pprint
+                        if options["jql"] != "Enter proper JQL query...":
+                            response = requests.get(url=url, headers=headers)
 
-                        pprint(response.json())
-                    except JIRAError as e:
+                            # Return value
+                            results = response.json()
+                            configure_results(results, options, parent, state)
+                        else:
+                            raise Exception("Please provide proper jql query")
+                    except Exception as e:
                         error_frame = generate_error(
                             parent,
                             f"{e}",
@@ -429,6 +525,25 @@ def toolbar_action(parent, options: dict, state: dict):
                     ):
                         proxy = {"http": http_proxy, "https": https_proxy}
                         # DO REQUEST USING PROXY
+                        url = f"{server}rest/api/2/search?jql={options['jql']}"
+                        try:
+                            # if options["jql"] != "Enter proper JQL query...":
+                            response = requests.get(
+                                url=url, headers=headers, proxies=proxy
+                            )
+
+                            # Return value
+                            results = response.json()
+                            configure_results(results, options, parent, state)
+                            # else:
+                            #     raise Exception("Please provide proper jql query")
+                        except JIRAError as e:
+                            error_frame = generate_error(
+                                parent,
+                                f"{e}",
+                            )
+                            error_frame.pack()
+                            state["active_panel"] = error_frame
 
                     elif (
                         use_proxy.lower() == "yes"
@@ -455,5 +570,5 @@ def toolbar_action(parent, options: dict, state: dict):
                 parent,
                 "No Configuration Data found... please press Configure button at top left.",
             )
-            error_frame.pack()
+            error_frame.pack(fill="both", padx=10)
             state["active_panel"] = error_frame
