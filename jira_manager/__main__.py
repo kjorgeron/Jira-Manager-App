@@ -17,19 +17,21 @@ from tkinter import ttk
 
 # CONFIG INIT
 if not os.path.exists(get_config_path()):
-    save_data({"theme": "light"})
+    save_data({"theme": "Dark"})
 
 
 # SETUP THEME
 mode = get_theme_mode(config_path="jira_manager/app_config.json")
 # print(f"{mode=}")
 try:
-    if mode == "light":
+    if mode == "Light":
         mode = light_mode
-    elif mode == "dark":
+    elif mode == "Dark":
         mode = dark_mode
 except Exception:
     mode = dark_mode
+
+print(f"{mode=}")
 
 # WINDOW INIT
 root = initialize_window(mode["background"])
@@ -38,11 +40,20 @@ root = initialize_window(mode["background"])
 style = ttk.Style()
 style.theme_use("default")
 style.configure(
-    "TCombobox",
-    fieldbackground=mode["background"],  # Inside background
-    background=mode["background"],  # Dropdown arrow area
-    foreground=mode["primary_color"],
-)  # Text color
+    "Custom.TCombobox",
+    foreground=mode["primary_color"],   # Text color
+    fieldbackground=mode["background"], # Field background
+)
+
+# Use `map` to control dropdown popup on hover/active/etc
+style.map(
+    "Custom.TCombobox",
+    fieldbackground=[("readonly", mode["background"])],
+    foreground=[("readonly", mode["primary_color"])],
+)
+
+
+
 
 
 # APP LOGO

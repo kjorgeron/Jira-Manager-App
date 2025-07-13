@@ -284,14 +284,20 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
 
         # Data stored in users Documents folder
         config = load_data()
-
+        print(config.get("theme"))
         font_style = ("Arial", 12, "bold")
+
+        # DEFAULTS FOR COMBOBOX
         selected_auth = tk.StringVar(value=config.get("auth_type", "Basic Auth"))
         proxy_option = tk.StringVar(
             value=(
                 "Yes" if config.get("http_proxy") or config.get("https_proxy") else "No"
             )
         )
+        theme_option = tk.StringVar(
+            value=config.get("theme", "Light")  # default to 'light' if not set
+        )
+        print(theme_option.get())
 
         panel = tk.Frame(parent, bg=mode["background"])
         panel.pack(fill="both", padx=10, pady=10, expand=True)
@@ -306,36 +312,61 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
         selector_row = tk.Frame(form_frame, bg=mode["background"])
         selector_row.pack(fill="x", pady=5)
 
+        # Row 0, Column 0 – Credential Type
         tk.Label(
             selector_row,
             text="Credential Type:",
             font=font_style,
             fg=mode["primary_color"],
             bg=mode["background"],
-        ).pack(side="left", padx=(0, 5))
+        ).grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
+
         auth_type = ttk.Combobox(
             selector_row,
             textvariable=selected_auth,
             values=["Basic Auth", "Token Auth"],
             state="readonly",
+            style="Custom.TCombobox",
         )
-        auth_type.pack(side="left", padx=(0, 15))
+        auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
 
+        # Row 0, Column 2 – Use Proxies
         tk.Label(
             selector_row,
             text="Use Proxies:",
             font=font_style,
             fg=mode["primary_color"],
             bg=mode["background"],
-        ).pack(side="left", padx=(0, 5))
+        ).grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
+
         proxy_type = ttk.Combobox(
             selector_row,
             textvariable=proxy_option,
             values=["No", "Yes"],
             state="readonly",
+            style="Custom.TCombobox",
         )
-        proxy_type.pack(side="left")
+        proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
 
+        # Row 1, Column 1 – Theme
+        tk.Label(
+            selector_row,
+            text="Theme:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
+        ).grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
+
+        theme = ttk.Combobox(
+            selector_row,
+            textvariable=theme_option,
+            values=["Light", "Dark"],
+            state="readonly",
+            style="Custom.TCombobox",
+        )
+        theme.grid(row=1, column=1, sticky="ew", pady=2)
+
+        # SEPERATOR IN FORM
         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Form Inputs
@@ -533,6 +564,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
                 "password": get_clean_value(password_input),
                 "auth_type": selected_auth.get(),
                 "proxy_option": proxy_option.get(),
+                "theme": theme_option.get(),
             }
 
             save_data(payload)
