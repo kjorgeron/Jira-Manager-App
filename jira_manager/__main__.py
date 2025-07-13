@@ -24,9 +24,9 @@ if not os.path.exists(get_config_path()):
 mode = get_theme_mode(config_path="jira_manager/app_config.json")
 # print(f"{mode=}")
 try:
-    if mode == "Light":
+    if mode.lower() == "light":
         mode = light_mode
-    elif mode == "Dark":
+    elif mode.lower() == "dark":
         mode = dark_mode
 except Exception:
     mode = dark_mode
