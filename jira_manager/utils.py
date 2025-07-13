@@ -8,6 +8,40 @@ from jira import JIRAError, JIRA
 from requests.auth import HTTPBasicAuth
 from jira_manager.custom_widgets import EntryWithPlaceholder, ScrollableFrame
 from pprint import pprint
+from PIL import Image, ImageTk
+from jira_manager.file_manager import save_data, load_data
+
+
+def initialize_window(background):
+    root = tk.Tk()
+    root.configure(bg=background)
+    root.title("TicketSmith")
+    root.geometry("600x800")
+    icon_path = "images/ticket-smith-icon.png"
+    img = Image.open(icon_path)
+    resized_img = img.resize((32, 32), Image.Resampling.LANCZOS)
+    icon = ImageTk.PhotoImage(resized_img)
+    root.iconphoto(False, icon)
+    root.resizable(False, False)
+    return root
+
+
+def get_theme_mode(config_path="app_config.json"):
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+            print("theme=", config["theme"])
+            theme = config.get("theme", "light")  # Default to light
+            return theme.lower()
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return "light"  # Fallback
+
+
+def create_divider(parent, bg_color):
+    # --- Divider (optional) ---
+    divider = tk.Frame(parent, bg=bg_color, height=2)
+    divider.pack(fill=tk.X, padx=10)
 
 
 def create_scrollable_frame(parent):
@@ -26,12 +60,13 @@ def create_scrollable_frame(parent):
 
     # Update scroll region on content change
     scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
     )
 
     # Enable mousewheel scrolling (Windows/Linux)
-    scrollable_frame.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+    scrollable_frame.bind_all(
+        "<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units")
+    )
 
     return scrollable_frame
 
@@ -122,38 +157,42 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
     return toolbar
 
 
-def save_data(payload: dict):
-    print(payload)
-    path = os.path.join(
-        os.environ["USERPROFILE"], "Documents", "jira_manager_settings.json"
-    )
-    with open(path, "w") as f:
-        json.dump(payload, f)
+# def save_data(payload: dict):
+#     print(payload)
+#     path = os.path.join(
+#         os.environ["USERPROFILE"], "Documents", "jira_manager_settings.json"
+#     )
+#     with open(path, "w") as f:
+#         json.dump(payload, f)
 
 
-def load_data() -> dict:
-    path = os.path.join(
-        os.environ["USERPROFILE"], "Documents", "jira_manager_settings.json"
-    )
+# def load_data() -> dict:
+#     path = os.path.join(
+#         os.environ["USERPROFILE"], "Documents", "jira_manager_settings.json"
+#     )
 
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print("⚠️ JSON file is corrupted. Returning empty config.")
-    else:
-        print("ℹ️ No config file found. Returning empty config.")
+#     if os.path.exists(path):
+#         try:
+#             with open(path, "r") as f:
+#                 return json.load(f)
+#         except json.JSONDecodeError:
+#             print("⚠️ JSON file is corrupted. Returning empty config.")
+#     else:
+#         print("ℹ️ No config file found. Returning empty config.")
 
-    return {}  # Default empty payload
+#     return {}  # Default empty payload
 
 
-def generate_error(parent, message: str):
+def generate_error(parent, message: str, mode: dict):
     # Outer shield-frame (red border)
-    border_frame = tk.Frame(parent, bg="red", padx=3, pady=3)  # Blood-red Viking steel
+    border_frame = tk.Frame(
+        parent, bg=mode["error_color"], padx=3, pady=3
+    )  # Blood-red Viking steel
 
     # Canvas scrollable battleboard
-    canvas = tk.Canvas(border_frame, bg="#fdfdfd", highlightthickness=0, width=550, height=100)
+    canvas = tk.Canvas(
+        border_frame, bg=mode["background"], highlightthickness=0, width=550, height=100
+    )
     canvas.pack(fill="both", expand=True)
 
     # Hidden scrollbar (still battle-ready)
@@ -162,22 +201,26 @@ def generate_error(parent, message: str):
     scrollbar.pack_forget()
 
     # Scrollable content terrain
-    content_frame = tk.Frame(canvas, bg="#fdfdfd")
+    content_frame = tk.Frame(canvas, bg=mode["background"])
     canvas.create_window((0, 0), window=content_frame, anchor="nw")
 
     # Expand scroll bounds as messages grow
-    content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    content_frame.bind(
+        "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
 
     # Enable trackpad & mousewheel charge
-    canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+    canvas.bind_all(
+        "<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units")
+    )
 
     # The error rune itself
     tk.Label(
         content_frame,
         text=f"⚠️ Error Occurred:\n\n{message}",
         font=("Trebuchet MS", 12, "bold"),  # Clean, heroic font
-        fg="red",
-        bg="#fdfdfd",
+        fg=mode["error_color"],
+        bg=mode["background"],
         wraplength=500,
         justify="left",
         padx=12,
@@ -187,16 +230,16 @@ def generate_error(parent, message: str):
     return border_frame
 
 
-def configure_results(results, options, parent, state):
+def configure_results(results, options, parent, state, mode):
     # Handling of Jira Data
     try:
         # Handlers for improper JQL queries
         if results["errorMessages"]:
             raise Exception(f"{results["errorMessages"]}")
         if options["jql"] != "Enter proper JQL query..." or options["jql"] != "":
-            
+
             pprint(f"{results=}")
-            
+
             # CREATE SCROLLABLE FRAME FOR JIRA CARDS
         else:
             raise Exception("Please provide proper jql query...")
@@ -207,9 +250,12 @@ def configure_results(results, options, parent, state):
         # )
         scroll_area = create_scrollable_frame(parent)
         scroll_area.pack(fill="both", padx=10, expand=True)
-        error_message = generate_error(scroll_area, f"{'Error occurred with the JQL query... Please provide a proper query'}")
+        error_message = generate_error(
+            scroll_area,
+            f"{'Error occurred with the JQL query... Please provide a proper query'}",
+            mode,
+        )
         error_message.pack()
-
 
         # error_frame.pack()
         # state["active_panel"] = error_frame
@@ -227,8 +273,7 @@ def configure_results(results, options, parent, state):
     #     state["active_panel"] = scroll_container
 
 
-
-def toolbar_action(parent, options: dict, state: dict):
+def toolbar_action(parent, options: dict, state: dict, mode: dict):
     # Handling of active frames
     if state["active_panel"]:
         state["active_panel"].destroy()
@@ -248,25 +293,25 @@ def toolbar_action(parent, options: dict, state: dict):
             )
         )
 
-        panel = tk.Frame(parent, bg="white")
+        panel = tk.Frame(parent, bg=mode["background"])
         panel.pack(fill="both", padx=10, pady=10, expand=True)
         state["active_panel"] = panel
 
-        form_frame = tk.Frame(panel, bg="white")
+        form_frame = tk.Frame(panel, bg=mode["background"])
         form_frame.pack(fill="both", expand=True)
 
-        footer_frame = tk.Frame(panel, bg="white")
+        footer_frame = tk.Frame(panel, bg=mode["background"])
         footer_frame.pack(fill="x", side="bottom")
 
-        selector_row = tk.Frame(form_frame, bg="white")
+        selector_row = tk.Frame(form_frame, bg=mode["background"])
         selector_row.pack(fill="x", pady=5)
 
         tk.Label(
             selector_row,
             text="Credential Type:",
             font=font_style,
-            fg="#4C30EB",
-            bg="white",
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         auth_type = ttk.Combobox(
             selector_row,
@@ -277,7 +322,11 @@ def toolbar_action(parent, options: dict, state: dict):
         auth_type.pack(side="left", padx=(0, 15))
 
         tk.Label(
-            selector_row, text="Use Proxies:", font=font_style, fg="#4C30EB", bg="white"
+            selector_row,
+            text="Use Proxies:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         proxy_type = ttk.Combobox(
             selector_row,
@@ -290,13 +339,29 @@ def toolbar_action(parent, options: dict, state: dict):
         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Form Inputs
-        jira_row = tk.Frame(form_frame, bg="white")
+        jira_row = tk.Frame(form_frame, bg=mode["background"])
         jira_row.pack(fill="x", pady=5)
         jira_row.columnconfigure(1, weight=1)
         tk.Label(
-            jira_row, text="Jira Server:", font=font_style, fg="#4C30EB", bg="white"
+            jira_row,
+            text="Jira Server:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
-        jira_server_input = tk.Entry(jira_row, font=font_style)
+        jira_server_input = EntryWithPlaceholder(
+            jira_row,
+            color=mode["btn_highlight"],
+            placeholder="Provide base url",
+            font=font_style,
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
+        )
         jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
         jira_server_input.insert(0, config.get("server", ""))
 
@@ -306,70 +371,111 @@ def toolbar_action(parent, options: dict, state: dict):
         proxy_http.pack(fill="x", pady=5)
         proxy_http.columnconfigure(1, weight=1)
         tk.Label(
-            proxy_http, text="HTTP Proxy:", font=font_style, fg="#4C30EB", bg="white"
+            proxy_http,
+            text="HTTP Proxy:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         http_input = tk.Entry(proxy_http, font=font_style)
         http_input.pack(side="left", fill="x", expand=True, padx=10)
         http_input.insert(0, config.get("http_proxy", ""))
 
-        proxy_https = tk.Frame(proxy_panel, bg="white")
+        proxy_https = tk.Frame(proxy_panel, bg=mode["background"])
         proxy_https.pack(fill="x", pady=5)
         proxy_https.columnconfigure(1, weight=1)
         tk.Label(
-            proxy_https, text="HTTPS Proxy:", font=font_style, fg="#4C30EB", bg="white"
+            proxy_https,
+            text="HTTPS Proxy:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         https_input = tk.Entry(proxy_https, font=font_style)
         https_input.pack(side="left", fill="x", expand=True, padx=10)
         https_input.insert(0, config.get("https_proxy", ""))
 
-        basic_panel = tk.Frame(form_frame, bg="white")
+        basic_panel = tk.Frame(form_frame, bg=mode["background"])
 
-        user_row = tk.Frame(basic_panel, bg="white")
+        user_row = tk.Frame(basic_panel, bg=mode["background"])
         user_row.pack(fill="x", pady=5)
         user_row.columnconfigure(1, weight=1)
         tk.Label(
-            user_row, text="User ID:", font=font_style, fg="#4C30EB", bg="white"
+            user_row,
+            text="User ID:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         username_input = EntryWithPlaceholder(
             user_row,
-            placeholder="Enter username or email...",
-            color="grey",
+            placeholder="Enter username or email",
+            color=mode["btn_highlight"],
             font=font_style,
             initial_text=config.get("username", ""),
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
         )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
 
-        pass_row = tk.Frame(basic_panel, bg="white")
+        pass_row = tk.Frame(basic_panel, bg=mode["background"])
         pass_row.pack(fill="x", pady=5)
         pass_row.columnconfigure(1, weight=1)
         tk.Label(
-            pass_row, text="Password:", font=font_style, fg="#4C30EB", bg="white"
+            pass_row,
+            text="Password:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         password_input = EntryWithPlaceholder(
             pass_row,
-            placeholder="Enter password or token...",
-            color="grey",
+            placeholder="Enter password or token",
+            color=mode["btn_highlight"],
             show="*",
             font=font_style,
             initial_text=config.get("password", ""),
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
         )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
 
-        token_panel = tk.Frame(form_frame, bg="white")
+        token_panel = tk.Frame(form_frame, bg=mode["background"])
 
-        token_row = tk.Frame(token_panel, bg="white")
+        token_row = tk.Frame(token_panel, bg=mode["background"])
         token_row.pack(fill="x", pady=5)
         token_row.columnconfigure(1, weight=1)
         tk.Label(
-            token_row, text="Access Token:", font=font_style, fg="#4C30EB", bg="white"
+            token_row,
+            text="Access Token:",
+            font=font_style,
+            fg=mode["primary_color"],
+            bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
         token_input = EntryWithPlaceholder(
             token_row,
-            placeholder="(Bearer Token) JWT or OAuth 2.0 only...",
-            color="grey",
+            placeholder="(Bearer Token) JWT or OAuth 2.0 only",
+            color=mode["btn_highlight"],
             show="*",
             font=font_style,
             initial_text=config.get("token", ""),
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
         )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
 
@@ -437,8 +543,10 @@ def toolbar_action(parent, options: dict, state: dict):
             footer_frame,
             text="Save",
             font=font_style,
-            bg="white",
-            fg="#4C30EB",
+            bg=mode["primary_color"],
+            fg="white",
+            activebackground=mode["btn_highlight"],  # Hover color
+            activeforeground="white",
             command=on_save,
         ).pack(pady=(5, 10))
 
@@ -446,13 +554,23 @@ def toolbar_action(parent, options: dict, state: dict):
     elif options["type"] == "search_jiras":
         data = load_data()
         if data != {}:
-            server = data["server"]
-            token = data["token"]
-            username = data["username"]
-            password = data["password"]
-            http_proxy = data["http_proxy"]
-            https_proxy = data["https_proxy"]
-            use_proxy = data["proxy_option"]
+            # NEEDS EXCEPTION HERE FOR MISSING CONFIG ITEMS
+            try:
+                server = data["server"]
+                token = data["token"]
+                username = data["username"]
+                password = data["password"]
+                http_proxy = data["http_proxy"]
+                https_proxy = data["https_proxy"]
+                use_proxy = data["proxy_option"]
+            except Exception:
+                error_frame = generate_error(
+                    parent,
+                    "Missing required fields in Configure file",
+                    mode,
+                )
+                error_frame.pack()
+                state["active_panel"] = error_frame
 
             if server != "":
                 # Handles credential initialization
@@ -468,6 +586,7 @@ def toolbar_action(parent, options: dict, state: dict):
                         error_frame = generate_error(
                             parent,
                             f"Issue with token - {e}",
+                            mode,
                         )
                     error_frame.pack()
                     state["active_panel"] = error_frame
@@ -483,6 +602,7 @@ def toolbar_action(parent, options: dict, state: dict):
                         error_frame = generate_error(
                             parent,
                             f"Issue with username/password - {e}",
+                            mode,
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
@@ -491,6 +611,7 @@ def toolbar_action(parent, options: dict, state: dict):
                     error_frame = generate_error(
                         parent,
                         "Missing login credentials.",
+                        mode,
                     )
                     error_frame.pack()
                     state["active_panel"] = error_frame
@@ -512,6 +633,7 @@ def toolbar_action(parent, options: dict, state: dict):
                         error_frame = generate_error(
                             parent,
                             f"{e}",
+                            mode,
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
@@ -534,13 +656,14 @@ def toolbar_action(parent, options: dict, state: dict):
 
                             # Return value
                             results = response.json()
-                            configure_results(results, options, parent, state)
+                            configure_results(results, options, parent, state, mode)
                             # else:
                             #     raise Exception("Please provide proper jql query")
                         except JIRAError as e:
                             error_frame = generate_error(
                                 parent,
                                 f"{e}",
+                                mode,
                             )
                             error_frame.pack()
                             state["active_panel"] = error_frame
@@ -553,6 +676,7 @@ def toolbar_action(parent, options: dict, state: dict):
                         error_frame = generate_error(
                             parent,
                             "Must have values in both HTTP and HTTPS proxies in order to use.",
+                            mode,
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
@@ -560,6 +684,7 @@ def toolbar_action(parent, options: dict, state: dict):
                 error_frame = generate_error(
                     parent,
                     "Missing Jira server url.",
+                    mode,
                 )
                 error_frame.pack()
                 state["active_panel"] = error_frame
@@ -569,6 +694,7 @@ def toolbar_action(parent, options: dict, state: dict):
             error_frame = generate_error(
                 parent,
                 "No Configuration Data found... please press Configure button at top left.",
+                mode,
             )
             error_frame.pack(fill="both", padx=10)
             state["active_panel"] = error_frame
