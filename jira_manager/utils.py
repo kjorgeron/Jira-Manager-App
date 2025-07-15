@@ -385,6 +385,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
             color=mode["btn_highlight"],
             placeholder="Provide base url",
             font=font_style,
+            initial_text=config.get("server", ""),
             highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
             highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
             highlightthickness=2,
@@ -394,11 +395,10 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
             fg=mode["primary_color"],
         )
         jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
-        jira_server_input.insert(0, config.get("server", ""))
 
-        proxy_panel = tk.Frame(form_frame, bg="white")
+        proxy_panel = tk.Frame(form_frame, bg=mode["background"])
 
-        proxy_http = tk.Frame(proxy_panel, bg="white")
+        proxy_http = tk.Frame(proxy_panel, bg=mode["background"])
         proxy_http.pack(fill="x", pady=5)
         proxy_http.columnconfigure(1, weight=1)
         tk.Label(
@@ -408,7 +408,17 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
             fg=mode["primary_color"],
             bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
-        http_input = tk.Entry(proxy_http, font=font_style)
+        http_input = tk.Entry(
+            proxy_http,
+            font=font_style,
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
+        )
         http_input.pack(side="left", fill="x", expand=True, padx=10)
         http_input.insert(0, config.get("http_proxy", ""))
 
@@ -422,7 +432,17 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
             fg=mode["primary_color"],
             bg=mode["background"],
         ).pack(side="left", padx=(0, 5))
-        https_input = tk.Entry(proxy_https, font=font_style)
+        https_input = tk.Entry(
+            proxy_https,
+            font=font_style,
+            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            highlightthickness=2,
+            bd=0,
+            relief=tk.FLAT,
+            bg=mode["background"],
+            fg=mode["primary_color"],
+        )
         https_input.pack(side="left", fill="x", expand=True, padx=10)
         https_input.insert(0, config.get("https_proxy", ""))
 
@@ -529,7 +549,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
         update_proxy_fields()
         update_auth_fields()
 
-        def on_save():
+        def on_save(root): # THIS ROOT PASS NEEDS TO BE REMOVED / UPDATE FUNC TO FIT NEW CLASS IN THEMES.PY
             # Handles clearing of unused data for login
             if selected_auth.get() == "Basic Auth":
                 token_input.delete(0, tk.END)
@@ -567,8 +587,9 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
                 "theme": theme_option.get(),
             }
 
+            # NEED TO CALL UPDATE THEME HERE
             save_data(payload)
-            toolbar_action(parent, {"type": "configure"}, state)
+            # toolbar_action(parent, {"type": "configure"}, state, mode)
 
         ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
         tk.Button(
@@ -579,7 +600,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict):
             fg="white",
             activebackground=mode["btn_highlight"],  # Hover color
             activeforeground="white",
-            command=on_save,
+            command=lambda: on_save(parent),
         ).pack(pady=(5, 10))
 
     # Handling of Jira Searching
