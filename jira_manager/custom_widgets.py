@@ -1,6 +1,52 @@
 import tkinter as tk
 
 
+# class EntryWithPlaceholder(tk.Entry):
+#     def __init__(
+#         self,
+#         master=None,
+#         placeholder="Enter text...",
+#         color="grey",
+#         show=None,
+#         initial_text="",
+#         *args,
+#         **kwargs
+#     ):
+#         self.real_show = show
+#         kwargs["show"] = ""
+#         super().__init__(master, *args, **kwargs)
+
+#         self.placeholder = placeholder
+#         self.placeholder_color = color
+#         self.default_fg_color = self["fg"]
+
+#         self.bind("<FocusIn>", self._clear_placeholder)
+#         self.bind("<FocusOut>", self._add_placeholder)
+
+#         if initial_text:
+#             self.insert(0, initial_text)
+#             self.config(show=self.real_show)
+#             self["fg"] = self.default_fg_color
+#         else:
+#             self._add_placeholder()
+
+#     def _add_placeholder(self, *args):
+#         if not self.get():
+#             self.config(show="")
+#             self.insert(0, self.placeholder)
+#             self["fg"] = self.placeholder_color
+
+#     def _clear_placeholder(self, *args):
+#         if self["fg"] == self.placeholder_color:
+#             self.delete(0, tk.END)
+#             self.config(show=self.real_show)
+#             self["fg"] = self.default_fg_color
+
+#     def reset_to_placeholder(self):
+#         self.delete(0, tk.END)
+#         self._add_placeholder()
+
+
 class EntryWithPlaceholder(tk.Entry):
     def __init__(
         self,
@@ -9,16 +55,20 @@ class EntryWithPlaceholder(tk.Entry):
         color="grey",
         show=None,
         initial_text="",
+        font=("Arial", 14, "bold"),
+        placeholder_font=("Arial", 14, "italic"),
         *args,
         **kwargs
     ):
         self.real_show = show
-        kwargs["show"] = ""
-        super().__init__(master, *args, **kwargs)
+        kwargs["show"] = ""  # Placeholder should be visible
+        super().__init__(master, font=font, *args, **kwargs)
 
         self.placeholder = placeholder
         self.placeholder_color = color
         self.default_fg_color = self["fg"]
+        self.default_font = font
+        self.placeholder_font = placeholder_font
 
         self.bind("<FocusIn>", self._clear_placeholder)
         self.bind("<FocusOut>", self._add_placeholder)
@@ -27,24 +77,31 @@ class EntryWithPlaceholder(tk.Entry):
             self.insert(0, initial_text)
             self.config(show=self.real_show)
             self["fg"] = self.default_fg_color
+            self.config(font=self.default_font)
         else:
-            self._add_placeholder()
+            self.after_idle(self._add_placeholder)  # ✅ Defer placeholder setup
 
     def _add_placeholder(self, *args):
         if not self.get():
             self.config(show="")
+            self.delete(0, tk.END)
             self.insert(0, self.placeholder)
             self["fg"] = self.placeholder_color
+            self.config(font=self.placeholder_font)
 
     def _clear_placeholder(self, *args):
         if self["fg"] == self.placeholder_color:
             self.delete(0, tk.END)
             self.config(show=self.real_show)
             self["fg"] = self.default_fg_color
+            self.config(font=self.default_font)
 
     def reset_to_placeholder(self):
         self.delete(0, tk.END)
         self._add_placeholder()
+
+    def is_placeholder_active(self):
+        return self["fg"] == self.placeholder_color and self.get() == self.placeholder
 
 
 class ScrollableFrame(tk.Frame):
