@@ -272,7 +272,6 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         theme_option = tk.StringVar(
             value=config.get("theme", "Light")  # default to 'light' if not set
         )
-        print(theme_option.get())
 
         panel = tk.Frame(parent, bg=mode["background"])
         panel.pack(fill="both", padx=10, pady=10, expand=True)
@@ -372,17 +371,17 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
 
         jira_server_input = EntryWithPlaceholder(
             jira_row,
-            color=mode["btn_highlight"],
+            # color=mode["btn_highlight"],
             placeholder="Provide base url",
             font=font_style,
             initial_text=config.get("server", ""),
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
+            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            # highlightthickness=2,
+            # bd=0,
+            # relief=tk.FLAT,
+            # bg=mode["background"],
+            # fg=mode["primary_color"],
         )
         jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(jira_server_input, "placeholder_entry")
@@ -468,16 +467,16 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         username_input = EntryWithPlaceholder(
             user_row,
             placeholder="Enter username or email",
-            color=mode["btn_highlight"],
+            # color=mode["btn_highlight"],
             font=font_style,
             initial_text=config.get("username", ""),
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
+            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            # highlightthickness=2,
+            # bd=0,
+            # relief=tk.FLAT,
+            # bg=mode["background"],
+            # fg=mode["primary_color"],
         )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(username_input, "placeholder_entry")
@@ -500,17 +499,17 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         password_input = EntryWithPlaceholder(
             pass_row,
             placeholder="Enter password or token",
-            color=mode["btn_highlight"],
+            # color=mode["btn_highlight"],
             show="*",
             font=font_style,
-            initial_text=config.get("password", ""),
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
+            # initial_text=config.get("password", ""),
+            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            # highlightthickness=2,
+            # bd=0,
+            # relief=tk.FLAT,
+            # bg=mode["background"],
+            # fg=mode["primary_color"],
         )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(password_input, "placeholder_entry")
@@ -535,17 +534,17 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         token_input = EntryWithPlaceholder(
             token_row,
             placeholder="(Bearer Token) JWT or OAuth 2.0 only",
-            color=mode["btn_highlight"],
+            # color=mode["btn_highlight"],
             show="*",
             font=font_style,
             initial_text=config.get("token", ""),
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
+            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
+            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
+            # highlightthickness=2,
+            # bd=0,
+            # relief=tk.FLAT,
+            # bg=mode["background"],
+            # fg=mode["primary_color"],
         )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(token_input, "placeholder_entry")
@@ -620,7 +619,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                 mode = dark_mode
             else: mode = "No mode registered"
             theme_manager.update_theme(new_theme=mode)
-            toolbar_action(parent, options, state, mode, theme_manager)
+            # toolbar_action(parent, options, state, mode, theme_manager)
 
         ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
         tk.Button(

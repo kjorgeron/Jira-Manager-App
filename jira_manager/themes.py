@@ -34,62 +34,6 @@ class ThemeManager:
     def _init_styles(self):
         self.style.theme_use("default")
 
-    # def _init_styles(self):
-    #     # Use "clam" for extended styling support
-    #     self.style.theme_use("clam")
-
-    #     # Custom label style (optional if not using ttk.Label)
-    #     self.style.configure(
-    #         "Custom.TLabel",
-    #         background=self.theme["background"],
-    #         foreground=self.theme["primary_color"],
-    #     )
-
-    #     # Custom button style
-    #     self.style.configure(
-    #         "Custom.TButton",
-    #         background=self.theme["background"],
-    #         foreground=self.theme["primary_color"],
-    #         borderwidth=0,
-    #         padding=6,
-    #     )
-
-    #     # Custom combobox styling with dynamic border highlights
-    #     self.style.configure(
-    #         "Custom.TCombobox",
-    #         foreground=self.theme["primary_color"],
-    #         fieldbackground=self.theme["background"],
-    #         borderwidth=2,
-    #         relief="flat",
-    #     )
-    #     self.style.map(
-    #         "Custom.TCombobox",
-    #         fieldbackground=[
-    #             ("readonly", self.theme["background"]),
-    #             ("!readonly", self.theme["background"]),
-    #         ],
-    #         foreground=[
-    #             ("readonly", self.theme["primary_color"]),
-    #             ("!readonly", self.theme["primary_color"]),
-    #         ],
-    #         bordercolor=[
-    #             ("focus", self.theme["btn_highlight"]),
-    #             ("!focus", self.theme["primary_color"]),
-    #         ],
-    #     )
-
-    #     # Combobox styling
-    #     self.style.configure(
-    #         "Custom.TCombobox",
-    #         foreground=self.theme["primary_color"],
-    #         fieldbackground=self.theme["background"],
-    #     )
-    #     self.style.map(
-    #         "Custom.TCombobox",
-    #         fieldbackground=[("readonly", self.theme["background"])],
-    #         foreground=[("readonly", self.theme["primary_color"])],
-    #     )
-
     def register(self, widget, role):
         self.widgets.append((widget, role))
         self.apply_to_widget(widget, role)
@@ -117,8 +61,15 @@ class ThemeManager:
                     relief=tk.FLAT,
                     bd=0,
                     font=("Arial", 14, "bold"),
+                    
                 )
-                widget.reset_to_placeholder()
+                widget.default_fg_color = self.theme["primary_color"]
+                widget.placeholder_color = self.theme["btn_highlight"]
+                widget.default_font = ("Arial", 14, "bold")
+                widget.placeholder_font = ("Arial", 14, "italic")
+
+                widget.refresh_placeholder()
+                # widget.reset_to_placeholder()
             case "entry":
                 widget.configure(
                     font=("Arial", 14, "bold"),  # Or font_style if you're passing it in

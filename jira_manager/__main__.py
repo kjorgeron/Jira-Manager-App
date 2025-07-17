@@ -120,7 +120,6 @@ jql_search = EntryWithPlaceholder(
     initial_text="",
     font=("Arial", 14, "bold"),
     width=25,
-    color=mode["btn_highlight"],
     # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
     # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
     # highlightthickness=2,
