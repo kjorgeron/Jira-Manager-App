@@ -40,10 +40,10 @@ theme_manager = ThemeManager(root=root, theme=mode)
 
 theme_manager.register(root, "root")
 
-# CONFIGURE COMBOBOX
-style = ttk.Style()
+# # CONFIGURE COMBOBOX
+# style = ttk.Style()
 
-theme_manager.register(style, "combobox")
+# theme_manager.register(style, "combobox")
 # style.configure(
 #     "Custom.TCombobox",
 #     foreground=mode["primary_color"],  # Text color
@@ -59,7 +59,7 @@ theme_manager.register(style, "combobox")
 
 
 # APP LOGO
-logo_frame = tk.Frame(root, bg=mode["background"], height=60)
+logo_frame = tk.Frame(root, height=60)
 logo_frame.pack(fill=tk.X)
 
 theme_manager.register(logo_frame, "frame")
@@ -68,8 +68,6 @@ logo_label = tk.Label(
     logo_frame,
     text=" 🛠️TicketSmith",
     font=("Arial", 22, "bold"),
-    # bg=mode["background"],
-    # fg="#D2691E",  # Burnt Copper
 )
 logo_label.pack(pady=5, side="left")
 
@@ -83,28 +81,19 @@ ui_state = {"active_panel": None}
 
 app_logo = tk.Frame(toolbar)
 
-tk.Button(
+config_btn = tk.Button(
     toolbar,
     text="Configure",
-    font=("Trebuchet MS", 12, "bold"),
-    bg=mode["primary_color"],
-    fg="white",
-    activebackground=mode["btn_highlight"],  # Hover color
-    activeforeground="white",
     command=lambda: toolbar_action(
         root, {"type": "configure", "jql": ""}, ui_state, mode, theme_manager
     ),
-).pack(side="left", padx=10)
+)
+config_btn.pack(side="left", padx=10)
+theme_manager.register(config_btn, "conf_button")
 
-
-tk.Button(
+jql_search_btn = tk.Button(
     toolbar,
     text="Search Jira",
-    font=("Trebuchet MS", 12, "bold"),
-    bg=mode["btn_highlight"],
-    fg="white",
-    activebackground=mode["primary_color"],  # Hover color
-    activeforeground="white",
     command=lambda: toolbar_action(
         root,
         {"type": "search_jiras", "jql": jql_search.get()},
@@ -112,21 +101,15 @@ tk.Button(
         mode,
         theme_manager,
     ),
-).pack(side="left", padx=10)
+)
+jql_search_btn.pack(side="left", padx=10)
+theme_manager.register(jql_search_btn, "base_button")
 
 jql_search = EntryWithPlaceholder(
     toolbar,
     placeholder="Enter proper JQL query",
     initial_text="",
-    font=("Arial", 14, "bold"),
     width=25,
-    # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-    # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-    # highlightthickness=2,
-    # bd=0,
-    # relief=tk.FLAT,
-    # bg=mode["background"],
-    # fg=mode["primary_color"],
 )
 jql_search.pack(side="left", padx=10)
 theme_manager.register(jql_search, "placeholder_entry")

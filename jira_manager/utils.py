@@ -158,17 +158,19 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
     return toolbar
 
 
-def generate_error(parent, message: str, mode: dict):
+def generate_error(parent, message: str, mode: dict, theme_manager: ThemeManager):
     # Outer shield-frame (red border)
     border_frame = tk.Frame(
-        parent, bg=mode["error_color"], padx=3, pady=3
+        parent, padx=3, pady=3
     )  # Blood-red Viking steel
+    theme_manager.register(border_frame, "error_border_frame")
 
     # Canvas scrollable battleboard
     canvas = tk.Canvas(
-        border_frame, bg=mode["background"], highlightthickness=0, width=550, height=100
+        border_frame, width=550, height=100
     )
     canvas.pack(fill="both", expand=True)
+    theme_manager.register(canvas, "error_canvas")
 
     # Hidden scrollbar (still battle-ready)
     scrollbar = tk.Scrollbar(border_frame, orient="vertical", command=canvas.yview)
@@ -176,8 +178,9 @@ def generate_error(parent, message: str, mode: dict):
     scrollbar.pack_forget()
 
     # Scrollable content terrain
-    content_frame = tk.Frame(canvas, bg=mode["background"])
+    content_frame = tk.Frame(canvas)
     canvas.create_window((0, 0), window=content_frame, anchor="nw")
+    theme_manager.register(content_frame, "frame")
 
     # Expand scroll bounds as messages grow
     content_frame.bind(
@@ -190,22 +193,21 @@ def generate_error(parent, message: str, mode: dict):
     )
 
     # The error rune itself
-    tk.Label(
+    error_label = tk.Label(
         content_frame,
         text=f"⚠️ Error Occurred:\n\n{message}",
-        font=("Trebuchet MS", 12, "bold"),  # Clean, heroic font
-        fg=mode["error_color"],
-        bg=mode["background"],
         wraplength=500,
         justify="left",
         padx=12,
         pady=12,
-    ).pack(fill="x")
+    )
+    error_label.pack(fill="x")
+    theme_manager.register(error_label, "error_label")
 
     return border_frame
 
 
-def configure_results(results, options, parent, state, mode):
+def configure_results(results, options, parent, state, mode, theme_manager):
     # Handling of Jira Data
     try:
         # Handlers for improper JQL queries
@@ -229,6 +231,7 @@ def configure_results(results, options, parent, state, mode):
             scroll_area,
             f"{'Error occurred with the JQL query... Please provide a proper query'}",
             mode,
+            theme_manager
         )
         error_message.pack()
 
@@ -248,18 +251,95 @@ def configure_results(results, options, parent, state, mode):
     #     state["active_panel"] = scroll_container
 
 
+
 def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager: ThemeManager):
+    # Helper to ignore placeholder text when saving
+    def get_clean_value(widget):
+        value = widget.get()
+        if (
+            value != widget.placeholder
+            or widget["fg"] != widget.placeholder_color
+        ):
+            return value
+        return ""
+
+    def on_save(theme_manager: ThemeManager): # THIS ROOT PASS NEEDS TO BE REMOVED / UPDATE FUNC TO FIT NEW CLASS IN THEMES.PY
+        # Handles clearing of unused data for login
+        if selected_auth.get() == "Basic Auth":
+            token_input.delete(0, tk.END)
+            token_input.reset_to_placeholder()
+        else:  # Token Auth selected
+            username_input.delete(0, tk.END)
+            username_input.reset_to_placeholder()
+            password_input.delete(0, tk.END)
+            password_input.reset_to_placeholder()
+
+        # Handles clearing of unused data for proxy
+        if proxy_option.get() == "No":
+            http_input.delete(0, tk.END)
+            https_input.delete(0, tk.END)
+
+
+        payload = {
+            "server": jira_server_input.get(),
+            "http_proxy": http_input.get(),
+            "https_proxy": https_input.get(),
+            "token": get_clean_value(token_input),
+            "username": get_clean_value(username_input),
+            "password": get_clean_value(password_input),
+            "auth_type": selected_auth.get(),
+            "proxy_option": proxy_option.get(),
+            "theme": theme_option.get(),
+        }
+
+        # SAVE PAYLOAD DATA
+        save_data(payload)
+
+        # NEED TO CALL UPDATE THEME HERE
+        try:
+            """ THIS CODE IS CREATING A UI ISSUE IF USER CLICKS CONFIG BUTTON AGAIN WHILE ALREADY BEING ON CONFIG PAGE """
+            new_theme = payload["theme"]
+            print(f"{new_theme=}")
+            if new_theme.lower() == "light":
+                mode = light_mode
+            elif new_theme.lower() == "dark":
+                mode = dark_mode
+            else: mode = "No mode registered"
+            print(mode)
+            theme_manager.update_theme(new_theme=mode)
+            toolbar_action(parent, options, state, mode, theme_manager)
+        except Exception:
+            print(f"{state=}")
+            pass
+        
+    def update_proxy_fields(event=None):
+        proxy_panel.pack_forget()
+        if proxy_option.get() == "Yes":
+            proxy_panel.pack(fill="x", pady=5)
+            theme_manager.register(proxy_panel, "frame")
+
+    def update_auth_fields(event=None):
+        basic_panel.pack_forget()
+        token_panel.pack_forget()
+        if selected_auth.get() == "Basic Auth":
+            basic_panel.pack(fill="x", pady=5)
+            theme_manager.register(basic_panel, "frame")
+        else:
+            token_panel.pack(fill="x", pady=5)
+            theme_manager.register(token_panel, "frame")
+
     # Handling of active frames
     if state["active_panel"]:
-        state["active_panel"].destroy()
+        state["active_panel"].pack_forget()
+        # state["active_panel"].destroy()
         state["active_panel"] = None
+
 
     # Handling of Data Configuration
     if options["type"] == "configure":
 
         # Data stored in users Documents folder
         config = load_data()
-        print(config.get("theme"))
         font_style = ("Arial", 12, "bold")
 
         # DEFAULTS FOR COMBOBOX
@@ -273,20 +353,20 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             value=config.get("theme", "Light")  # default to 'light' if not set
         )
 
-        panel = tk.Frame(parent, bg=mode["background"])
+        panel = tk.Frame(parent)
         panel.pack(fill="both", padx=10, pady=10, expand=True)
         state["active_panel"] = panel
         theme_manager.register(panel, "frame")
 
-        form_frame = tk.Frame(panel, bg=mode["background"])
+        form_frame = tk.Frame(panel)
         form_frame.pack(fill="both", expand=True)
         theme_manager.register(form_frame, "frame")
 
-        footer_frame = tk.Frame(panel, bg=mode["background"])
+        footer_frame = tk.Frame(panel)
         footer_frame.pack(fill="x", side="bottom")
         theme_manager.register(footer_frame, "frame")
 
-        selector_row = tk.Frame(form_frame, bg=mode["background"])
+        selector_row = tk.Frame(form_frame)
         selector_row.pack(fill="x", pady=5)
         theme_manager.register(selector_row, "frame")
 
@@ -295,8 +375,6 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             selector_row,
             text="Credential Type:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         cred_label.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
         theme_manager.register(cred_label, "label")
@@ -309,14 +387,13 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             style="Custom.TCombobox",
         )
         auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
+        theme_manager.register(auth_type, "combobox")
 
         # Row 0, Column 2 – Use Proxies
         proxy_label = tk.Label(
             selector_row,
             text="Use Proxies:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         proxy_label.grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
         theme_manager.register(proxy_label, "label")
@@ -329,14 +406,13 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             style="Custom.TCombobox",
         )
         proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
+        theme_manager.register(proxy_type, "combobox")
 
         # Row 1, Column 1 – Theme
         theme_label = tk.Label(
             selector_row,
             text="Theme:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         theme_label.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
         theme_manager.register(theme_label, "label")
@@ -349,12 +425,13 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             style="Custom.TCombobox",
         )
         theme.grid(row=1, column=1, sticky="ew", pady=2)
+        theme_manager.register(theme, "combobox")
 
         # SEPERATOR IN FORM
         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Form Inputs
-        jira_row = tk.Frame(form_frame, bg=mode["background"])
+        jira_row = tk.Frame(form_frame)
         jira_row.pack(fill="x", pady=5)
         jira_row.columnconfigure(1, weight=1)
         theme_manager.register(jira_row, "frame")
@@ -363,93 +440,65 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             jira_row,
             text="Jira Server:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         server_label.pack(side="left", padx=(0, 5))
         theme_manager.register(server_label, "label")
 
         jira_server_input = EntryWithPlaceholder(
             jira_row,
-            # color=mode["btn_highlight"],
             placeholder="Provide base url",
             font=font_style,
             initial_text=config.get("server", ""),
-            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            # highlightthickness=2,
-            # bd=0,
-            # relief=tk.FLAT,
-            # bg=mode["background"],
-            # fg=mode["primary_color"],
         )
         jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(jira_server_input, "placeholder_entry")
 
-        proxy_panel = tk.Frame(form_frame, bg=mode["background"])
+        proxy_panel = tk.Frame(form_frame)
         
 
-        proxy_http = tk.Frame(proxy_panel, bg=mode["background"])
+        proxy_http = tk.Frame(proxy_panel)
         proxy_http.pack(fill="x", pady=5)
         proxy_http.columnconfigure(1, weight=1)
         theme_manager.register(proxy_http, "frame")
+
         http_label = tk.Label(
             proxy_http,
             text="HTTP Proxy:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         http_label.pack(side="left", padx=(0, 5))
         theme_manager.register(http_label, "label")
 
         http_input = tk.Entry(
             proxy_http,
-            font=font_style,
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
         )
         http_input.pack(side="left", fill="x", expand=True, padx=10)
         http_input.insert(0, config.get("http_proxy", ""))
         theme_manager.register(http_input, "entry")
 
-        proxy_https = tk.Frame(proxy_panel, bg=mode["background"])
+        proxy_https = tk.Frame(proxy_panel)
         proxy_https.pack(fill="x", pady=5)
         proxy_https.columnconfigure(1, weight=1)
         theme_manager.register(proxy_https, "frame")
+
         https_label = tk.Label(
             proxy_https,
             text="HTTPS Proxy:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         https_label.pack(side="left", padx=(0, 5))
         theme_manager.register(https_label, "label")
 
         https_input = tk.Entry(
             proxy_https,
-            font=font_style,
-            highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            highlightthickness=2,
-            bd=0,
-            relief=tk.FLAT,
-            bg=mode["background"],
-            fg=mode["primary_color"],
         )
         https_input.pack(side="left", fill="x", expand=True, padx=10)
         https_input.insert(0, config.get("https_proxy", ""))
         theme_manager.register(https_input, "entry")
 
-        basic_panel = tk.Frame(form_frame, bg=mode["background"])
+        basic_panel = tk.Frame(form_frame)
 
-        user_row = tk.Frame(basic_panel, bg=mode["background"])
+        user_row = tk.Frame(basic_panel)
         user_row.pack(fill="x", pady=5)
         user_row.columnconfigure(1, weight=1)
         theme_manager.register(user_row, "frame")
@@ -458,8 +507,6 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             user_row,
             text="User ID:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         user_label.pack(side="left", padx=(0, 5))
         theme_manager.register(user_label, "label")
@@ -467,21 +514,12 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         username_input = EntryWithPlaceholder(
             user_row,
             placeholder="Enter username or email",
-            # color=mode["btn_highlight"],
-            font=font_style,
             initial_text=config.get("username", ""),
-            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            # highlightthickness=2,
-            # bd=0,
-            # relief=tk.FLAT,
-            # bg=mode["background"],
-            # fg=mode["primary_color"],
         )
         username_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(username_input, "placeholder_entry")
 
-        pass_row = tk.Frame(basic_panel, bg=mode["background"])
+        pass_row = tk.Frame(basic_panel)
         pass_row.pack(fill="x", pady=5)
         pass_row.columnconfigure(1, weight=1)
         theme_manager.register(pass_row, "frame")
@@ -490,8 +528,6 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             pass_row,
             text="Password:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         pass_label.pack(side="left", padx=(0, 5))
         theme_manager.register(pass_label, "label")
@@ -499,24 +535,14 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         password_input = EntryWithPlaceholder(
             pass_row,
             placeholder="Enter password or token",
-            # color=mode["btn_highlight"],
             show="*",
-            font=font_style,
-            # initial_text=config.get("password", ""),
-            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            # highlightthickness=2,
-            # bd=0,
-            # relief=tk.FLAT,
-            # bg=mode["background"],
-            # fg=mode["primary_color"],
         )
         password_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(password_input, "placeholder_entry")
 
-        token_panel = tk.Frame(form_frame, bg=mode["background"])
+        token_panel = tk.Frame(form_frame)
 
-        token_row = tk.Frame(token_panel, bg=mode["background"])
+        token_row = tk.Frame(token_panel)
         token_row.pack(fill="x", pady=5)
         token_row.columnconfigure(1, weight=1)
         theme_manager.register(token_row, "frame")
@@ -525,8 +551,6 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
             token_row,
             text="Access Token:",
             font=font_style,
-            fg=mode["primary_color"],
-            bg=mode["background"],
         )
         token_label.pack(side="left", padx=(0, 5))
         theme_manager.register(token_label, "label")
@@ -534,36 +558,12 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         token_input = EntryWithPlaceholder(
             token_row,
             placeholder="(Bearer Token) JWT or OAuth 2.0 only",
-            # color=mode["btn_highlight"],
             show="*",
-            font=font_style,
             initial_text=config.get("token", ""),
-            # highlightbackground=mode["primary_color"],  # Burnt Copper (unfocused)
-            # highlightcolor=mode["btn_highlight"],  # Forge Gold (focused)
-            # highlightthickness=2,
-            # bd=0,
-            # relief=tk.FLAT,
-            # bg=mode["background"],
-            # fg=mode["primary_color"],
         )
         token_input.pack(side="left", fill="x", expand=True, padx=10)
         theme_manager.register(token_input, "placeholder_entry")
 
-        def update_proxy_fields(event=None):
-            proxy_panel.pack_forget()
-            if proxy_option.get() == "Yes":
-                proxy_panel.pack(fill="x", pady=5)
-                theme_manager.register(proxy_panel, "frame")
-
-        def update_auth_fields(event=None):
-            basic_panel.pack_forget()
-            token_panel.pack_forget()
-            if selected_auth.get() == "Basic Auth":
-                basic_panel.pack(fill="x", pady=5)
-                theme_manager.register(basic_panel, "frame")
-            else:
-                token_panel.pack(fill="x", pady=5)
-                theme_manager.register(token_panel, "frame")
 
         proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
         auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
@@ -571,67 +571,14 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
         update_proxy_fields()
         update_auth_fields()
 
-        def on_save(theme_manager: ThemeManager): # THIS ROOT PASS NEEDS TO BE REMOVED / UPDATE FUNC TO FIT NEW CLASS IN THEMES.PY
-            # Handles clearing of unused data for login
-            if selected_auth.get() == "Basic Auth":
-                token_input.delete(0, tk.END)
-                token_input.reset_to_placeholder()
-            else:  # Token Auth selected
-                username_input.delete(0, tk.END)
-                username_input.reset_to_placeholder()
-                password_input.delete(0, tk.END)
-                password_input.reset_to_placeholder()
-
-            # Handles clearing of unused data for proxy
-            if proxy_option.get() == "No":
-                http_input.delete(0, tk.END)
-                https_input.delete(0, tk.END)
-
-            # Helper to ignore placeholder text when saving
-            def get_clean_value(widget):
-                value = widget.get()
-                if (
-                    value != widget.placeholder
-                    or widget["fg"] != widget.placeholder_color
-                ):
-                    return value
-                return ""
-
-            payload = {
-                "server": jira_server_input.get(),
-                "http_proxy": http_input.get(),
-                "https_proxy": https_input.get(),
-                "token": get_clean_value(token_input),
-                "username": get_clean_value(username_input),
-                "password": get_clean_value(password_input),
-                "auth_type": selected_auth.get(),
-                "proxy_option": proxy_option.get(),
-                "theme": theme_option.get(),
-            }
-
-            # SAVE PAYLOAD DATA
-            save_data(payload)
-
-            # NEED TO CALL UPDATE THEME HERE
-            if payload["theme"].lower() == "light":
-                mode = light_mode
-            elif payload["theme"].lower() == "dark":
-                mode = dark_mode
-            else: mode = "No mode registered"
-            theme_manager.update_theme(new_theme=mode)
-            # toolbar_action(parent, options, state, mode, theme_manager)
-
         ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
-        tk.Button(
+        save_button = tk.Button(
             footer_frame,
             text="Save",
-            font=font_style,
-            bg=mode["primary_color"],
-            fg="white",
-            activebackground=mode["btn_highlight"],  # Hover color
-            activeforeground="white",
             command=lambda: on_save(theme_manager),
-        ).pack(pady=(5, 10))
+        )
+        save_button.pack(pady=(5, 10))
+        theme_manager.register(save_button, "base_button")
 
     # Handling of Jira Searching
     elif options["type"] == "search_jiras":
@@ -651,6 +598,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                     parent,
                     "Missing required fields in Configure file",
                     mode,
+                    theme_manager
                 )
                 error_frame.pack()
                 state["active_panel"] = error_frame
@@ -670,6 +618,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                             parent,
                             f"Issue with token - {e}",
                             mode,
+                            theme_manager
                         )
                     error_frame.pack()
                     state["active_panel"] = error_frame
@@ -686,18 +635,21 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                             parent,
                             f"Issue with username/password - {e}",
                             mode,
+                            theme_manager
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
                         raise JIRAError
-                else:
-                    error_frame = generate_error(
-                        parent,
-                        "Missing login credentials.",
-                        mode,
-                    )
-                    error_frame.pack()
-                    state["active_panel"] = error_frame
+                """NEED TO FIX UI ERROR FOR THIS ERROR MESSAGE"""
+                # else:
+                #     error_frame = generate_error(
+                #         parent,
+                #         "Missing login credentials.",
+                #         mode,
+                #         theme_manager
+                #     )
+                #     error_frame.pack()
+                #     state["active_panel"] = error_frame
 
                 # No proxy request
                 if use_proxy.lower() != "yes":
@@ -717,6 +669,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                             parent,
                             f"{e}",
                             mode,
+                            theme_manager
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
@@ -747,6 +700,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                                 parent,
                                 f"{e}",
                                 mode,
+                                theme_manager
                             )
                             error_frame.pack()
                             state["active_panel"] = error_frame
@@ -760,6 +714,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                             parent,
                             "Must have values in both HTTP and HTTPS proxies in order to use.",
                             mode,
+                            theme_manager
                         )
                         error_frame.pack()
                         state["active_panel"] = error_frame
@@ -768,6 +723,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                     parent,
                     "Missing Jira server url.",
                     mode,
+                    theme_manager
                 )
                 error_frame.pack()
                 state["active_panel"] = error_frame
@@ -778,6 +734,7 @@ def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager
                 parent,
                 "No Configuration Data found... please press Configure button at top left.",
                 mode,
+                theme_manager
             )
             error_frame.pack(fill="both", padx=10)
             state["active_panel"] = error_frame
