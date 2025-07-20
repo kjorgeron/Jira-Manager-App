@@ -389,7 +389,7 @@ class ErrorMessageBuilder(tk.Frame):
         border_frame = tk.Frame(self, padx=3, pady=3)
         self.theme_manager.register(border_frame, "error_border_frame")
 
-        canvas = tk.Canvas(border_frame, width=550, height=100)
+        canvas = tk.Canvas(border_frame, width=550, height=125)
         canvas.pack(fill="both", expand=True)
         self.theme_manager.register(canvas, "error_canvas")
 
@@ -420,4 +420,99 @@ class ErrorMessageBuilder(tk.Frame):
         error_label.pack(fill="x")
         self.theme_manager.register(error_label, "error_label")
 
+        # 🔽 Scroll to Top Button (bottom right corner)
+        scroll_button = tk.Button(
+            border_frame,
+            text="↑",
+            font=("Segoe UI", 12, "bold"),
+            command=lambda: canvas.yview_moveto(0),
+            width=2,
+            height=1,
+            bd=0,
+            relief="flat",
+            cursor="hand2",
+        )
+        scroll_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
+        self.theme_manager.register(scroll_button, "flashy_button")
+
         return border_frame
+
+
+# class TicketDisplayBuilder(tk.Frame):
+#     def __init__(
+#         self,
+#         master=None,
+#         cnf=None,
+#         *,
+#         background=None,
+#         bd=0,
+#         bg=None,
+#         border=0,
+#         borderwidth=0,
+#         class_="Frame",
+#         colormap="",
+#         container=False,
+#         cursor="",
+#         height=0,
+#         highlightbackground=None,
+#         highlightcolor=None,
+#         highlightthickness=0,
+#         name=None,
+#         padx=0,
+#         pady=0,
+#         relief="flat",
+#         takefocus=0,
+#         visual="",
+#         width=0,
+#         theme_manager: ThemeManager = None
+#     ):
+#         super().__init__(
+#             master,
+#             cnf,
+#             background=background,
+#             bd=bd,
+#             bg=bg,
+#             border=border,
+#             borderwidth=borderwidth,
+#             class_=class_,
+#             colormap=colormap,
+#             container=container,
+#             cursor=cursor,
+#             height=height,
+#             highlightbackground=highlightbackground,
+#             highlightcolor=highlightcolor,
+#             highlightthickness=highlightthickness,
+#             name=name,
+#             padx=padx,
+#             pady=pady,
+#             relief=relief,
+#             takefocus=takefocus,
+#             visual=visual,
+#             width=width,
+#         )
+#         self.theme_manager = theme_manager
+
+#     def build_ticket_board(self):
+#         base_frame = tk.Frame(self.master)
+#         self.theme_manager.register(base_frame, "frame")
+#         ticket_label = tk.Label(base_frame, text="Ticket Bucket")
+#         ticket_label.pack(fill="x")
+#         self.theme_manager.register(ticket_label, "label")
+#         return base_frame
+
+class TicketDisplayBuilder(tk.Frame):
+    def __init__(self, master=None, theme_manager=None, **kwargs):
+        super().__init__(master, **kwargs)
+        self.theme_manager = theme_manager
+
+        # Build UI immediately or delay via external trigger
+        self._build_ticket_board()
+
+    def _build_ticket_board(self):
+        base_frame = tk.Frame(self)
+        base_frame.pack(fill="both", expand=True)
+        self.theme_manager.register(base_frame, "frame")
+
+        ticket_label = tk.Label(base_frame, text="🎫 Ticket Bucket")
+        ticket_label.pack(fill="x", padx=6, pady=6)
+        self.theme_manager.register(ticket_label, "label")

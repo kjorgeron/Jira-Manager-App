@@ -69,7 +69,7 @@ class ThemeManager:
                 widget.configure(
                     bg=self.theme["background"], fg=self.theme["primary_color"]
                 )
-            case "base_button":
+            case "flashy_button":
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),
                     bg=self.theme["btn_highlight"],
@@ -77,7 +77,7 @@ class ThemeManager:
                     activebackground=self.theme["primary_color"],
                     activeforeground="white",
                 )
-            case "conf_button":
+            case "base_button":
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),
                     bg=self.theme["primary_color"],
@@ -133,10 +133,34 @@ class ThemeManager:
                     bg=self.theme["background"],
                 )
 
+    # def update_theme(self, new_theme):
+    #     self.theme = new_theme
+    #     self.root.configure(bg=self.theme["background"])
+    #     self._init_styles()
+    #     for widget, role in self.widgets:
+    #         self.apply_to_widget(widget, role)
     def update_theme(self, new_theme):
         self.theme = new_theme
-        self.root.configure(bg=self.theme["background"])
+
+        # Update root background safely
+        try:
+            if self.root.winfo_exists():
+                self.root.configure(bg=self.theme.get("background", "#FFFFFF"))
+            else:
+                print("Root widget no longer exists — skipping background update.")
+        except Exception as e:
+            print(f"Error configuring root background: {e}")
+
+        # Refresh styles
         self._init_styles()
+
+        # Safely apply theme to registered widgets
         for widget, role in self.widgets:
-            self.apply_to_widget(widget, role)
+            try:
+                if widget.winfo_exists():
+                    self.apply_to_widget(widget, role)
+                else:
+                    print(f"Skipped styling for destroyed widget (role={role}).")
+            except Exception as e:
+                print(f"Error applying theme to widget (role={role}): {e}")
 
