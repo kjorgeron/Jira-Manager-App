@@ -433,7 +433,7 @@ class ErrorMessageBuilder(tk.Frame):
             cursor="hand2",
         )
         scroll_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
-        self.theme_manager.register(scroll_button, "flashy_button")
+        self.theme_manager.register(scroll_button, "base_button")
 
         return border_frame
 
