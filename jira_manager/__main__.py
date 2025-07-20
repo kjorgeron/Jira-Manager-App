@@ -36,7 +36,7 @@ def main():
         widget_class = str(event.widget.winfo_class())
         allowed_classes = (
             "Entry", "TEntry", "TCombobox", "Text", "Custom.TCombobox",
-            "Listbox",  "Checkbutton", "Radiobutton"
+            "Listbox", "Button", "Checkbutton", "Radiobutton"
         )
         if widget_class not in allowed_classes:
             root.focus_set()

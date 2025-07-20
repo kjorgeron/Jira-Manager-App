@@ -39,11 +39,11 @@ def get_theme_mode(config_path="app_config.json"):
     try:
         with open(config_path, "r") as f:
             config = json.load(f)
-            print("theme=", config["theme"])
+            # print("theme=", config["theme"])
             theme = config.get("theme", "light")  # Default to light
             return theme.lower()
     except Exception as e:
-        print(f"Error loading config: {e}")
+        # print(f"Error loading config: {e}")
         return "light"  # Fallback
 
 
@@ -698,6 +698,7 @@ def configure_results(results, options, parent, state, mode, theme_manager, pane
 #     # print(f"{active_panels=}")
 
 def switch_panel(panel_key, ui_state, panel_choice):
+    print("PANEL SWITCH")
     current = ui_state.get("active_panel")
     if current:
         current.pack_forget()
@@ -712,14 +713,14 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
     if payload["type"] == "search_jiras":
         switch_panel("configure_panel", ui_state, panel_choice)
         config_data = load_data()
-        print(config_data)
-        headers = {}
-        proxies = {}
+        # print(config_data)
+        headers = None
+        proxies = None
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
             panel_choice["error_panel"].update_message("Missing JQL Statement.")
             switch_panel("error_panel", ui_state, panel_choice)
-            print(ui_state["active_panel"])
+            # print(ui_state["active_panel"])
             return
 
         if config_data.get("server") == "" or config_data.get("server") == "Provide base url":
@@ -760,8 +761,21 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
                     panel_choice["error_panel"].update_message(f"Failed to build headers using provided Bearer Token.\nReason = {e}")
                     switch_panel("error_panel", ui_state, panel_choice)
                     return 
-        else: 
-            switch_panel("configure_panel", ui_state, panel_choice)
+                
+        if config_data.get("proxy_option").lower() == "yes":
+            # print("HERE")
+            if config_data.get("http_proxy") == "" or config_data.get("https_proxy") == "":
+                panel_choice["error_panel"].update_message(f"Missing proxy information, please provide information in the configuration panel.")
+                switch_panel("error_panel", ui_state, panel_choice)
+                return 
+            else:
+                proxies = {
+                    "http": config_data.get("http_proxy"),
+                    "https": config_data.get("https_proxy")
+                }
+                
+        # LOGIC FOR PULLING TICKETS GOES HERE
+        print(f"{headers=}\n{proxies=}")
 
     elif payload["type"] == "configure":
         switch_panel("configure_panel", ui_state, panel_choice)

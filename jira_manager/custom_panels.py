@@ -3,6 +3,7 @@ from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder
+from jira_manager.utils import switch_panel
 
 
 class ConfigurationFormBuilder(tk.Frame):
@@ -34,6 +35,8 @@ class ConfigurationFormBuilder(tk.Frame):
         theme_manager: ThemeManager = None,
         light_mode: dict = None,
         dark_mode: dict = None,
+        ui_state = None,
+        panel_choice = None
     ):
         super().__init__(
             master,
@@ -65,13 +68,8 @@ class ConfigurationFormBuilder(tk.Frame):
         self.light_mode = light_mode
         self.dark_mode = dark_mode
 
+
     def build_form(self):
-
-        def add_spacer(parent, height=1):
-            spacer = tk.Frame(parent, height=height)
-            self.theme_manager.register(spacer, "frame")
-            spacer.pack(fill="both", expand=True)
-
 
         # INTERNAL FUNCTIONS
         def get_clean_value(widget):
@@ -114,8 +112,8 @@ class ConfigurationFormBuilder(tk.Frame):
             save_data(payload)
 
             # NEED TO CALL UPDATE THEME HERE
+            """ERROR FROM HERE... TAKES AWHILE OF TOOL USE TO SEE SMALL UI ERROR"""
             try:
-                """THIS CODE IS CREATING A UI ISSUE IF USER CLICKS CONFIG BUTTON AGAIN WHILE ALREADY BEING ON CONFIG PAGE"""
                 new_theme = payload["theme"]
                 print(f"{new_theme=}")
                 if new_theme.lower() == "light":
@@ -126,9 +124,7 @@ class ConfigurationFormBuilder(tk.Frame):
                     mode = "No mode registered"
                 print(mode)
                 theme_manager.update_theme(new_theme=mode)
-                # toolbar_action(
-                #     parent, options, state, mode, theme_manager, active_panels
-                # )
+                
             except Exception as e:
                 print(f"{e=}")
                 pass
