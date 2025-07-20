@@ -35,8 +35,6 @@ class ConfigurationFormBuilder(tk.Frame):
         theme_manager: ThemeManager = None,
         light_mode: dict = None,
         dark_mode: dict = None,
-        ui_state = None,
-        panel_choice = None
     ):
         super().__init__(
             master,
@@ -67,7 +65,6 @@ class ConfigurationFormBuilder(tk.Frame):
         self.font_style = ("Arial", 12, "bold")
         self.light_mode = light_mode
         self.dark_mode = dark_mode
-
 
     def build_form(self):
 
@@ -124,7 +121,7 @@ class ConfigurationFormBuilder(tk.Frame):
                     mode = "No mode registered"
                 print(mode)
                 theme_manager.update_theme(new_theme=mode)
-                
+
             except Exception as e:
                 print(f"{e=}")
                 pass
@@ -366,70 +363,6 @@ class ConfigurationFormBuilder(tk.Frame):
         self.theme_manager.register(save_button, "base_button")
         return base_frame
 
-# class ErrorMessageBuilder(tk.Frame):
-#     def __init__(self, master=None, theme_manager: ThemeManager = None):
-#         super().__init__(master)
-#         self.theme_manager = theme_manager
-#         self.message = "Do I See This?"
-
-#         # Outer static frame (acts like border frame)
-#         outer_frame = tk.Frame(self, padx=3, pady=3)
-#         outer_frame.pack(fill="x", expand=True) # was both
-#         self.theme_manager.register(outer_frame, "error_border_frame")
-
-#         # Canvas + scrollbar inside outer_frame
-#         self.canvas = tk.Canvas(outer_frame, height=150)
-#         self.scrollbar = tk.Scrollbar(outer_frame, orient="vertical", command=self.canvas.yview)
-#         self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-#         self.scrollbar.pack(side="right", fill="y")
-#         self.scrollbar.pack_forget()
-#         self.canvas.pack(side="left", fill="x", expand=True) # was both
-
-#         # Scrollable content lives inside canvas
-#         self.content_frame = tk.Frame(self.canvas)
-#         self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
-
-#         # Resize scroll bounds as content grows
-#         self.content_frame.bind(
-#             "<Configure>",
-#             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-#         )
-
-#         # Mousewheel scrolling for inner area only
-#         self.canvas.bind("<Enter>", self._bind_mousewheel)
-#         self.canvas.bind("<Leave>", self._unbind_mousewheel)
-
-#         # Register theme roles
-#         self.theme_manager.register(self.canvas, "error_canvas")
-#         self.theme_manager.register(self.content_frame, "frame")
-
-#     def _bind_mousewheel(self, event):
-#         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-
-#     def _unbind_mousewheel(self, event):
-#         self.canvas.unbind_all("<MouseWheel>")
-
-#     def _on_mousewheel(self, event):
-#         self.canvas.yview_scroll(-1 * (event.delta // 60), "units") # was / 120
-
-#     def update_message(self, new_message: str):
-#         self.message = new_message
-#         for widget in self.content_frame.winfo_children():
-#             widget.destroy()
-#         self.build_error_message()
-
-#     def build_error_message(self):
-#         error_label = tk.Label(
-#             self.content_frame,
-#             text=f"⚠️ Error Occurred:\n\n{self.message}",
-#             wraplength=500,
-#             justify="center",
-#             padx=12,
-#             pady=12,
-#         )
-#         error_label.pack(fill="x")
-#         self.theme_manager.register(error_label, "error_label")
 
 class ErrorMessageBuilder(tk.Frame):
     def __init__(self, master=None, theme_manager: ThemeManager = None):
@@ -439,9 +372,18 @@ class ErrorMessageBuilder(tk.Frame):
 
     def update_message(self, new_message: str):
         self.message = new_message
-        for widget in self.winfo_children():
-            widget.destroy()
-        self.build_error_message().pack(fill="both", expand=True)
+
+        # Only reuse if widget exists and is a compatible type
+        if hasattr(self, "error_label") and self.error_label.winfo_exists():
+            if isinstance(self.error_label, (tk.Label, tk.Message)):
+                self.error_label.config(text=self.message)
+            else:
+                self.error_label.destroy()  # Clean out incompatible widget
+                self.error_label = self.build_error_message()
+                self.error_label.pack(fill="both", expand=True)
+        else:
+            self.error_label = self.build_error_message()
+            self.error_label.pack(fill="both", expand=True)
 
     def build_error_message(self):
         border_frame = tk.Frame(self, padx=3, pady=3)
@@ -459,8 +401,13 @@ class ErrorMessageBuilder(tk.Frame):
         canvas.create_window((0, 0), window=content_frame, anchor="nw")
         self.theme_manager.register(content_frame, "frame")
 
-        content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+        content_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.bind_all(
+            "<MouseWheel>",
+            lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"),
+        )
 
         error_label = tk.Label(
             content_frame,
