@@ -32,9 +32,15 @@ def main():
     )
 
     def clear_focus(event):
-        widget = event.widget
-        if not isinstance(widget, (tk.Entry, ttk.Entry)):
+        widget_class = str(event.widget.winfo_class())
+        allowed_classes = (
+            "Entry", "TEntry", "TCombobox", "Text", "Custom.TCombobox",
+            "Listbox", "Button", "Checkbutton", "Radiobutton"
+        )
+        if widget_class not in allowed_classes:
             root.focus_set()
+
+
 
     root.bind_all("<Button-1>", clear_focus)
 

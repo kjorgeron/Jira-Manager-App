@@ -695,7 +695,7 @@ def switch_panel(panel_key, ui_state, panel_choice):
         current.pack_forget()
     next_panel = panel_choice[panel_key]
     if panel_key == "error_panel":
-        next_panel.pack(fill="x", padx=10, pady=10)
+        next_panel.pack(fill="x", padx=100, pady=10)
     if panel_key == "configure_panel":
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
