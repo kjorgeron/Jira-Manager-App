@@ -8,6 +8,7 @@ from jira_manager.utils import (
     create_divider,
     get_theme_mode,
     initialize_window,
+    clear_focus
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -35,7 +36,7 @@ def main():
         widget_class = str(event.widget.winfo_class())
         allowed_classes = (
             "Entry", "TEntry", "TCombobox", "Text", "Custom.TCombobox",
-            "Listbox", "Button", "Checkbutton", "Radiobutton"
+            "Listbox",  "Checkbutton", "Radiobutton"
         )
         if widget_class not in allowed_classes:
             root.focus_set()

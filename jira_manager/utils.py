@@ -26,6 +26,14 @@ def initialize_window():
     root.minsize(800, 600) 
     return root
 
+def clear_focus(event, root):
+        widget_class = str(event.widget.winfo_class())
+        allowed_classes = (
+            "Entry", "TEntry", "TCombobox", "Text", "Custom.TCombobox",
+            "Listbox", "Button", "Checkbutton", "Radiobutton"
+        )
+        if widget_class not in allowed_classes:
+            root.focus_set()
 
 def get_theme_mode(config_path="app_config.json"):
     try:
@@ -702,13 +710,58 @@ def switch_panel(panel_key, ui_state, panel_choice):
 
 def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, panel_choice):
     if payload["type"] == "search_jiras":
+        switch_panel("configure_panel", ui_state, panel_choice)
+        config_data = load_data()
+        print(config_data)
+        headers = {}
+        proxies = {}
+        # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
-            panel_choice["error_panel"].update_message("Missing JQL Statement")
+            panel_choice["error_panel"].update_message("Missing JQL Statement.")
+            switch_panel("error_panel", ui_state, panel_choice)
+            print(ui_state["active_panel"])
+            return
+
+        if config_data.get("server") == "" or config_data.get("server") == "Provide base url":
+            panel_choice["error_panel"].update_message("Missing Jira server, please provide information in the configuration panel.")
             switch_panel("error_panel", ui_state, panel_choice)
             return
-        else:
-        # Handle valid logic here...
-            print(payload["jql"])
+
+        if config_data.get("auth_type") == "Basic Auth":
+            if config_data.get("username") == "" or config_data.get("password") == "" or config_data.get("username") == "Enter username or email" or config_data.get("password") == "Enter password or token" :
+                panel_choice["error_panel"].update_message("Missing Username or Password, please provide information in the configuration panel.")
+                switch_panel("error_panel", ui_state, panel_choice)
+                return 
+            else:
+                try:
+                    headers = {
+                        "Authorization": f"Basic {encode_basic_auth(config_data.get("username"), config_data.get("password"))}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    }
+                except JIRAError as e:
+                    panel_choice["error_panel"].update_message(f"Failed to build headers using provided username/password.\nReason = {e}")
+                    switch_panel("error_panel", ui_state, panel_choice)
+                    return 
+        elif config_data.get("auth_type") == "Token Auth":
+            if config_data.get("token") == "" or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only":
+                panel_choice["error_panel"].update_message("Missing Bearer Token, please provide information in the configuration panel.")
+                switch_panel("error_panel", ui_state, panel_choice)
+                return 
+            else:
+                try:
+                    # jira = JIRA(server=server, token_auth=token)
+                    headers = {
+                        "Authorization": f"Bearer {config_data.get("token")}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    }
+                except JIRAError as e:
+                    panel_choice["error_panel"].update_message(f"Failed to build headers using provided Bearer Token.\nReason = {e}")
+                    switch_panel("error_panel", ui_state, panel_choice)
+                    return 
+        else: 
+            switch_panel("configure_panel", ui_state, panel_choice)
 
     elif payload["type"] == "configure":
         switch_panel("configure_panel", ui_state, panel_choice)
