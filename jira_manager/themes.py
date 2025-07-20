@@ -25,90 +25,6 @@ dark_mode = {
 }
 
 
-# class ThemeManager:
-#     def __init__(self, root, theme):
-#         self.root = root
-#         self.theme = theme
-#         self.widgets = []
-#         self.style = ttk.Style()
-#         self._init_styles()
-
-#     def _init_styles(self):
-#         self.style.theme_use("default")
-
-#     def register(self, widget, role):
-#         self.widgets.append((widget, role))
-#         self.apply_to_widget(widget, role)
-
-#     def apply_to_widget(self, widget, role):
-#         match role:
-#             case "label":
-#                 widget.configure(
-#                     bg=self.theme["background"], fg=self.theme["primary_color"]
-#                 )
-#             case "base_button":
-#                 widget.configure(font=("Trebuchet MS", 12, "bold"),
-#                     bg=self.theme["btn_highlight"],
-#                     fg="white",
-#                     activebackground=self.theme["primary_color"],  # Hover color
-#                     activeforeground="white",)
-#             case "conf_button":
-#                 widget.configure(
-#                     font=("Trebuchet MS", 12, "bold"),
-#                     bg=self.theme["primary_color"],
-#                     fg="white",
-#                     activebackground=self.theme["btn_highlight"],  # Hover color
-#                     activeforeground="white",
-#                 )
-#             case "frame" | "root":
-#                 widget.configure(bg=self.theme["background"])
-#             case "combobox":
-#                 widget.configure(style="Custom.TCombobox")
-#             case "placeholder_entry":
-#                 widget.configure(
-#                     bg=self.theme["background"],
-#                     fg=self.theme["primary_color"],
-#                     insertbackground=self.theme["btn_highlight"],
-#                     highlightthickness=2,
-#                     highlightbackground=self.theme["primary_color"],
-#                     highlightcolor=self.theme["btn_highlight"],
-#                     relief=tk.FLAT,
-#                     bd=0,
-#                     font=("Arial", 14, "bold"),
-#                 )
-#                 widget.default_fg_color = self.theme["primary_color"]
-#                 widget.placeholder_color = self.theme["btn_highlight"]
-#                 widget.default_font = ("Arial", 14, "bold")
-#                 widget.placeholder_font = ("Arial", 14, "italic")
-
-#                 widget.refresh_placeholder()
-#                 # widget.reset_to_placeholder()
-#             case "entry":
-#                 widget.configure(
-#                     font=("Arial", 14, "bold"),  # Or font_style if you're passing it in
-#                     highlightbackground=self.theme["primary_color"],  # Unfocused
-#                     highlightcolor=self.theme["btn_highlight"],  # Focused
-#                     highlightthickness=2,
-#                     bd=0,
-#                     relief=tk.FLAT,
-#                     bg=self.theme["background"],
-#                     fg=self.theme["primary_color"],
-#                     insertbackground=self.theme["btn_highlight"],  # Caret color
-#                 )
-
-#     def update_theme(self, new_theme):
-#         self.theme = new_theme
-#         self.root.configure(bg=self.theme["background"])
-#         self._init_styles()  # Refresh styles with new theme
-#         for widget, role in self.widgets:
-#             self.apply_to_widget(widget, role)
-
-
-# def switch_theme(theme_manager):
-#     new_theme = dark_mode if theme_manager.theme == light_mode else light_mode
-#     theme_manager.update_theme(new_theme)
-
-
 class ThemeManager:
     def __init__(self, root, theme):
         self.root = root
@@ -126,10 +42,10 @@ class ThemeManager:
             foreground=self.theme["primary_color"],
             fieldbackground=self.theme["background"],
             background=self.theme["background"],
-            arrowcolor=self.theme["primary_color"],  # <- Set arrow color if supported
+            arrowcolor=self.theme["primary_color"],
         )
 
-        # Handle readonly state appearance
+        # Handle readonly state appearance and suppress click highlight
         self.style.map(
             "Custom.TCombobox",
             fieldbackground=[("readonly", self.theme["background"])],
@@ -138,7 +54,10 @@ class ThemeManager:
                 ("active", self.theme["btn_highlight"]),
                 ("readonly", self.theme["primary_color"]),
             ],
+            selectbackground=[("!disabled", self.theme["background"])],
+            selectforeground=[("!disabled", self.theme["primary_color"])],
         )
+
 
     def register(self, widget, role):
         self.widgets.append((widget, role))
@@ -221,20 +140,3 @@ class ThemeManager:
         for widget, role in self.widgets:
             self.apply_to_widget(widget, role)
 
-    # def update_theme(self, new_theme):
-    #     self.theme = new_theme
-    #     self.root.configure(bg=self.theme["background"])
-    #     self._init_styles()
-
-    #     # Filter out dead widgets
-    #     self.widgets = [
-    #         (widget, role) for (widget, role) in self.widgets
-    #         if str(widget) in widget.tk.call("winfo", "children", ".")
-    #     ]
-
-    #     for widget, role in self.widgets:
-    #         try:
-    #             self.apply_to_widget(widget, role)
-    #         except tk.TclError as err:
-    #             print(err)
-    #             continue  # Safeguard in case widget vanishes during loop
