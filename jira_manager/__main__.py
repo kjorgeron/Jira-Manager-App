@@ -113,47 +113,6 @@ def main():
     toolbar.pack()
     theme_manager.register(toolbar, "frame")
 
-    # # ─ Logo row ─ #
-    # logo_frame = tk.Frame(toolbar, bg="blue")
-    # logo_frame.pack(fill="x")  # Reduced spacing
-
-    # icon_label = tk.Label(
-    #     logo_frame,
-    #     text="🛠️",
-    #     font=("Trebuchet MS", 25),  # Smaller font
-    #     bg="green",                 # Visible for debugging
-    #     width=5,
-    #     padx=0,
-    #     pady=10
-    # )
-    # icon_label.pack(side="left", padx=(0, 2), ipady=0, ipadx=0, anchor="center")
-
-    # icon_label = tk.Label(
-    #     logo_frame,
-    #     text="🛠️",
-    #     font=("Trebuchet MS", 25),
-    #     bg="green",
-    #     justify="right",
-    # )
-    # icon_label.pack(side="left", padx=(0, 2), ipadx=0, ipady=0, fill=None, expand=False)
-
-    # theme_manager.register(icon_label, "label")
-
-    # title_label = tk.Label(
-    #     logo_frame,
-    #     text="Ticket Smith",
-    #     font=("Trebuchet MS", 25, "bold"),
-    #     bg="red",
-    #     # justify="left"
-    # )
-    # title_label.pack(side="left")
-    # theme_manager.register(title_label, "label")
-
-    # ─ Button row ─ #
-    # button_frame = tk.Frame(toolbar, bg=mode["background"])
-    # button_frame.pack(fill="x", pady=(2, 6))
-    # theme_manager.register(button_frame, "frame")
-
     config_btn = tk.Button(
         toolbar,
         text="Configure",

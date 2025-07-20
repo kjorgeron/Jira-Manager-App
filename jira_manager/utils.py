@@ -321,4 +321,9 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
         switch_panel("configure_panel", ui_state, panel_choice)
 
     elif payload["type"] == "tickets":
-        switch_panel("ticket_panel", ui_state, panel_choice)
+        bucket = [1]
+        if bucket != []:
+            switch_panel("ticket_panel", ui_state, panel_choice)
+        else:
+            panel_choice["error_panel"].update_message("No tickets have been loaded in, please configure a project or search using JQL query.")
+            switch_panel("error_panel", ui_state, panel_choice)

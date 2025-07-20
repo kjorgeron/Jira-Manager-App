@@ -126,6 +126,8 @@ class ThemeManager:
                 widget.configure(bg=self.theme["error_color"])
             case "error_canvas":
                 widget.configure(bg=self.theme["background"], highlightthickness=0)
+            case "border":
+                widget.configure(bg=self.theme["btn_highlight"])
             case "error_label":
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),  # Clean, heroic font

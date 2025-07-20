@@ -438,68 +438,6 @@ class ErrorMessageBuilder(tk.Frame):
         return border_frame
 
 
-# class TicketDisplayBuilder(tk.Frame):
-#     def __init__(
-#         self,
-#         master=None,
-#         cnf=None,
-#         *,
-#         background=None,
-#         bd=0,
-#         bg=None,
-#         border=0,
-#         borderwidth=0,
-#         class_="Frame",
-#         colormap="",
-#         container=False,
-#         cursor="",
-#         height=0,
-#         highlightbackground=None,
-#         highlightcolor=None,
-#         highlightthickness=0,
-#         name=None,
-#         padx=0,
-#         pady=0,
-#         relief="flat",
-#         takefocus=0,
-#         visual="",
-#         width=0,
-#         theme_manager: ThemeManager = None
-#     ):
-#         super().__init__(
-#             master,
-#             cnf,
-#             background=background,
-#             bd=bd,
-#             bg=bg,
-#             border=border,
-#             borderwidth=borderwidth,
-#             class_=class_,
-#             colormap=colormap,
-#             container=container,
-#             cursor=cursor,
-#             height=height,
-#             highlightbackground=highlightbackground,
-#             highlightcolor=highlightcolor,
-#             highlightthickness=highlightthickness,
-#             name=name,
-#             padx=padx,
-#             pady=pady,
-#             relief=relief,
-#             takefocus=takefocus,
-#             visual=visual,
-#             width=width,
-#         )
-#         self.theme_manager = theme_manager
-
-#     def build_ticket_board(self):
-#         base_frame = tk.Frame(self.master)
-#         self.theme_manager.register(base_frame, "frame")
-#         ticket_label = tk.Label(base_frame, text="Ticket Bucket")
-#         ticket_label.pack(fill="x")
-#         self.theme_manager.register(ticket_label, "label")
-#         return base_frame
-
 class TicketDisplayBuilder(tk.Frame):
     def __init__(self, master=None, theme_manager=None, **kwargs):
         super().__init__(master, **kwargs)
@@ -508,11 +446,36 @@ class TicketDisplayBuilder(tk.Frame):
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
 
+
     def _build_ticket_board(self):
-        base_frame = tk.Frame(self)
-        base_frame.pack(fill="both", expand=True)
+        ticket_label = tk.Label(self, text="Ticket Bucket", font=("Trebuchet MS", 25, "bold"), justify="center")
+        ticket_label.pack(fill="x")
+        self.theme_manager.register(ticket_label, "label")
+
+        canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
+        canvas.pack(fill="both", expand=True, side="left")
+        self.theme_manager.register(canvas, "frame")
+        # Scrollbar is created but not packed, so it's hidden
+        hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=hidden_scrollbar.set)
+
+        base_frame = tk.Frame(canvas, borderwidth=2, relief="groove")
         self.theme_manager.register(base_frame, "frame")
 
-        ticket_label = tk.Label(base_frame, text="🎫 Ticket Bucket")
-        ticket_label.pack(fill="x", padx=6, pady=6)
-        self.theme_manager.register(ticket_label, "label")
+        window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
+
+        def on_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        base_frame.bind("<Configure>", on_configure)
+
+        def on_resize(event):
+            canvas.itemconfig(window_id, width=event.width)
+
+        canvas.bind("<Configure>", on_resize)
+
+        # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
