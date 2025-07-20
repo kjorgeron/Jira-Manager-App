@@ -73,7 +73,7 @@ class ThemeManager:
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),
                     bg=self.theme["btn_highlight"],
-                    fg="white",
+                    fg=self.theme["background"],
                     activebackground=self.theme["primary_color"],
                     activeforeground="white",
                 )
@@ -81,7 +81,7 @@ class ThemeManager:
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),
                     bg=self.theme["primary_color"],
-                    fg="white",
+                    fg=self.theme["background"],
                     activebackground=self.theme["btn_highlight"],
                     activeforeground="white",
                 )
