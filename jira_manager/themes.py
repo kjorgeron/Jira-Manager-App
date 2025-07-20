@@ -169,8 +169,8 @@ class ThemeManager:
             case "frame" | "root":
                 try:
                     widget.configure(bg=self.theme["background"])
-                except Exception as e:
-                    print(f"{e=}")
+                except Exception as th_e:
+                    print(f"{th_e=}")
                     print(f"{widget=}")
             case "combobox":
                 widget.configure(style="Custom.TCombobox")

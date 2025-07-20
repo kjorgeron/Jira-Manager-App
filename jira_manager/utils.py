@@ -23,7 +23,7 @@ def initialize_window():
     resized_img = img.resize((32, 32), Image.Resampling.LANCZOS)
     icon = ImageTk.PhotoImage(resized_img)
     root.iconphoto(False, icon)
-    root.resizable(False, False)
+    root.minsize(800, 600) 
     return root
 
 
@@ -159,16 +159,13 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
 
 
 def generate_error(parent, message: str, mode: dict, theme_manager: ThemeManager):
+    
     # Outer shield-frame (red border)
-    border_frame = tk.Frame(
-        parent, padx=3, pady=3
-    )  # Blood-red Viking steel
+    border_frame = tk.Frame(parent, padx=3, pady=3)  # Blood-red Viking steel
     theme_manager.register(border_frame, "error_border_frame")
 
     # Canvas scrollable battleboard
-    canvas = tk.Canvas(
-        border_frame, width=550, height=100
-    )
+    canvas = tk.Canvas(border_frame, width=550, height=100)
     canvas.pack(fill="both", expand=True)
     theme_manager.register(canvas, "error_canvas")
 
@@ -203,11 +200,10 @@ def generate_error(parent, message: str, mode: dict, theme_manager: ThemeManager
     )
     error_label.pack(fill="x")
     theme_manager.register(error_label, "error_label")
-
     return border_frame
 
 
-def configure_results(results, options, parent, state, mode, theme_manager):
+def configure_results(results, options, parent, state, mode, theme_manager, panel_choice):
     # Handling of Jira Data
     try:
         # Handlers for improper JQL queries
@@ -227,13 +223,15 @@ def configure_results(results, options, parent, state, mode, theme_manager):
         # )
         scroll_area = create_scrollable_frame(parent)
         scroll_area.pack(fill="both", padx=10, expand=True)
-        error_message = generate_error(
-            scroll_area,
-            f"{'Error occurred with the JQL query... Please provide a proper query'}",
-            mode,
-            theme_manager
-        )
-        error_message.pack()
+        # error_message = generate_error(
+        #     scroll_area,
+        #     f"{'Error occurred with the JQL query... Please provide a proper query'}",
+        #     mode,
+        #     theme_manager,
+        # )
+        # error_message.pack()
+        panel_choice["error_panel"].update_message("Missing login credentials")
+        state["active_panel"] = panel_choice["error_panel"].pack()
 
         # error_frame.pack()
         # state["active_panel"] = error_frame
@@ -251,490 +249,466 @@ def configure_results(results, options, parent, state, mode, theme_manager):
     #     state["active_panel"] = scroll_container
 
 
-
-def toolbar_action(parent, options: dict, state: dict, mode: dict, theme_manager: ThemeManager):
-    # Helper to ignore placeholder text when saving
-    def get_clean_value(widget):
-        value = widget.get()
-        if (
-            value != widget.placeholder
-            or widget["fg"] != widget.placeholder_color
-        ):
-            return value
-        return ""
-
-    def on_save(theme_manager: ThemeManager): # THIS ROOT PASS NEEDS TO BE REMOVED / UPDATE FUNC TO FIT NEW CLASS IN THEMES.PY
-        # Handles clearing of unused data for login
-        if selected_auth.get() == "Basic Auth":
-            token_input.delete(0, tk.END)
-            token_input.reset_to_placeholder()
-        else:  # Token Auth selected
-            username_input.delete(0, tk.END)
-            username_input.reset_to_placeholder()
-            password_input.delete(0, tk.END)
-            password_input.reset_to_placeholder()
-
-        # Handles clearing of unused data for proxy
-        if proxy_option.get() == "No":
-            http_input.delete(0, tk.END)
-            https_input.delete(0, tk.END)
+# def toolbar_action(
+#     parent,
+#     options: dict,
+#     state: dict,
+#     mode: dict,
+#     theme_manager: ThemeManager,
+#     active_panels: list,
+#     panel_choice: dict
+# ):
 
 
-        payload = {
-            "server": jira_server_input.get(),
-            "http_proxy": http_input.get(),
-            "https_proxy": https_input.get(),
-            "token": get_clean_value(token_input),
-            "username": get_clean_value(username_input),
-            "password": get_clean_value(password_input),
-            "auth_type": selected_auth.get(),
-            "proxy_option": proxy_option.get(),
-            "theme": theme_option.get(),
-        }
 
-        # SAVE PAYLOAD DATA
-        save_data(payload)
+#     if state["active_panel"]:
+#         state["active_panel"].pack_forget()
+#         # state["active_panel"].destroy()
+#         state["active_panel"] = None
 
-        # NEED TO CALL UPDATE THEME HERE
-        try:
-            """ THIS CODE IS CREATING A UI ISSUE IF USER CLICKS CONFIG BUTTON AGAIN WHILE ALREADY BEING ON CONFIG PAGE """
-            new_theme = payload["theme"]
-            print(f"{new_theme=}")
-            if new_theme.lower() == "light":
-                mode = light_mode
-            elif new_theme.lower() == "dark":
-                mode = dark_mode
-            else: mode = "No mode registered"
-            print(mode)
-            theme_manager.update_theme(new_theme=mode)
-            toolbar_action(parent, options, state, mode, theme_manager)
-        except Exception:
-            print(f"{state=}")
-            pass
-        
-    def update_proxy_fields(event=None):
-        proxy_panel.pack_forget()
-        if proxy_option.get() == "Yes":
-            proxy_panel.pack(fill="x", pady=5)
-            theme_manager.register(proxy_panel, "frame")
+#     # # Handling of Data Configuration
+#     if options["type"] == "configure":
+#         from jira_manager.custom_panels import ConfigurationFormBuilder
+#         # config = ConfigurationFormBuilder(parent, dark_mode=dark_mode, light_mode=light_mode, theme_manager=theme_manager, padx=10, pady=10)
+#         # config.pack(fill="x")
+#         # theme_manager.register(config, "frame")
+#         # config_form = config.build_form()
+#         # config_form.pack(expand=True, fill="x")
+#         # theme_manager.register(config_form, "frame")
+#         state["active_panel"] = panel_choice["configure_panel"].pack(fill="x")
 
-    def update_auth_fields(event=None):
-        basic_panel.pack_forget()
-        token_panel.pack_forget()
-        if selected_auth.get() == "Basic Auth":
-            basic_panel.pack(fill="x", pady=5)
-            theme_manager.register(basic_panel, "frame")
+#     #     # Data stored in users Documents folder
+#     #     config = load_data()
+#     #     font_style = ("Arial", 12, "bold")
+
+#     #     # DEFAULTS FOR COMBOBOX
+#     #     selected_auth = tk.StringVar(value=config.get("auth_type", "Basic Auth"))
+#     #     proxy_option = tk.StringVar(
+#     #         value=(
+#     #             "Yes" if config.get("http_proxy") or config.get("https_proxy") else "No"
+#     #         )
+#     #     )
+#     #     theme_option = tk.StringVar(
+#     #         value=config.get("theme", "Light")  # default to 'light' if not set
+#     #     )
+
+#     #     panel = tk.Frame(parent)
+#     #     panel.pack(fill="both", padx=10, pady=10, expand=True)
+#     #     state["active_panel"] = panel
+#     #     active_panels.append(panel)
+#     #     theme_manager.register(panel, "frame")
+
+#     #     form_frame = tk.Frame(panel)
+#     #     form_frame.pack(fill="both", expand=True)
+#     #     theme_manager.register(form_frame, "frame")
+
+#     #     footer_frame = tk.Frame(panel)
+#     #     footer_frame.pack(fill="x", side="bottom")
+#     #     theme_manager.register(footer_frame, "frame")
+
+#     #     selector_row = tk.Frame(form_frame)
+#     #     selector_row.pack(fill="x", pady=5)
+#     #     theme_manager.register(selector_row, "frame")
+
+#     #     # Row 0, Column 0 – Credential Type
+#     #     cred_label = tk.Label(
+#     #         selector_row,
+#     #         text="Credential Type:",
+#     #         font=font_style,
+#     #     )
+#     #     cred_label.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
+#     #     theme_manager.register(cred_label, "label")
+
+#     #     auth_type = ttk.Combobox(
+#     #         selector_row,
+#     #         textvariable=selected_auth,
+#     #         values=["Basic Auth", "Token Auth"],
+#     #         state="readonly",
+#     #         style="Custom.TCombobox",
+#     #     )
+#     #     auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
+#     #     theme_manager.register(auth_type, "combobox")
+
+#     #     # Row 0, Column 2 – Use Proxies
+#     #     proxy_label = tk.Label(
+#     #         selector_row,
+#     #         text="Use Proxies:",
+#     #         font=font_style,
+#     #     )
+#     #     proxy_label.grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
+#     #     theme_manager.register(proxy_label, "label")
+
+#     #     proxy_type = ttk.Combobox(
+#     #         selector_row,
+#     #         textvariable=proxy_option,
+#     #         values=["No", "Yes"],
+#     #         state="readonly",
+#     #         style="Custom.TCombobox",
+#     #     )
+#     #     proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
+#     #     theme_manager.register(proxy_type, "combobox")
+
+#     #     # Row 1, Column 1 – Theme
+#     #     theme_label = tk.Label(
+#     #         selector_row,
+#     #         text="Theme:",
+#     #         font=font_style,
+#     #     )
+#     #     theme_label.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
+#     #     theme_manager.register(theme_label, "label")
+
+#     #     theme = ttk.Combobox(
+#     #         selector_row,
+#     #         textvariable=theme_option,
+#     #         values=["Light", "Dark"],
+#     #         state="readonly",
+#     #         style="Custom.TCombobox",
+#     #     )
+#     #     theme.grid(row=1, column=1, sticky="ew", pady=2)
+#     #     theme_manager.register(theme, "combobox")
+
+#     #     # SEPERATOR IN FORM
+#     #     ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
+
+#     #     # Form Inputs
+#     #     jira_row = tk.Frame(form_frame)
+#     #     jira_row.pack(fill="x", pady=5)
+#     #     jira_row.columnconfigure(1, weight=1)
+#     #     theme_manager.register(jira_row, "frame")
+
+#     #     server_label = tk.Label(
+#     #         jira_row,
+#     #         text="Jira Server:",
+#     #         font=font_style,
+#     #     )
+#     #     server_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(server_label, "label")
+
+#     #     jira_server_input = EntryWithPlaceholder(
+#     #         jira_row,
+#     #         placeholder="Provide base url",
+#     #         font=font_style,
+#     #         initial_text=config.get("server", ""),
+#     #     )
+#     #     jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     theme_manager.register(jira_server_input, "placeholder_entry")
+
+#     #     proxy_panel = tk.Frame(form_frame)
+
+#     #     proxy_http = tk.Frame(proxy_panel)
+#     #     proxy_http.pack(fill="x", pady=5)
+#     #     proxy_http.columnconfigure(1, weight=1)
+#     #     theme_manager.register(proxy_http, "frame")
+
+#     #     http_label = tk.Label(
+#     #         proxy_http,
+#     #         text="HTTP Proxy:",
+#     #         font=font_style,
+#     #     )
+#     #     http_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(http_label, "label")
+
+#     #     http_input = tk.Entry(
+#     #         proxy_http,
+#     #     )
+#     #     http_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     http_input.insert(0, config.get("http_proxy", ""))
+#     #     theme_manager.register(http_input, "entry")
+
+#     #     proxy_https = tk.Frame(proxy_panel)
+#     #     proxy_https.pack(fill="x", pady=5)
+#     #     proxy_https.columnconfigure(1, weight=1)
+#     #     theme_manager.register(proxy_https, "frame")
+
+#     #     https_label = tk.Label(
+#     #         proxy_https,
+#     #         text="HTTPS Proxy:",
+#     #         font=font_style,
+#     #     )
+#     #     https_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(https_label, "label")
+
+#     #     https_input = tk.Entry(
+#     #         proxy_https,
+#     #     )
+#     #     https_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     https_input.insert(0, config.get("https_proxy", ""))
+#     #     theme_manager.register(https_input, "entry")
+
+#     #     basic_panel = tk.Frame(form_frame)
+
+#     #     user_row = tk.Frame(basic_panel)
+#     #     user_row.pack(fill="x", pady=5)
+#     #     user_row.columnconfigure(1, weight=1)
+#     #     theme_manager.register(user_row, "frame")
+
+#     #     user_label = tk.Label(
+#     #         user_row,
+#     #         text="User ID:",
+#     #         font=font_style,
+#     #     )
+#     #     user_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(user_label, "label")
+
+#     #     username_input = EntryWithPlaceholder(
+#     #         user_row,
+#     #         placeholder="Enter username or email",
+#     #         initial_text=config.get("username", ""),
+#     #     )
+#     #     username_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     theme_manager.register(username_input, "placeholder_entry")
+
+#     #     pass_row = tk.Frame(basic_panel)
+#     #     pass_row.pack(fill="x", pady=5)
+#     #     pass_row.columnconfigure(1, weight=1)
+#     #     theme_manager.register(pass_row, "frame")
+
+#     #     pass_label = tk.Label(
+#     #         pass_row,
+#     #         text="Password:",
+#     #         font=font_style,
+#     #     )
+#     #     pass_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(pass_label, "label")
+
+#     #     password_input = EntryWithPlaceholder(
+#     #         pass_row,
+#     #         placeholder="Enter password or token",
+#     #         show="*",
+#     #     )
+#     #     password_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     theme_manager.register(password_input, "placeholder_entry")
+
+#     #     token_panel = tk.Frame(form_frame)
+
+#     #     token_row = tk.Frame(token_panel)
+#     #     token_row.pack(fill="x", pady=5)
+#     #     token_row.columnconfigure(1, weight=1)
+#     #     theme_manager.register(token_row, "frame")
+
+#     #     token_label = tk.Label(
+#     #         token_row,
+#     #         text="Access Token:",
+#     #         font=font_style,
+#     #     )
+#     #     token_label.pack(side="left", padx=(0, 5))
+#     #     theme_manager.register(token_label, "label")
+
+#     #     token_input = EntryWithPlaceholder(
+#     #         token_row,
+#     #         placeholder="(Bearer Token) JWT or OAuth 2.0 only",
+#     #         show="*",
+#     #         initial_text=config.get("token", ""),
+#     #     )
+#     #     token_input.pack(side="left", fill="x", expand=True, padx=10)
+#     #     theme_manager.register(token_input, "placeholder_entry")
+
+#     #     proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
+#     #     auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
+
+#     #     update_proxy_fields()
+#     #     update_auth_fields()
+
+#     #     ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
+#     #     save_button = tk.Button(
+#     #         footer_frame,
+#     #         text="Save",
+#     #         command=lambda: on_save(theme_manager),
+#     #     )
+#     #     save_button.pack(pady=(5, 10))
+#     #     theme_manager.register(save_button, "base_button")
+
+#     # Handling of Jira Searching
+#     elif options["type"] == "search_jiras":
+#         data = load_data()
+#         if data != {}:
+#             # NEEDS EXCEPTION HERE FOR MISSING CONFIG ITEMS
+#             try:
+#                 server = data["server"]
+#                 token = data["token"]
+#                 username = data["username"]
+#                 password = data["password"]
+#                 http_proxy = data["http_proxy"]
+#                 https_proxy = data["https_proxy"]
+#                 use_proxy = data["proxy_option"]
+#             except Exception:
+#                 # error_frame = generate_error(
+#                 #     parent,
+#                 #     "Missing required fields in Configure file",
+#                 #     mode,
+#                 #     theme_manager,
+#                 # )
+#                 # error_frame.pack()
+#                 # state["active_panel"] = error_frame
+#                 # active_panels.append(error_frame)
+#                 panel_choice["error_panel"].update_message("Missing login credentials")
+#                 state["active_panel"] = panel_choice["error_panel"].pack()
+
+#             if server != "":
+#                 # Handles credential initialization
+#                 if token != "":
+#                     try:
+#                         # jira = JIRA(server=server, token_auth=token)
+#                         headers = {
+#                             "Authorization": f"Bearer {token}",
+#                             "Content-Type": "application/json",
+#                             "Accept": "application/json",
+#                         }
+#                     except JIRAError as e:
+#                     #     error_frame = generate_error(
+#                     #         parent, f"Issue with token - {e}", mode, theme_manager
+#                     #     )
+#                     # error_frame.pack()
+#                     # state["active_panel"] = error_frame
+#                     # active_panels.append(error_frame)
+#                         panel_choice["error_panel"].update_message(f"Issue with token - {e}")
+#                     raise JIRAError
+#                 elif username != "" and password != "":
+#                     try:
+#                         headers = {
+#                             "Authorization": f"Basic {encode_basic_auth(username, password)}",
+#                             "Content-Type": "application/json",
+#                             "Accept": "application/json",
+#                         }
+#                     except JIRAError as e:
+#                         # error_frame = generate_error(
+#                         #     parent,
+#                         #     f"Issue with username/password - {e}",
+#                         #     mode,
+#                         #     theme_manager,
+#                         # )
+#                         # error_frame.pack()
+#                         # state["active_panel"] = error_frame
+#                         # active_panels.append(error_frame)
+#                         panel_choice["error_panel"].update_message("Missing login credentials")
+#                         state["active_panel"] = panel_choice["error_panel"].pack()
+#                         raise JIRAError
+#                 # """NEED TO FIX UI ERROR FOR THIS ERROR MESSAGE"""
+#                 else:
+#                     # error_frame = generate_error(
+#                     #     parent, "Missing login credentials.", mode, theme_manager
+#                     # )
+#                     # error_frame.pack()
+#                     # state["active_panel"] = error_frame
+#                     # active_panels.append(error_frame)
+#                     panel_choice["error_panel"].update_message("Missing login credentials")
+#                     state["active_panel"] = panel_choice["error_panel"].pack()
+
+#                 # No proxy request
+#                 if use_proxy.lower() != "yes":
+#                     # jql = "key = SCRUM-1"
+#                     url = f"{server}rest/api/2/search?jql={options['jql']}"
+#                     try:
+#                         if options["jql"] != "Enter proper JQL query...":
+#                             response = requests.get(url=url, headers=headers)
+
+#                             # Return value
+#                             results = response.json()
+#                             configure_results(results, options, parent, state, panel_choice)
+#                         else:
+#                             raise Exception("Please provide proper jql query")
+#                     except Exception as e:
+#                         # error_frame = generate_error(
+#                         #     parent, f"{e}", mode, theme_manager
+#                         # )
+#                         # error_frame.pack()
+#                         # state["active_panel"] = error_frame
+#                         # active_panels.append(error_frame)
+#                         panel_choice["error_panel"].update_message("Missing login credentials")
+#                         state["active_panel"] = panel_choice["error_panel"].pack()
+
+#                 # Handles proxy requests
+#                 if use_proxy.lower() != "no":
+#                     if (
+#                         http_proxy != ""
+#                         and https_proxy != ""
+#                         and use_proxy.lower() == "yes"
+#                     ):
+#                         proxy = {"http": http_proxy, "https": https_proxy}
+#                         # DO REQUEST USING PROXY
+#                         url = f"{server}rest/api/2/search?jql={options['jql']}"
+#                         try:
+#                             # if options["jql"] != "Enter proper JQL query...":
+#                             response = requests.get(
+#                                 url=url, headers=headers, proxies=proxy
+#                             )
+
+#                             # Return value
+#                             results = response.json()
+#                             configure_results(results, options, parent, state, mode)
+#                             # else:
+#                             #     raise Exception("Please provide proper jql query")
+#                         except JIRAError as e:
+#                             # error_frame = generate_error(
+#                             #     parent, f"{e}", mode, theme_manager
+#                             # )
+#                             # error_frame.pack()
+#                             # state["active_panel"] = error_frame
+#                             # active_panels.append(error_frame)
+#                             panel_choice["error_panel"].update_message("Missing login credentials")
+#                             state["active_panel"] = panel_choice["error_panel"].pack()
+
+#                     elif (
+#                         use_proxy.lower() == "yes"
+#                         and http_proxy == ""
+#                         or https_proxy == ""
+#                     ):
+#                         # error_frame = generate_error(
+#                         #     parent,
+#                         #     "Must have values in both HTTP and HTTPS proxies in order to use.",
+#                         #     mode,
+#                         #     theme_manager,
+#                         # )
+#                         # error_frame.pack()
+#                         # state["active_panel"] = error_frame
+#                         # active_panels.append(error_frame)
+#                         panel_choice["error_panel"].update_message("Missing login credentials")
+#                         state["active_panel"] = panel_choice["error_panel"].pack()
+#             else:
+#                 # error_frame = generate_error(
+#                 #     parent, "Missing Jira server url.", mode, theme_manager
+#                 # )
+#                 # error_frame.pack()
+#                 # state["active_panel"] = error_frame
+#                 # active_panels.append(error_frame)
+#                 panel_choice["error_panel"].update_message("Missing login credentials")
+#                 state["active_panel"] = panel_choice["error_panel"].pack()
+#                 raise Exception
+#         else:
+#             print("No data")
+#             # error_frame = generate_error(
+#             #     parent,
+#             #     "No Configuration Data found... please press Configure button at top left.",
+#             #     mode,
+#             #     theme_manager,
+#             # )
+#             # error_frame.pack(fill="both", padx=10)
+#             # state["active_panel"] = error_frame
+#             # active_panels.append(error_frame)
+#             panel_choice["error_panel"].update_message("Missing login credentials")
+#             state["active_panel"] = panel_choice["error_panel"].pack()
+#     # print(f"{active_panels=}")
+
+def switch_panel(panel_key, ui_state, panel_choice):
+    current = ui_state.get("active_panel")
+    if current:
+        current.pack_forget()
+    next_panel = panel_choice[panel_key]
+    if panel_key == "error_panel":
+        next_panel.pack(fill="x", padx=10, pady=10)
+    if panel_key == "configure_panel":
+        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+    ui_state["active_panel"] = next_panel
+
+def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, panel_choice):
+    if payload["type"] == "search_jiras":
+        if payload["jql"] == "Enter proper JQL query":
+            panel_choice["error_panel"].update_message("Missing JQL Statement")
+            switch_panel("error_panel", ui_state, panel_choice)
+            return
         else:
-            token_panel.pack(fill="x", pady=5)
-            theme_manager.register(token_panel, "frame")
+        # Handle valid logic here...
+            print(payload["jql"])
 
-    # Handling of active frames
-    if state["active_panel"]:
-        state["active_panel"].pack_forget()
-        # state["active_panel"].destroy()
-        state["active_panel"] = None
-
-
-    # Handling of Data Configuration
-    if options["type"] == "configure":
-
-        # Data stored in users Documents folder
-        config = load_data()
-        font_style = ("Arial", 12, "bold")
-
-        # DEFAULTS FOR COMBOBOX
-        selected_auth = tk.StringVar(value=config.get("auth_type", "Basic Auth"))
-        proxy_option = tk.StringVar(
-            value=(
-                "Yes" if config.get("http_proxy") or config.get("https_proxy") else "No"
-            )
-        )
-        theme_option = tk.StringVar(
-            value=config.get("theme", "Light")  # default to 'light' if not set
-        )
-
-        panel = tk.Frame(parent)
-        panel.pack(fill="both", padx=10, pady=10, expand=True)
-        state["active_panel"] = panel
-        theme_manager.register(panel, "frame")
-
-        form_frame = tk.Frame(panel)
-        form_frame.pack(fill="both", expand=True)
-        theme_manager.register(form_frame, "frame")
-
-        footer_frame = tk.Frame(panel)
-        footer_frame.pack(fill="x", side="bottom")
-        theme_manager.register(footer_frame, "frame")
-
-        selector_row = tk.Frame(form_frame)
-        selector_row.pack(fill="x", pady=5)
-        theme_manager.register(selector_row, "frame")
-
-        # Row 0, Column 0 – Credential Type
-        cred_label = tk.Label(
-            selector_row,
-            text="Credential Type:",
-            font=font_style,
-        )
-        cred_label.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
-        theme_manager.register(cred_label, "label")
-
-        auth_type = ttk.Combobox(
-            selector_row,
-            textvariable=selected_auth,
-            values=["Basic Auth", "Token Auth"],
-            state="readonly",
-            style="Custom.TCombobox",
-        )
-        auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
-        theme_manager.register(auth_type, "combobox")
-
-        # Row 0, Column 2 – Use Proxies
-        proxy_label = tk.Label(
-            selector_row,
-            text="Use Proxies:",
-            font=font_style,
-        )
-        proxy_label.grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
-        theme_manager.register(proxy_label, "label")
-
-        proxy_type = ttk.Combobox(
-            selector_row,
-            textvariable=proxy_option,
-            values=["No", "Yes"],
-            state="readonly",
-            style="Custom.TCombobox",
-        )
-        proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
-        theme_manager.register(proxy_type, "combobox")
-
-        # Row 1, Column 1 – Theme
-        theme_label = tk.Label(
-            selector_row,
-            text="Theme:",
-            font=font_style,
-        )
-        theme_label.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
-        theme_manager.register(theme_label, "label")
-
-        theme = ttk.Combobox(
-            selector_row,
-            textvariable=theme_option,
-            values=["Light", "Dark"],
-            state="readonly",
-            style="Custom.TCombobox",
-        )
-        theme.grid(row=1, column=1, sticky="ew", pady=2)
-        theme_manager.register(theme, "combobox")
-
-        # SEPERATOR IN FORM
-        ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
-
-        # Form Inputs
-        jira_row = tk.Frame(form_frame)
-        jira_row.pack(fill="x", pady=5)
-        jira_row.columnconfigure(1, weight=1)
-        theme_manager.register(jira_row, "frame")
-
-        server_label = tk.Label(
-            jira_row,
-            text="Jira Server:",
-            font=font_style,
-        )
-        server_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(server_label, "label")
-
-        jira_server_input = EntryWithPlaceholder(
-            jira_row,
-            placeholder="Provide base url",
-            font=font_style,
-            initial_text=config.get("server", ""),
-        )
-        jira_server_input.pack(side="left", fill="x", expand=True, padx=10)
-        theme_manager.register(jira_server_input, "placeholder_entry")
-
-        proxy_panel = tk.Frame(form_frame)
-        
-
-        proxy_http = tk.Frame(proxy_panel)
-        proxy_http.pack(fill="x", pady=5)
-        proxy_http.columnconfigure(1, weight=1)
-        theme_manager.register(proxy_http, "frame")
-
-        http_label = tk.Label(
-            proxy_http,
-            text="HTTP Proxy:",
-            font=font_style,
-        )
-        http_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(http_label, "label")
-
-        http_input = tk.Entry(
-            proxy_http,
-        )
-        http_input.pack(side="left", fill="x", expand=True, padx=10)
-        http_input.insert(0, config.get("http_proxy", ""))
-        theme_manager.register(http_input, "entry")
-
-        proxy_https = tk.Frame(proxy_panel)
-        proxy_https.pack(fill="x", pady=5)
-        proxy_https.columnconfigure(1, weight=1)
-        theme_manager.register(proxy_https, "frame")
-
-        https_label = tk.Label(
-            proxy_https,
-            text="HTTPS Proxy:",
-            font=font_style,
-        )
-        https_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(https_label, "label")
-
-        https_input = tk.Entry(
-            proxy_https,
-        )
-        https_input.pack(side="left", fill="x", expand=True, padx=10)
-        https_input.insert(0, config.get("https_proxy", ""))
-        theme_manager.register(https_input, "entry")
-
-        basic_panel = tk.Frame(form_frame)
-
-        user_row = tk.Frame(basic_panel)
-        user_row.pack(fill="x", pady=5)
-        user_row.columnconfigure(1, weight=1)
-        theme_manager.register(user_row, "frame")
-
-        user_label = tk.Label(
-            user_row,
-            text="User ID:",
-            font=font_style,
-        )
-        user_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(user_label, "label")
-
-        username_input = EntryWithPlaceholder(
-            user_row,
-            placeholder="Enter username or email",
-            initial_text=config.get("username", ""),
-        )
-        username_input.pack(side="left", fill="x", expand=True, padx=10)
-        theme_manager.register(username_input, "placeholder_entry")
-
-        pass_row = tk.Frame(basic_panel)
-        pass_row.pack(fill="x", pady=5)
-        pass_row.columnconfigure(1, weight=1)
-        theme_manager.register(pass_row, "frame")
-
-        pass_label = tk.Label(
-            pass_row,
-            text="Password:",
-            font=font_style,
-        )
-        pass_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(pass_label, "label")
-
-        password_input = EntryWithPlaceholder(
-            pass_row,
-            placeholder="Enter password or token",
-            show="*",
-        )
-        password_input.pack(side="left", fill="x", expand=True, padx=10)
-        theme_manager.register(password_input, "placeholder_entry")
-
-        token_panel = tk.Frame(form_frame)
-
-        token_row = tk.Frame(token_panel)
-        token_row.pack(fill="x", pady=5)
-        token_row.columnconfigure(1, weight=1)
-        theme_manager.register(token_row, "frame")
-
-        token_label = tk.Label(
-            token_row,
-            text="Access Token:",
-            font=font_style,
-        )
-        token_label.pack(side="left", padx=(0, 5))
-        theme_manager.register(token_label, "label")
-
-        token_input = EntryWithPlaceholder(
-            token_row,
-            placeholder="(Bearer Token) JWT or OAuth 2.0 only",
-            show="*",
-            initial_text=config.get("token", ""),
-        )
-        token_input.pack(side="left", fill="x", expand=True, padx=10)
-        theme_manager.register(token_input, "placeholder_entry")
-
-
-        proxy_type.bind("<<ComboboxSelected>>", update_proxy_fields)
-        auth_type.bind("<<ComboboxSelected>>", update_auth_fields)
-
-        update_proxy_fields()
-        update_auth_fields()
-
-        ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=10)
-        save_button = tk.Button(
-            footer_frame,
-            text="Save",
-            command=lambda: on_save(theme_manager),
-        )
-        save_button.pack(pady=(5, 10))
-        theme_manager.register(save_button, "base_button")
-
-    # Handling of Jira Searching
-    elif options["type"] == "search_jiras":
-        data = load_data()
-        if data != {}:
-            # NEEDS EXCEPTION HERE FOR MISSING CONFIG ITEMS
-            try:
-                server = data["server"]
-                token = data["token"]
-                username = data["username"]
-                password = data["password"]
-                http_proxy = data["http_proxy"]
-                https_proxy = data["https_proxy"]
-                use_proxy = data["proxy_option"]
-            except Exception:
-                error_frame = generate_error(
-                    parent,
-                    "Missing required fields in Configure file",
-                    mode,
-                    theme_manager
-                )
-                error_frame.pack()
-                state["active_panel"] = error_frame
-
-            if server != "":
-                # Handles credential initialization
-                if token != "":
-                    try:
-                        # jira = JIRA(server=server, token_auth=token)
-                        headers = {
-                            "Authorization": f"Bearer {token}",
-                            "Content-Type": "application/json",
-                            "Accept": "application/json",
-                        }
-                    except JIRAError as e:
-                        error_frame = generate_error(
-                            parent,
-                            f"Issue with token - {e}",
-                            mode,
-                            theme_manager
-                        )
-                    error_frame.pack()
-                    state["active_panel"] = error_frame
-                    raise JIRAError
-                elif username != "" and password != "":
-                    try:
-                        headers = {
-                            "Authorization": f"Basic {encode_basic_auth(username, password)}",
-                            "Content-Type": "application/json",
-                            "Accept": "application/json",
-                        }
-                    except JIRAError as e:
-                        error_frame = generate_error(
-                            parent,
-                            f"Issue with username/password - {e}",
-                            mode,
-                            theme_manager
-                        )
-                        error_frame.pack()
-                        state["active_panel"] = error_frame
-                        raise JIRAError
-                """NEED TO FIX UI ERROR FOR THIS ERROR MESSAGE"""
-                # else:
-                #     error_frame = generate_error(
-                #         parent,
-                #         "Missing login credentials.",
-                #         mode,
-                #         theme_manager
-                #     )
-                #     error_frame.pack()
-                #     state["active_panel"] = error_frame
-
-                # No proxy request
-                if use_proxy.lower() != "yes":
-                    # jql = "key = SCRUM-1"
-                    url = f"{server}rest/api/2/search?jql={options['jql']}"
-                    try:
-                        if options["jql"] != "Enter proper JQL query...":
-                            response = requests.get(url=url, headers=headers)
-
-                            # Return value
-                            results = response.json()
-                            configure_results(results, options, parent, state)
-                        else:
-                            raise Exception("Please provide proper jql query")
-                    except Exception as e:
-                        error_frame = generate_error(
-                            parent,
-                            f"{e}",
-                            mode,
-                            theme_manager
-                        )
-                        error_frame.pack()
-                        state["active_panel"] = error_frame
-
-                # Handles proxy requests
-                if use_proxy.lower() != "no":
-                    if (
-                        http_proxy != ""
-                        and https_proxy != ""
-                        and use_proxy.lower() == "yes"
-                    ):
-                        proxy = {"http": http_proxy, "https": https_proxy}
-                        # DO REQUEST USING PROXY
-                        url = f"{server}rest/api/2/search?jql={options['jql']}"
-                        try:
-                            # if options["jql"] != "Enter proper JQL query...":
-                            response = requests.get(
-                                url=url, headers=headers, proxies=proxy
-                            )
-
-                            # Return value
-                            results = response.json()
-                            configure_results(results, options, parent, state, mode)
-                            # else:
-                            #     raise Exception("Please provide proper jql query")
-                        except JIRAError as e:
-                            error_frame = generate_error(
-                                parent,
-                                f"{e}",
-                                mode,
-                                theme_manager
-                            )
-                            error_frame.pack()
-                            state["active_panel"] = error_frame
-
-                    elif (
-                        use_proxy.lower() == "yes"
-                        and http_proxy == ""
-                        or https_proxy == ""
-                    ):
-                        error_frame = generate_error(
-                            parent,
-                            "Must have values in both HTTP and HTTPS proxies in order to use.",
-                            mode,
-                            theme_manager
-                        )
-                        error_frame.pack()
-                        state["active_panel"] = error_frame
-            else:
-                error_frame = generate_error(
-                    parent,
-                    "Missing Jira server url.",
-                    mode,
-                    theme_manager
-                )
-                error_frame.pack()
-                state["active_panel"] = error_frame
-                raise Exception
-        else:
-            print("No data")
-            error_frame = generate_error(
-                parent,
-                "No Configuration Data found... please press Configure button at top left.",
-                mode,
-                theme_manager
-            )
-            error_frame.pack(fill="both", padx=10)
-            state["active_panel"] = error_frame
+    elif payload["type"] == "configure":
+        switch_panel("configure_panel", ui_state, panel_choice)
