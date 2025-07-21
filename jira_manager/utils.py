@@ -489,4 +489,4 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
             )
             switch_panel("error_panel", ui_state, panel_choice)
 
-    jql_query.delete(0, 'end')
+    jql_query.reset_to_placeholder()
