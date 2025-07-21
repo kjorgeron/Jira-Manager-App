@@ -87,6 +87,7 @@ def main():
     configure_panel = setup_configure_panel(root, theme_manager)
     ticket_panel = setup_ticket_panel(root, theme_manager)
 
+    # NEED TO MAKE A LOAD PANEL HERE TO SHOW TICKETS LOADING INTO TICKET BUCKET
     panel_choice = {
         "error_panel": error_panel,
         "configure_panel": configure_panel,

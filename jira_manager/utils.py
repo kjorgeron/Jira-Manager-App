@@ -11,6 +11,7 @@ from pprint import pprint
 from PIL import Image, ImageTk
 from jira_manager.file_manager import save_data, load_data
 from jira_manager.themes import ThemeManager, light_mode, dark_mode
+from jira_manager.sql_manager import read_from_table
 
 
 def initialize_window():
@@ -315,14 +316,28 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
                 
         # LOGIC FOR PULLING TICKETS GOES HERE
         print(f"{headers=}\n{proxies=}")
-        switch_panel("ticket_panel", ui_state, panel_choice)
-
+        try:
+            ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
+            print(ticket_data)
+        except:
+            ticket_data = []
+        # CHANGE BUCKET FOR DATABASE INFO <-- THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
+        if ticket_data != []:
+            switch_panel("ticket_panel", ui_state, panel_choice)
+        else:
+            panel_choice["error_panel"].update_message("No tickets have been loaded in, please configure a project or search using JQL query.")
+            switch_panel("error_panel", ui_state, panel_choice)
     elif payload["type"] == "configure":
         switch_panel("configure_panel", ui_state, panel_choice)
 
     elif payload["type"] == "tickets":
-        bucket = [1]
-        if bucket != []:
+        # CHANGE BUCKET FOR DATABASE INFO
+        try:
+            ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
+            print(ticket_data)
+        except:
+            ticket_data = []
+        if ticket_data != []:
             switch_panel("ticket_panel", ui_state, panel_choice)
         else:
             panel_choice["error_panel"].update_message("No tickets have been loaded in, please configure a project or search using JQL query.")

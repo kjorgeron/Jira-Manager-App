@@ -94,7 +94,7 @@ class ConfigurationFormBuilder(tk.Frame):
                 https_input.delete(0, tk.END)
 
             payload = {
-                "server": jira_server_input.get(),
+                "server": get_clean_value(jira_server_input),
                 "http_proxy": http_input.get(),
                 "https_proxy": https_input.get(),
                 "token": get_clean_value(token_input),
