@@ -249,7 +249,11 @@ def switch_panel(panel_key, ui_state, panel_choice):
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
 
-def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, panel_choice):
+def toolbar_action(payload, ui_state, panel_choice, widget_registry):
+
+    widget = widget_registry.get("welcome_label")
+
+    # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
         # switch_panel("configure_panel", ui_state, panel_choice)
         config_data = load_data()
@@ -258,18 +262,23 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
         proxies = None
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
+            widget.pack_forget()
+            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message("Missing JQL Statement.")
             switch_panel("error_panel", ui_state, panel_choice)
-            # print(ui_state["active_panel"])
             return
 
         if config_data.get("server") == "" or config_data.get("server") == "Provide base url":
+            widget.pack_forget()
+            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message("Missing Jira server, please provide information in the configuration panel.")
             switch_panel("error_panel", ui_state, panel_choice)
             return
 
         if config_data.get("auth_type") == "Basic Auth":
             if config_data.get("username") == "" or config_data.get("password") == "" or config_data.get("username") == "Enter username or email" or config_data.get("password") == "Enter password or token" :
+                widget.pack_forget()
+                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message("Missing Username or Password, please provide information in the configuration panel.")
                 switch_panel("error_panel", ui_state, panel_choice)
                 return 
@@ -281,11 +290,15 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
                         "Accept": "application/json",
                     }
                 except JIRAError as e:
+                    widget.pack_forget()
+                    # widget.config(text="Oops!!! A failure has occurred.")
                     panel_choice["error_panel"].update_message(f"Failed to build headers using provided username/password.\nReason = {e}")
                     switch_panel("error_panel", ui_state, panel_choice)
                     return 
         elif config_data.get("auth_type") == "Token Auth":
             if config_data.get("token") == "" or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only":
+                widget.pack_forget()
+                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message("Missing Bearer Token, please provide information in the configuration panel.")
                 switch_panel("error_panel", ui_state, panel_choice)
                 return 
@@ -298,6 +311,8 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
                         "Accept": "application/json",
                     }
                 except JIRAError as e:
+                    widget.pack_forget()
+                    # widget.config(text="Oops!!! A failure has occurred.")
                     panel_choice["error_panel"].update_message(f"Failed to build headers using provided Bearer Token.\nReason = {e}")
                     switch_panel("error_panel", ui_state, panel_choice)
                     return 
@@ -305,6 +320,8 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
         if config_data.get("proxy_option").lower() == "yes":
             # print("HERE")
             if config_data.get("http_proxy") == "" or config_data.get("https_proxy") == "":
+                widget.pack_forget()
+                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message(f"Missing proxy information, please provide information in the configuration panel.")
                 switch_panel("error_panel", ui_state, panel_choice)
                 return 
@@ -320,16 +337,25 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
             ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
             print(ticket_data)
         except:
-            ticket_data = []
+            ticket_data = [1]
         # CHANGE BUCKET FOR DATABASE INFO <-- THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
         if ticket_data != []:
+            widget.config(text="Ticket Bucket")
+            widget.pack(fill="x", padx=10, pady=10)
             switch_panel("ticket_panel", ui_state, panel_choice)
         else:
+            widget.pack_forget()
+            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message("No tickets have been loaded in, please configure a project or search using JQL query.")
             switch_panel("error_panel", ui_state, panel_choice)
-    elif payload["type"] == "configure":
-        switch_panel("configure_panel", ui_state, panel_choice)
 
+    # LOGIC FOR CONFIGURE PANEL            
+    elif payload["type"] == "configure":
+        widget.pack_forget()
+        switch_panel("configure_panel", ui_state, panel_choice)
+        # widget.config(text="Lets configure your setup!")
+
+    # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
         # CHANGE BUCKET FOR DATABASE INFO
         try:
@@ -338,7 +364,11 @@ def toolbar_action(root, payload, ui_state, mode, theme_manager, active_panels, 
         except:
             ticket_data = []
         if ticket_data != []:
+            widget.config(text="Ticket Bucket")
+            widget.pack(fill="x", padx=10, pady=10)
             switch_panel("ticket_panel", ui_state, panel_choice)
         else:
+            widget.pack_forget()
+            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message("No tickets have been loaded in, please configure a project or search using JQL query.")
             switch_panel("error_panel", ui_state, panel_choice)

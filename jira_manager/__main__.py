@@ -49,7 +49,7 @@ def setup_ticket_panel(parent, theme_manager):
 def main():
     # WINDOW INIT
     root = initialize_window()
-
+    widget_registry = {}
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
         allowed_classes = (
@@ -118,13 +118,10 @@ def main():
         toolbar,
         text="Configure",
         command=lambda: toolbar_action(
-            root,
             {"type": "configure", "jql": ""},
             ui_state,
-            "mode",
-            theme_manager,
-            None,
             panel_choice,
+            widget_registry
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -134,13 +131,10 @@ def main():
         toolbar,
         text="Ticket Butcket",
         command=lambda: toolbar_action(
-            root,
             {"type": "tickets", "jql": ""},
             ui_state,
-            "mode",
-            theme_manager,
-            None,
             panel_choice,
+            widget_registry
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -150,13 +144,10 @@ def main():
         toolbar,
         text="Search Jira",
         command=lambda: toolbar_action(
-            root,
             {"type": "search_jiras", "jql": jql_search.get()},
             ui_state,
-            "mode",
-            theme_manager,
-            None,
             panel_choice,
+            widget_registry
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -171,49 +162,14 @@ def main():
     jql_search.pack(side="left", padx=10)
     theme_manager.register(jql_search, "placeholder_entry")
 
-    #     logo_label = tk.Label(
-    #     toolbar,
-    #     text="🛠️ Ticket Smith",
-    #     font=("Segoe UI", 14, "bold"),
-    #     anchor="w",
-    #     padx=10,
-    #     pady=4,
-    # )
-    #     logo_label.pack(side="left")
-    #     theme_manager.register(logo_label, "logo_label")
-
-    #     config_btn = tk.Button(
-    #         toolbar,
-    #         text="Configure",
-    #         command=lambda: toolbar_action(
-    #             root, {"type": "configure", "jql": ""}, ui_state, "mode", theme_manager, None, panel_choice
-    #         )
-    #     )
-    #     config_btn.pack(side="left", padx=10)
-    #     theme_manager.register(config_btn, "conf_button")
-
-    #     jql_search_btn = tk.Button(
-    #         toolbar,
-    #         text="Search Jira",
-    #         command=lambda: toolbar_action(
-    #             root, {"type": "search_jiras", "jql": jql_search.get()}, ui_state, "mode", theme_manager, None, panel_choice
-    #         )
-    #     )
-    #     jql_search_btn.pack(side="left", padx=10)
-    #     theme_manager.register(jql_search_btn, "base_button")
-
-    #     jql_search = EntryWithPlaceholder(
-    #         toolbar,
-    #         placeholder="Enter proper JQL query",
-    #         initial_text="",
-    #         width=25,
-    #     )
-    #     jql_search.pack(side="left", padx=10)
-    #     theme_manager.register(jql_search, "placeholder_entry")
-
     # DIVIDER
     create_divider(root, mode["muted_text"])
 
+    # WELCOME LABEL
+    welcome_label = tk.Label(root, text=f"Welcome {getuser()}! Let's manage some Jira Tickets!", justify="center", font=("Trebuchet MS", 20, "bold"))
+    welcome_label.pack(fill="x", padx=10, pady=10)
+    theme_manager.register(welcome_label, "label")
+    widget_registry["welcome_label"] = welcome_label
     # Show default panel
     # configure_panel.pack(fill="both", expand=True)
     # ui_state["active_panel"] = configure_panel

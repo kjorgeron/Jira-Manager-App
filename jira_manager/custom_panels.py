@@ -154,6 +154,7 @@ class ConfigurationFormBuilder(tk.Frame):
         theme_option = tk.StringVar(
             value=self.config.get("theme", "Light")  # default to 'light' if not set
         )
+
         base_frame = tk.Frame(self)
         self.theme_manager.register(base_frame, "frame")
 
@@ -448,9 +449,6 @@ class TicketDisplayBuilder(tk.Frame):
 
 
     def _build_ticket_board(self):
-        ticket_label = tk.Label(self, text="Ticket Bucket", font=("Trebuchet MS", 25, "bold"), justify="center")
-        ticket_label.pack(fill="x")
-        self.theme_manager.register(ticket_label, "label")
 
         canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
         canvas.pack(fill="both", expand=True, side="left")
