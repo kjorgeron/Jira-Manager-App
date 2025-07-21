@@ -84,8 +84,6 @@ pylint-report.txt
 instance/
 *.db
 
-images/
-
 # My Test File
 my_file.py
 jira_manager/app_config.json
