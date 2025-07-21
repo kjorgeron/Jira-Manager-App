@@ -29,6 +29,18 @@ def load_data() -> dict:
         except Exception as e:
             print(f"❌ Failed to load config: {e}")
     else:
-        print("ℹ️ No config file found. Returning empty config.")
+        print("ℹ️ No config file found. Generating base config.")
+        payload = {
+            "server": "",
+            "http_proxy": "",
+            "https_proxy": "",
+            "token": "",
+            "username": "",
+            "password": "",
+            "auth_type": "Basic Auth",
+            "proxy_option": "No",
+            "theme": "Dark"
+        }
+        save_data(payload)
 
     return {}  # Default fallback
