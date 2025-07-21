@@ -162,6 +162,7 @@ def main():
     )
     jql_search.pack(side="left", padx=10)
     theme_manager.register(jql_search, "placeholder_entry")
+    widget_registry["jql_query"] = jql_search
 
     # DIVIDER
     create_divider(root, mode["muted_text"])

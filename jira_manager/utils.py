@@ -270,6 +270,7 @@ def switch_panel(panel_key, ui_state, panel_choice):
 def toolbar_action(payload, ui_state, panel_choice, widget_registry):
 
     widget = widget_registry.get("welcome_label")
+    jql_query = widget_registry.get("jql_query")
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
@@ -461,3 +462,5 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 "No tickets have been loaded in, please configure a project or search using JQL query."
             )
             switch_panel("error_panel", ui_state, panel_choice)
+
+    jql_query.delete(0, 'end')
