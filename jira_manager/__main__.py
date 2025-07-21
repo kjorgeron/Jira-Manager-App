@@ -103,7 +103,7 @@ def main():
 
     logo_label = tk.Label(
         logo_frame,
-        text=" 🛠️TicketSmith",
+        text=" ⚒️ TicketSmith",
         font=("Trebuchet MS", 25, "bold"),
     )
     logo_label.pack(pady=5, side="left")

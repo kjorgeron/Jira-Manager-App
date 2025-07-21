@@ -12,6 +12,8 @@ from PIL import Image, ImageTk
 from jira_manager.file_manager import save_data, load_data
 from jira_manager.themes import ThemeManager, light_mode, dark_mode
 from jira_manager.sql_manager import read_from_table
+from requests.exceptions import RequestException
+
 
 
 def grab_fields_and_type(tickets) -> list[tuple]:
@@ -380,10 +382,26 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
         print(f"{headers=}\n{proxies=}")
         try:
             url = f"{config_data.get('server')}rest/api/2/search?jql={payload['jql']}"
-            response = requests.get(url, headers=headers, proxies=proxies)
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=360)
             if response.status_code not in [200, 204]:
-                print(response.status_code)
-                raise Exception(f"Status Code = {response.status_code}.\nMessage = {response.text}.")
+                status = response.status_code
+                message = response.text
+
+                if status == 400:
+                    error_msg = "Bad Request – Please check your JQL query or input format."
+                elif status == 401:
+                    error_msg = "Unauthorized – Your credentials might be missing or invalid."
+                elif status == 403:
+                    error_msg = "Forbidden – You don’t have permission to access this Jira resource."
+                elif status == 404:
+                    error_msg = "Not Found – The Jira endpoint or project wasn't located."
+                elif status == 500:
+                    error_msg = "Jira Server Error – Something went wrong on their end."
+                else:
+                    error_msg = f"Unexpected response.\nStatus Code: {status}\nMessage: {message}"
+
+                raise Exception(error_msg)
+
             else:
                 # NEED TO HANDLE DATABASE STORAGE HERE
                 print(response.status_code)
@@ -411,6 +429,13 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                         "No tickets have been loaded in, please configure a project or search using JQL query."
                     )
                     switch_panel("error_panel", ui_state, panel_choice)
+        except RequestException as e:
+            # This fires if you're offline or the server is unreachable
+            widget.pack_forget()
+            panel_choice["error_panel"].update_message(
+                "You're offline or Jira can't be reached.\nPlease check your connection."
+            )
+            switch_panel("error_panel", ui_state, panel_choice)
         except Exception as e:
             widget.pack_forget()
             # widget.config(text="Oops!!! A failure has occurred.")
@@ -418,6 +443,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 f"There was an issue with the request to Jira.\nReason = {e}"
             )
             switch_panel("error_panel", ui_state, panel_choice)
+
 
         # try:
         #     ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
