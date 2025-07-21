@@ -11,17 +11,72 @@ from pprint import pprint
 from PIL import Image, ImageTk
 from jira_manager.file_manager import save_data, load_data
 from jira_manager.themes import ThemeManager, light_mode, dark_mode
-from jira_manager.sql_manager import read_from_table
+from jira_manager.sql_manager import (
+    read_from_table,
+    add_column_to_table,
+    insert_into_table,
+    run_sql_stmt,
+)
 from requests.exceptions import RequestException
 
 
-
-def grab_fields_and_type(tickets) -> list[tuple]:
+def grab_data_list(tickets) -> list:
+    excluded_fields = [
+        # System-managed or read-only
+        "statuscategorychangedate",
+        "created",
+        "updated",
+        "lastViewed",
+        "workratio",
+        "aggregateprogress",
+        "aggregatetimespent",
+        "aggregatetimeestimate",
+        "aggregatetimeoriginalestimate",
+        # "resolutiondate",
+        "votes",
+        "watches",
+        "progress",
+        # Permission-sensitive or restricted updates
+        "security",
+        # "creator",
+        # "reporter",
+        "statusCategory",
+        "project",
+        # "status",
+        "issuetype",
+        # Fields currently NoneType / unset
+        "timespent",
+        "timeoriginalestimate",
+        # "description",
+        "resolution",
+        # "customfield_10021",
+        # "customfield_10001",
+        # "customfield_10016",
+        # "customfield_10038",
+        "environment",
+        "timeestimate",
+        # "duedate",
+        "comment",  # Requires separate endpoint for updates
+        "worklog",  # Also updated via a dedicated endpoint
+        "attachment",  # Cannot be updated via issue PUT; use upload API
+        "customfield_*_readonly",  # Any custom fields that are read-only by config
+        "parent",  # Only relevant for sub-tasks; changing it moves the issue
+        "epic",  # Epic link field (varies by instance, often custom)
+        "sprint",  # Sprint field (Scrum boards); may be managed by board automation
+        "rank",
+    ]
+    ticket_data = {}
+    data_list = []
     ticket_field_list = []
     for ticket in tickets["issues"]:
+        ticket_data["key"] = ticket["key"]
         for field in ticket["fields"]:
-            ticket_field_list.append((field, type(ticket["fields"][field])))
-    return ticket_field_list
+            if "NoneType" not in str(type(ticket["fields"][field])):
+                if field not in excluded_fields:
+                    ticket_field_list.append((field, type(ticket["fields"][field])))
+        ticket_data["fields_types"] = ticket_field_list
+        data_list.append(ticket_data)
+    return data_list
 
 
 def initialize_window():
@@ -388,13 +443,19 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 message = response.text
 
                 if status == 400:
-                    error_msg = "Bad Request – Please check your JQL query or input format."
+                    error_msg = (
+                        "Bad Request – Please check your JQL query or input format."
+                    )
                 elif status == 401:
-                    error_msg = "Unauthorized – Your credentials might be missing or invalid."
+                    error_msg = (
+                        "Unauthorized – Your credentials might be missing or invalid."
+                    )
                 elif status == 403:
                     error_msg = "Forbidden – You don’t have permission to access this Jira resource."
                 elif status == 404:
-                    error_msg = "Not Found – The Jira endpoint or project wasn't located."
+                    error_msg = (
+                        "Not Found – The Jira endpoint or project wasn't located."
+                    )
                 elif status == 500:
                     error_msg = "Jira Server Error – Something went wrong on their end."
                 else:
@@ -406,17 +467,43 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 # NEED TO HANDLE DATABASE STORAGE HERE
                 print(response.status_code)
                 tickets = response.json()
-                fields_types_list = grab_fields_and_type(tickets)
-                for item in fields_types_list:
-                    field, typ = item
-                    print(f"{field=}\n{typ=}")
+                total_tickets = tickets["total"]
+                print(f"{total_tickets=}")
+
+                # GRABS ALL FIELDS AND THEIR DATA TYPE
+
+                ticket_data_list = grab_data_list(tickets)
+                for ticket_data in ticket_data_list:
+                    print(ticket_data)
+                    try:
+                        insert_into_table(
+                            "jira_manager/tickets.db",
+                            "Tickets",
+                            {"key": ticket_data["key"]},
+                        )
+                    except Exception as e:
+                        print(e)
+
+                    for field, typ in ticket_data["fields_types"]:
+                        insert_into_table(
+                            "jira_manager/tickets.db",
+                            "fields",
+                            {
+                                "ticket_id": 1,
+                                "field_name": field,
+                                "field_type": str(typ),
+                                "payload": str({}),
+                            },
+                        )
 
                 # THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
                 try:
-                    ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
-                    print(ticket_data)
+                    ticket_data = read_from_table("jira_manager/tickets.db", "tickets")
+                    field_data = read_from_table("jira_manager/tickets.db", "fields")
+                    print(f"{ticket_data=}")
+                    print(f"{field_data=}")
                 except:
-                    ticket_data = [1]
+                    ticket_data = []
                 if ticket_data != []:
                     widget.config(text="Ticket Bucket")
                     widget.pack(fill="x", padx=10, pady=10)

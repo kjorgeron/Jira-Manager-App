@@ -19,6 +19,7 @@ from jira_manager.custom_panels import (
     ErrorMessageBuilder,
     TicketDisplayBuilder,
 )
+from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
 
 
 def setup_configure_panel(parent, theme_manager):
@@ -47,6 +48,31 @@ def setup_ticket_panel(parent, theme_manager):
 
 
 def main():
+
+    # CHECK TO MAKE SURE DATABASE EXISTS
+    is_existing = table_exists("jira_manager/tickets.db", "Tickets")
+    if is_existing == False:
+        # create_table("jira_manager/tickets.db", "Tickets", {"ID": "INTEGER PRIMARY KEY AUTOINCREMENT", "KEY": "TEXT NOT NULL UNIQUE", "TYPE": "TEXT NOT NULL"})
+        sql = """
+            CREATE TABLE tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE
+            );
+        """
+        run_sql_stmt("jira_manager/tickets.db", sql)
+
+        sql = """
+            CREATE TABLE fields (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                field_name TEXT NOT NULL,
+                field_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            );
+        """
+        run_sql_stmt("jira_manager/tickets.db", sql)
+
     # WINDOW INIT
     root = initialize_window()
     widget_registry = {}
@@ -119,10 +145,7 @@ def main():
         toolbar,
         text="Configure",
         command=lambda: toolbar_action(
-            {"type": "configure", "jql": ""},
-            ui_state,
-            panel_choice,
-            widget_registry
+            {"type": "configure", "jql": ""}, ui_state, panel_choice, widget_registry
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -132,10 +155,7 @@ def main():
         toolbar,
         text="Ticket Butcket",
         command=lambda: toolbar_action(
-            {"type": "tickets", "jql": ""},
-            ui_state,
-            panel_choice,
-            widget_registry
+            {"type": "tickets", "jql": ""}, ui_state, panel_choice, widget_registry
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -148,7 +168,7 @@ def main():
             {"type": "search_jiras", "jql": jql_search.get()},
             ui_state,
             panel_choice,
-            widget_registry
+            widget_registry,
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -168,7 +188,12 @@ def main():
     create_divider(root, mode["muted_text"])
 
     # WELCOME LABEL
-    welcome_label = tk.Label(root, text=f"Welcome {getuser()}! Let's manage some Jira Tickets!", justify="center", font=("Trebuchet MS", 20, "bold"))
+    welcome_label = tk.Label(
+        root,
+        text=f"Welcome {getuser()}! Let's manage some Jira Tickets!",
+        justify="center",
+        font=("Trebuchet MS", 20, "bold"),
+    )
     welcome_label.pack(fill="x", padx=10, pady=10)
     theme_manager.register(welcome_label, "label")
     widget_registry["welcome_label"] = welcome_label
