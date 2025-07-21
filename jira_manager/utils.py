@@ -411,13 +411,12 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                     field, typ = item
                     print(f"{field=}\n{typ=}")
 
-
+                # THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
                 try:
                     ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
                     print(ticket_data)
                 except:
                     ticket_data = [1]
-                # CHANGE BUCKET FOR DATABASE INFO <-- THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
                 if ticket_data != []:
                     widget.config(text="Ticket Bucket")
                     widget.pack(fill="x", padx=10, pady=10)
@@ -443,25 +442,6 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 f"There was an issue with the request to Jira.\nReason = {e}"
             )
             switch_panel("error_panel", ui_state, panel_choice)
-
-
-        # try:
-        #     ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
-        #     print(ticket_data)
-        # except:
-        #     ticket_data = [1]
-        # # CHANGE BUCKET FOR DATABASE INFO <-- THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
-        # if ticket_data != []:
-        #     widget.config(text="Ticket Bucket")
-        #     widget.pack(fill="x", padx=10, pady=10)
-        #     switch_panel("ticket_panel", ui_state, panel_choice)
-        # else:
-        #     widget.pack_forget()
-        #     # widget.config(text="Oops!!! A failure has occurred.")
-        #     panel_choice["error_panel"].update_message(
-        #         "No tickets have been loaded in, please configure a project or search using JQL query."
-        #     )
-        #     switch_panel("error_panel", ui_state, panel_choice)
 
     # LOGIC FOR CONFIGURE PANEL
     elif payload["type"] == "configure":
