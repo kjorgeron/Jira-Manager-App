@@ -1,38 +1,49 @@
 import sqlite3
 
 
-def run_sql_stmt(db_path, sql):
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(sql)
+def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None):
+    items = None
 
-        requires_commit = [
-            # Data manipulation
-            "INSERT",  # Add new rows
-            "UPDATE",  # Modify existing rows
-            "DELETE",  # Remove rows
-            # Table/schema changes
-            "CREATE TABLE",  # Create new table
-            "DROP TABLE",  # Delete table
-            "ALTER TABLE",  # Modify table structure
-            # Index and view management (less common but relevant)
-            "CREATE INDEX",
-            "DROP INDEX",
-            "CREATE VIEW",
-            "DROP VIEW",
-            # Trigger and transaction control
-            "CREATE TRIGGER",
-            "DROP TRIGGER",
-            "BEGIN TRANSACTION",  # When manually controlling transactions
-            "END TRANSACTION",  # Required if using BEGIN manually
-        ]
-        for require in requires_commit:
-            if require in sql:
-                conn.commit()
-        cursor.close()
-    except:
-        pass
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            stmt_type = stmt_type.lower() if stmt_type else ""
+
+            if stmt_type == "select":
+                if sql:
+                    cursor.execute(sql)
+                    items = cursor.fetchall()
+                else:
+                    raise ValueError("SELECT operation requires an SQL query.")
+
+            elif stmt_type == "insert":
+                if table_name and data:
+                    columns = ", ".join(data.keys())
+                    placeholders = ", ".join(["?" for _ in data])
+                    values = tuple(data.values())
+                    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+                    cursor.execute(sql, values)
+                    conn.commit()
+                else:
+                    raise ValueError("INSERT operation requires table_name and data.")
+
+            elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
+                if sql:
+                    cursor.execute(sql)
+                    conn.commit()
+                else:
+                    raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
+
+            else:
+                raise ValueError(f"Unsupported statement type: {stmt_type}")
+
+            cursor.close()
+
+    except Exception as e:
+        print(f"[SQL Error] {e}")
+
+    return items
 
 
 def table_exists(db_path, table_name):
@@ -153,3 +164,28 @@ def add_column_to_table(
 
     finally:
         conn.close()
+
+def add_or_find_key_return_id(db_path: str, key: str) -> int:
+
+    select = f"""
+        SELECT * FROM tickets WHERE key = '{key}';
+    """
+
+    items = run_sql_stmt(db_path, select, stmt_type="select")
+    if items != None:
+        if len(items) > 0:
+            print(f"Item {key} found in database.\nRecords = {items}")
+            id, key = items[0]
+            return id
+        else:
+            # ADD MISSING KEY TO DATABASE
+            payload = {"key": key}
+            run_sql_stmt(db_path, table_name="tickets", data=payload, stmt_type="insert")
+            items = run_sql_stmt(db_path, select, stmt_type="select")
+            if len(items) > 0:
+                print(f"Item created successfully!\nRecords = {items}")
+                id, key = items[0]
+                return id
+            else:
+                print(f"Issue adding {key} to database")
+                return 0

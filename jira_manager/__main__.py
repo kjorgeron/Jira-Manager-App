@@ -49,29 +49,30 @@ def setup_ticket_panel(parent, theme_manager):
 
 def main():
 
-    # CHECK TO MAKE SURE DATABASE EXISTS
-    is_existing = table_exists("jira_manager/tickets.db", "Tickets")
+    # SETUP OF DATABASE TABLES
+    db_path = "jira_manager/tickets.db"
+    is_existing = table_exists(db_path, "tickets")
     if is_existing == False:
-        # create_table("jira_manager/tickets.db", "Tickets", {"ID": "INTEGER PRIMARY KEY AUTOINCREMENT", "KEY": "TEXT NOT NULL UNIQUE", "TYPE": "TEXT NOT NULL"})
         sql = """
-            CREATE TABLE tickets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT NOT NULL UNIQUE
-            );
-        """
-        run_sql_stmt("jira_manager/tickets.db", sql)
-
+                CREATE TABLE tickets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key TEXT NOT NULL UNIQUE
+                );
+            """
+        run_sql_stmt(db_path, sql, stmt_type="create")
+    is_existing = table_exists(db_path, "fields")
+    if is_existing == False:
         sql = """
-            CREATE TABLE fields (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticket_id INTEGER NOT NULL,
-                field_name TEXT NOT NULL,
-                field_type TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-            );
-        """
-        run_sql_stmt("jira_manager/tickets.db", sql)
+                CREATE TABLE fields (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticket_id INTEGER NOT NULL,
+                    field_name TEXT NOT NULL,
+                    field_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+                );
+            """
+        run_sql_stmt(db_path, sql, stmt_type="create")
 
     # WINDOW INIT
     root = initialize_window()
