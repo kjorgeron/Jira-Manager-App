@@ -334,6 +334,20 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
         # LOGIC FOR PULLING TICKETS GOES HERE
         print(f"{headers=}\n{proxies=}")
         try:
+            url = f"{config_data.get('server')}rest/api/2/search?jql={payload['jql']}"
+            response = requests.get(url, headers=headers, proxies=proxies)
+            print(response.status_code)
+            print(f"{response.json()=}")
+
+            # NEED TO HANDLE DATABASE STORAGE HERE
+
+        except Exception as e:
+            widget.pack_forget()
+            # widget.config(text="Oops!!! A failure has occurred.")
+            panel_choice["error_panel"].update_message(f"There was an issue with the request to Jira.\nReason = {e}")
+            switch_panel("error_panel", ui_state, panel_choice)
+
+        try:
             ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
             print(ticket_data)
         except:
