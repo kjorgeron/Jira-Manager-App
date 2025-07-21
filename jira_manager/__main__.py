@@ -50,6 +50,7 @@ def main():
     # WINDOW INIT
     root = initialize_window()
     widget_registry = {}
+
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
         allowed_classes = (
@@ -59,7 +60,7 @@ def main():
             "Text",
             "Custom.TCombobox",
             "Listbox",
-            "Button",
+            # "Button",
             "Checkbutton",
             "Radiobutton",
         )
