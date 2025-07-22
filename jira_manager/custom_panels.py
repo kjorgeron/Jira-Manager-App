@@ -477,3 +477,72 @@ class TicketDisplayBuilder(tk.Frame):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+
+import tkinter as tk
+from tkinter import ttk
+
+class TicketFormUI(tk.Frame):
+    def __init__(self, master, field_layout):
+        super().__init__(master)
+        self.field_layout = field_layout
+        self.entries = {}
+        self.build_ui()
+
+    def build_ui(self):
+        row = 0
+        for field in self.field_layout:
+            label = ttk.Label(self, text=field["name"])
+            label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
+
+            widget_type = field["widget"]
+            default = field["value"]
+
+            # Assign widget based on type
+            if widget_type == "TextEntry":
+                entry = ttk.Entry(self)
+                entry.insert(0, default)
+            elif widget_type == "RichTextBox":
+                entry = tk.Text(self, height=4, width=40)
+                entry.insert("1.0", default)
+            elif widget_type == "Dropdown":
+                values = [v["name"] if isinstance(v, dict) else v for v in field.get("allowed", [])]
+                entry = ttk.Combobox(self, values=values)
+                if default:
+                    entry.set(default if isinstance(default, str) else getattr(default, "name", ""))
+            elif widget_type == "MultiSelect":
+                entry = tk.Listbox(self, selectmode=tk.MULTIPLE)
+                for v in field.get("allowed", []):
+                    entry.insert(tk.END, v["name"] if isinstance(v, dict) else v)
+            elif widget_type == "UserPicker":
+                entry = ttk.Combobox(self, values=["Kevin", "User A", "User B"])
+                if default:
+                    entry.set(default)
+            elif widget_type == "DatePicker":
+                entry = ttk.Entry(self)
+                entry.insert(0, default or "YYYY-MM-DD")
+            elif widget_type == "NumericEntry":
+                entry = ttk.Entry(self)
+                entry.insert(0, str(default) if default else "0")
+            else:
+                entry = ttk.Entry(self)
+                entry.insert(0, str(default) if default else "")
+
+            entry.grid(row=row, column=1, padx=5, pady=5)
+            self.entries[field["id"]] = entry
+            row += 1
+
+        submit_btn = ttk.Button(self, text="Submit", command=self.collect_data)
+        submit_btn.grid(row=row, column=0, columnspan=2, pady=10)
+
+    def collect_data(self):
+        data = {}
+        for field_id, widget in self.entries.items():
+            if isinstance(widget, tk.Text):
+                data[field_id] = widget.get("1.0", tk.END).strip()
+            elif isinstance(widget, tk.Listbox):
+                selections = widget.curselection()
+                data[field_id] = [widget.get(i) for i in selections]
+            else:
+                data[field_id] = widget.get()
+        print("Collected Form Data:", data)  # Hook this into your update logic

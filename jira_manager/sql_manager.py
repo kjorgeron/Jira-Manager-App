@@ -1,5 +1,35 @@
 import sqlite3
 
+def insert_fields_into_db(db_path, ticket_id, field_rows):
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            for field in field_rows:
+                cursor.execute("""
+                    INSERT INTO fields (
+                        ticket_id,
+                        field_key,
+                        field_name,
+                        field_type,
+                        widget_type,
+                        is_editable,
+                        allowed_values,
+                        current_value
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ticket_id,
+                    field["field_key"],
+                    field["field_name"],
+                    field["field_type"],
+                    field["widget_type"],
+                    field["is_editable"],
+                    field["allowed_values"],
+                    field["current_value"]
+                ))
+            conn.commit()
+    except Exception as e:
+        print(f"[SQL Error] {e}")
+
 
 def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None):
     items = None
@@ -175,8 +205,8 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
     if items != None:
         if len(items) > 0:
             print(f"Item {key} found in database.\nRecords = {items}")
-            id, key = items[0]
-            return id
+            ticket_id, key = items[0]
+            return ticket_id
         else:
             # ADD MISSING KEY TO DATABASE
             payload = {"key": key}
@@ -184,8 +214,8 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
             items = run_sql_stmt(db_path, select, stmt_type="select")
             if len(items) > 0:
                 print(f"Item created successfully!\nRecords = {items}")
-                id, key = items[0]
-                return id
+                ticket_id, key = items[0]
+                return ticket_id
             else:
                 print(f"Issue adding {key} to database")
                 return 0

@@ -20,6 +20,7 @@ from jira_manager.custom_panels import (
     TicketDisplayBuilder,
 )
 from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
+from jira_manager.sql import tickets_table, fields_table
 
 
 def setup_configure_panel(parent, theme_manager):
@@ -53,26 +54,10 @@ def main():
     db_path = "jira_manager/tickets.db"
     is_existing = table_exists(db_path, "tickets")
     if is_existing == False:
-        sql = """
-                CREATE TABLE tickets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key TEXT NOT NULL UNIQUE
-                );
-            """
-        run_sql_stmt(db_path, sql, stmt_type="create")
+        run_sql_stmt(db_path, tickets_table, stmt_type="create")
     is_existing = table_exists(db_path, "fields")
     if is_existing == False:
-        sql = """
-                CREATE TABLE fields (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ticket_id INTEGER NOT NULL,
-                    field_name TEXT NOT NULL,
-                    field_type TEXT NOT NULL,
-                    payload TEXT NOT NULL,
-                    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-                );
-            """
-        run_sql_stmt(db_path, sql, stmt_type="create")
+        run_sql_stmt(db_path, fields_table, stmt_type="create")
 
     # WINDOW INIT
     root = initialize_window()

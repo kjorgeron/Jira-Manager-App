@@ -20,6 +20,140 @@ from jira_manager.sql_manager import (
 from requests.exceptions import RequestException
 
 
+def map_fields_for_db(editable_fields, current_issue_fields=None):
+    """
+        HOW TO USE: 
+        mapped_rows = map_fields_for_db(editable_fields, current_issue["fields"])
+        insert_fields_into_db(sqlite_connection, ticket_id, mapped_rows)
+    """
+    field_rows = []
+    for fid, fdata in editable_fields.items():
+        schema = fdata.get("schema", {})
+        ftype = schema.get("type", "string")
+        custom = schema.get("custom")
+        operations = fdata.get("operations", [])
+
+        # Use your widget logic
+        widget_map = {
+            "string": "TextEntry",
+            "text": "RichTextBox",
+            "user": "UserPicker",
+            "array": "MultiSelect",
+            "number": "NumericEntry",
+            "date": "DatePicker",
+            "option": "Dropdown",
+        }
+        widget = widget_map.get(ftype, "TextEntry")
+        if custom == "com.atlassian.jira.plugin.system.customfieldtypes:labels":
+            widget = "TagInput"
+        elif (
+            custom
+            == "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+        ):
+            widget = "CheckboxGroup"
+
+        # Pull current value from live fields or leave empty
+        current_value = ""
+        if current_issue_fields:
+            current_value = current_issue_fields.get(fid, "")
+
+        # Prepare one row for each field
+        row = {
+            "field_key": fid,
+            "field_name": fdata.get("name", fid),
+            "field_type": ftype,
+            "widget_type": widget,
+            "is_editable": int("set" in operations),
+            "allowed_values": json.dumps(fdata.get("allowedValues", [])),
+            "current_value": str(current_value),
+        }
+        field_rows.append(row)
+
+    return field_rows
+
+
+def get_editable_fields_v2(issue_key, base_url, headers):
+    url = f"{base_url}/rest/api/2/issue/{issue_key}/editmeta"
+
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json().get("fields", {})
+
+
+# def map_fields_to_widgets(editable_fields):
+#     widget_map = {
+#         "string": "text_input",
+#         "text": "multiline_text",
+#         "user": "user_picker",
+#         "array": "multi_select",
+#         "number": "numeric_input",
+#         "date": "date_picker",
+#         "option": "dropdown"
+#     }
+
+#     field_definitions = []
+#     for field_id, field_data in editable_fields.items():
+#         field_type = field_data["schema"].get("type", "string")
+#         widget = widget_map.get(field_type, "text_input")
+#         allowed_values = field_data.get("allowedValues", [])
+
+#         field_definitions.append({
+#             "id": field_id,
+#             "name": field_data.get("name", field_id),
+#             "type": field_type,
+#             "widget": widget,
+#             "allowed": allowed_values
+#         })
+
+#     return field_definitions
+
+
+def map_fields_to_widgets(editable_fields, current_issue_fields=None):
+    widget_map = {
+        "string": "TextEntry",
+        "text": "RichTextBox",
+        "user": "UserPicker",
+        "array": "MultiSelect",
+        "number": "NumericEntry",
+        "date": "DatePicker",
+        "option": "Dropdown",
+    }
+
+    field_layout = []
+    for fid, fdata in editable_fields.items():
+        schema = fdata.get("schema", {})
+        ftype = schema.get("type", "string")
+        custom = schema.get("custom")
+        widget = widget_map.get(ftype, "TextEntry")
+
+        # Handle custom field types
+        if custom == "com.atlassian.jira.plugin.system.customfieldtypes:labels":
+            widget = "TagInput"
+        elif (
+            custom
+            == "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+        ):
+            widget = "CheckboxGroup"
+
+        # Get initial value from current_issue_fields or fallback to defaultValue or blank
+        if current_issue_fields:
+            value = current_issue_fields.get(fid, "")
+        else:
+            value = fdata.get("defaultValue", "")
+
+        field_layout.append(
+            {
+                "id": fid,
+                "name": fdata.get("name", fid),
+                "widget": widget,
+                "value": value,
+                "allowed": fdata.get("allowedValues", []),
+            }
+        )
+
+    return field_layout
+
+
 def grab_data_list(tickets) -> list:
     excluded_fields = [
         # System-managed or read-only
@@ -436,6 +570,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
         # LOGIC FOR PULLING TICKETS GOES HERE
         print(f"{headers=}\n{proxies=}")
         try:
+            # JQL SEARCH FUNCTIONALITY
             url = f"{config_data.get('server')}rest/api/2/search?jql={payload['jql']}"
             response = requests.get(url, headers=headers, proxies=proxies, timeout=360)
             if response.status_code not in [200, 204]:
@@ -475,14 +610,14 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                 ticket_data_list = grab_data_list(tickets)
                 for ticket_data in ticket_data_list:
                     print(ticket_data)
-                    try:
-                        insert_into_table(
-                            "jira_manager/tickets.db",
-                            "Tickets",
-                            {"key": ticket_data["key"]},
-                        )
-                    except Exception as e:
-                        print(e)
+                    # try:
+                    #     insert_into_table(
+                    #         "jira_manager/tickets.db",
+                    #         "Tickets",
+                    #         {"key": ticket_data["key"]},
+                    #     )
+                    # except Exception as e:
+                    #     print(e)
 
                     for field, typ in ticket_data["fields_types"]:
                         insert_into_table(
