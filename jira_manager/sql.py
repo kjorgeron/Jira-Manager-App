@@ -1,6 +1,7 @@
 tickets_table = """CREATE TABLE tickets (
     ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE
+    needs_update TEXT DEFAULT True
 );
 """
 
