@@ -200,12 +200,13 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
     select = f"""
         SELECT * FROM tickets WHERE key = '{key}';
     """
-
+    print(f"{key=}")
     items = run_sql_stmt(db_path, select, stmt_type="select")
+    print(f"{items=}")
     if items != None:
         if len(items) > 0:
             print(f"Item {key} found in database.\nRecords = {items}")
-            ticket_id, key = items[0]
+            ticket_id, key, needs_update = items[0]
             return ticket_id
         else:
             # ADD MISSING KEY TO DATABASE
@@ -214,8 +215,55 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
             items = run_sql_stmt(db_path, select, stmt_type="select")
             if len(items) > 0:
                 print(f"Item created successfully!\nRecords = {items}")
-                ticket_id, key = items[0]
+                ticket_id, key, needs_update = items[0]
                 return ticket_id
             else:
                 print(f"Issue adding {key} to database")
                 return 0
+
+def add_or_find_field_return_id(db_path: str, ticket_id: int, field: dict) -> int:
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            # Check if field exists for given ticket_id and field_key
+            cursor.execute("""
+                SELECT id FROM fields
+                WHERE ticket_id = ? AND field_key = ?;
+            """, (ticket_id, field["field_key"]))
+            
+            result = cursor.fetchone()
+            if result:
+                print(f"Field {field['field_key']} already exists.\nRecord ID = {result[0]}")
+                return result[0]
+
+            # Insert new field
+            cursor.execute("""
+                INSERT INTO fields (
+                    ticket_id,
+                    field_key,
+                    field_name,
+                    field_type,
+                    widget_type,
+                    is_editable,
+                    allowed_values,
+                    current_value
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ticket_id,
+                field["field_key"],
+                field["field_name"],
+                field["field_type"],
+                field["widget_type"],
+                field["is_editable"],
+                field["allowed_values"],
+                field["current_value"]
+            ))
+
+            conn.commit()
+            return cursor.lastrowid
+
+    except Exception as e:
+        print(f"[SQL Error] {e}")
+        return 0
+    

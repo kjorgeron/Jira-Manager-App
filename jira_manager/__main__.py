@@ -21,6 +21,14 @@ from jira_manager.custom_panels import (
 )
 from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
+from multiprocessing import Queue
+from threading import Thread, Event
+from time import sleep
+from jira_manager.utils import database_handler
+
+def on_close(stop_flag, root):
+    stop_flag.set()  # signal the thread to stop
+    root.destroy()   # close the UI
 
 
 def setup_configure_panel(parent, theme_manager):
@@ -52,16 +60,16 @@ def main():
 
     # SETUP OF DATABASE TABLES
     db_path = "jira_manager/tickets.db"
-    is_existing = table_exists(db_path, "tickets")
-    if is_existing == False:
-        run_sql_stmt(db_path, tickets_table, stmt_type="create")
-    is_existing = table_exists(db_path, "fields")
-    if is_existing == False:
-        run_sql_stmt(db_path, fields_table, stmt_type="create")
+    run_sql_stmt(db_path, tickets_table, stmt_type="create")
+    run_sql_stmt(db_path, fields_table, stmt_type="create")
 
     # WINDOW INIT
     root = initialize_window()
     widget_registry = {}
+    queue = []
+    stop_flag = Event()
+    root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
+
 
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
@@ -79,7 +87,9 @@ def main():
         if widget_class not in allowed_classes:
             root.focus_set()
 
-    root.bind_all("<Button-1>", clear_focus)
+    if root.winfo_exists():
+        root.bind_all("<Button-1>", clear_focus)
+
 
     # SETUP THEME CHOICE
     mode = get_theme_mode(config_path="jira_manager/app_config.json")
@@ -131,7 +141,7 @@ def main():
         toolbar,
         text="Configure",
         command=lambda: toolbar_action(
-            {"type": "configure", "jql": ""}, ui_state, panel_choice, widget_registry
+            {"type": "configure", "jql": ""}, ui_state, panel_choice, widget_registry, queue
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -141,7 +151,7 @@ def main():
         toolbar,
         text="Ticket Butcket",
         command=lambda: toolbar_action(
-            {"type": "tickets", "jql": ""}, ui_state, panel_choice, widget_registry
+            {"type": "tickets", "jql": ""}, ui_state, panel_choice, widget_registry, queue
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -155,6 +165,7 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
+            queue
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -187,6 +198,9 @@ def main():
     # configure_panel.pack(fill="both", expand=True)
     # ui_state["active_panel"] = configure_panel
 
+    # START EXTRA LOOP TO CONSTANT SCAN FOR QUEUED ITEMS
+    watcher_process = Thread(target=database_handler, args=(stop_flag, queue))
+    watcher_process.start()
     root.mainloop()
 
 

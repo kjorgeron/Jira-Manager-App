@@ -16,9 +16,48 @@ from jira_manager.sql_manager import (
     add_column_to_table,
     insert_into_table,
     run_sql_stmt,
+    add_or_find_key_return_id,
+    add_or_find_field_return_id
 )
 from requests.exceptions import RequestException
+from multiprocessing import Process, Queue
+from time import sleep
 
+def task_generator(queue):
+    while queue:
+        yield queue.pop(0)
+
+def database_handler(stop_flag, queue):
+    while not stop_flag.is_set():
+        print("Checking queue...")
+        generator = task_generator(queue)
+        try:
+            task = next(generator)
+            run_database_updates(
+                task.get("db_path"),
+                task.get("server"),
+                task.get("headers"),
+                task.get("ticket_list")
+            )
+        except StopIteration:
+            pass  # Nothing to do this round
+        sleep(5)
+    print("Thread shutting down.")
+
+
+
+def run_database_updates(db_path, server, headers, jira_tickets):
+    for ticket in jira_tickets:
+        key = ticket["key"]
+        ticket_id = add_or_find_key_return_id(db_path, key)
+        print(f"{ticket_id=}")
+        editable_fields = get_editable_fields_v2(key, server, headers)
+        print(f"{editable_fields=}")
+        mapped_fields = map_fields_for_db(editable_fields, ticket)
+        print(f"{mapped_fields=}")
+        for field in mapped_fields:
+            fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
+            print(f"{fields_id=}")
 
 def map_fields_for_db(editable_fields, current_issue_fields=None):
     """
@@ -63,7 +102,7 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
             "field_name": fdata.get("name", fid),
             "field_type": ftype,
             "widget_type": widget,
-            "is_editable": int("set" in operations),
+            "is_editable": bool("set" in operations),
             "allowed_values": json.dumps(fdata.get("allowedValues", [])),
             "current_value": str(current_value),
         }
@@ -154,63 +193,63 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None):
     return field_layout
 
 
-def grab_data_list(tickets) -> list:
-    excluded_fields = [
-        # System-managed or read-only
-        "statuscategorychangedate",
-        "created",
-        "updated",
-        "lastViewed",
-        "workratio",
-        "aggregateprogress",
-        "aggregatetimespent",
-        "aggregatetimeestimate",
-        "aggregatetimeoriginalestimate",
-        # "resolutiondate",
-        "votes",
-        "watches",
-        "progress",
-        # Permission-sensitive or restricted updates
-        "security",
-        # "creator",
-        # "reporter",
-        "statusCategory",
-        "project",
-        # "status",
-        "issuetype",
-        # Fields currently NoneType / unset
-        "timespent",
-        "timeoriginalestimate",
-        # "description",
-        "resolution",
-        # "customfield_10021",
-        # "customfield_10001",
-        # "customfield_10016",
-        # "customfield_10038",
-        "environment",
-        "timeestimate",
-        # "duedate",
-        "comment",  # Requires separate endpoint for updates
-        "worklog",  # Also updated via a dedicated endpoint
-        "attachment",  # Cannot be updated via issue PUT; use upload API
-        "customfield_*_readonly",  # Any custom fields that are read-only by config
-        "parent",  # Only relevant for sub-tasks; changing it moves the issue
-        "epic",  # Epic link field (varies by instance, often custom)
-        "sprint",  # Sprint field (Scrum boards); may be managed by board automation
-        "rank",
-    ]
-    ticket_data = {}
-    data_list = []
-    ticket_field_list = []
-    for ticket in tickets["issues"]:
-        ticket_data["key"] = ticket["key"]
-        for field in ticket["fields"]:
-            if "NoneType" not in str(type(ticket["fields"][field])):
-                if field not in excluded_fields:
-                    ticket_field_list.append((field, type(ticket["fields"][field])))
-        ticket_data["fields_types"] = ticket_field_list
-        data_list.append(ticket_data)
-    return data_list
+# def grab_data_list(tickets) -> list:
+#     excluded_fields = [
+#         # System-managed or read-only
+#         "statuscategorychangedate",
+#         "created",
+#         "updated",
+#         "lastViewed",
+#         "workratio",
+#         "aggregateprogress",
+#         "aggregatetimespent",
+#         "aggregatetimeestimate",
+#         "aggregatetimeoriginalestimate",
+#         # "resolutiondate",
+#         "votes",
+#         "watches",
+#         "progress",
+#         # Permission-sensitive or restricted updates
+#         "security",
+#         # "creator",
+#         # "reporter",
+#         "statusCategory",
+#         "project",
+#         # "status",
+#         "issuetype",
+#         # Fields currently NoneType / unset
+#         "timespent",
+#         "timeoriginalestimate",
+#         # "description",
+#         "resolution",
+#         # "customfield_10021",
+#         # "customfield_10001",
+#         # "customfield_10016",
+#         # "customfield_10038",
+#         "environment",
+#         "timeestimate",
+#         # "duedate",
+#         "comment",  # Requires separate endpoint for updates
+#         "worklog",  # Also updated via a dedicated endpoint
+#         "attachment",  # Cannot be updated via issue PUT; use upload API
+#         "customfield_*_readonly",  # Any custom fields that are read-only by config
+#         "parent",  # Only relevant for sub-tasks; changing it moves the issue
+#         "epic",  # Epic link field (varies by instance, often custom)
+#         "sprint",  # Sprint field (Scrum boards); may be managed by board automation
+#         "rank",
+#     ]
+#     ticket_data = {}
+#     data_list = []
+#     ticket_field_list = []
+#     for ticket in tickets["issues"]:
+#         ticket_data["key"] = ticket["key"]
+#         for field in ticket["fields"]:
+#             if "NoneType" not in str(type(ticket["fields"][field])):
+#                 if field not in excluded_fields:
+#                     ticket_field_list.append((field, type(ticket["fields"][field])))
+#         ticket_data["fields_types"] = ticket_field_list
+#         data_list.append(ticket_data)
+#     return data_list
 
 
 def initialize_window():
@@ -458,10 +497,11 @@ def switch_panel(panel_key, ui_state, panel_choice):
     ui_state["active_panel"] = next_panel
 
 
-def toolbar_action(payload, ui_state, panel_choice, widget_registry):
+def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
 
     widget = widget_registry.get("welcome_label")
     jql_query = widget_registry.get("jql_query")
+    db_path = "jira_manager/tickets.db"
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
@@ -573,6 +613,8 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
             # JQL SEARCH FUNCTIONALITY
             url = f"{config_data.get('server')}rest/api/2/search?jql={payload['jql']}"
             response = requests.get(url, headers=headers, proxies=proxies, timeout=360)
+
+            # ERROR HANDLING FOR FAILED REQUESTS
             if response.status_code not in [200, 204]:
                 status = response.status_code
                 message = response.text
@@ -598,18 +640,31 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
 
                 raise Exception(error_msg)
 
+            # SUCCESSFUL DATA PULL FROM REQUESTS
             else:
-                # NEED TO HANDLE DATABASE STORAGE HERE
                 print(response.status_code)
+                # NEED TO HANDLE DATABASE STORAGE HERE
                 tickets = response.json()
                 total_tickets = tickets["total"]
                 print(f"{total_tickets=}")
 
                 # GRABS ALL FIELDS AND THEIR DATA TYPE
 
-                ticket_data_list = grab_data_list(tickets)
-                for ticket_data in ticket_data_list:
-                    print(ticket_data)
+                queue_data = {"db_path": db_path, "server": config_data.get("server"), "headers": headers, "ticket_list": tickets["issues"]}
+                queue.append(queue_data)
+                # run_database_updates(db_path, config_data.get("server"), headers, tickets["issues"])
+                    # pprint(jira_ticket)
+                    # ticket_id = add_or_find_key_return_id(db_path, jira_ticket["key"])
+                    # print(f"{ticket_id=}")
+                    # editable_fields = get_editable_fields_v2(jira_ticket["key"], config_data.get("server"), headers)
+                    # mapped_fields = map_fields_for_db(editable_fields, jira_ticket["fields"])
+                    # for field in mapped_fields:
+                    #     fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
+                    #     print(f"{fields_id=}")
+
+                # ticket_data_list = grab_data_list(tickets)
+                # for ticket_data in ticket_data_list:
+                #     print(ticket_data)
                     # try:
                     #     insert_into_table(
                     #         "jira_manager/tickets.db",
@@ -619,22 +674,22 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
                     # except Exception as e:
                     #     print(e)
 
-                    for field, typ in ticket_data["fields_types"]:
-                        insert_into_table(
-                            "jira_manager/tickets.db",
-                            "fields",
-                            {
-                                "ticket_id": 1,
-                                "field_name": field,
-                                "field_type": str(typ),
-                                "payload": str({}),
-                            },
-                        )
+                    # for field, typ in ticket_data["fields_types"]:
+                    #     insert_into_table(
+                    #         "jira_manager/tickets.db",
+                    #         "fields",
+                    #         {
+                    #             "ticket_id": 1,
+                    #             "field_name": field,
+                    #             "field_type": str(typ),
+                    #             "payload": str({}),
+                    #         },
+                    #     )
 
                 # THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
                 try:
-                    ticket_data = read_from_table("jira_manager/tickets.db", "tickets")
-                    field_data = read_from_table("jira_manager/tickets.db", "fields")
+                    ticket_data = read_from_table(db_path, "tickets")
+                    field_data = read_from_table(db_path, "fields")
                     print(f"{ticket_data=}")
                     print(f"{field_data=}")
                 except:
@@ -675,7 +730,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry):
     elif payload["type"] == "tickets":
         # CHANGE BUCKET FOR DATABASE INFO
         try:
-            ticket_data = read_from_table("jira_manager/tickets.db", "Tickets")
+            ticket_data = read_from_table(db_path, "tickets")
             print(ticket_data)
         except:
             ticket_data = []
