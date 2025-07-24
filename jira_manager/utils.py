@@ -17,19 +17,57 @@ from jira_manager.sql_manager import (
     insert_into_table,
     run_sql_stmt,
     add_or_find_key_return_id,
-    add_or_find_field_return_id
+    add_or_find_field_return_id,
 )
 from requests.exceptions import RequestException
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, cpu_count
 from time import sleep
+from threading import Thread
+from jira_manager.custom_panels import ErrorMessageBuilder, switch_panel
+
+
+def is_empty(value):
+    if value is None:
+        return True
+    if isinstance(value, (str, list, tuple, dict, set)):
+        return len(value) == 0
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, (int, float)):
+        return value == 0
+    return False  # Default: consider other types as non-empty
+
+
+def batch_list(lst, batch_size):
+    for i in range(0, len(lst), batch_size):
+        yield lst[i : i + batch_size]
+
 
 def task_generator(queue):
     while queue:
         yield queue.pop(0)
 
-def database_handler(stop_flag, queue):
+
+def jira_task_handler(stop_flag, queue):
     while not stop_flag.is_set():
-        print("Checking queue...")
+        print("Checking jira queue...")
+        generator = task_generator(queue)
+        try:
+            task = next(generator)
+        except StopIteration:
+            pass
+        sleep(5)
+    print("Thread shutting down.")
+
+
+def core_handler(
+    stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry
+):
+    buffer = 1
+    thread_count = cpu_count() - buffer
+    while not stop_flag.is_set():
+        config = load_data()
+        print("Checking databse queue...")
         generator = task_generator(queue)
         try:
             task = next(generator)
@@ -37,33 +75,119 @@ def database_handler(stop_flag, queue):
                 task.get("db_path"),
                 task.get("server"),
                 task.get("headers"),
-                task.get("ticket_list")
+                task.get("ticket_list"),
             )
         except StopIteration:
             pass  # Nothing to do this round
+
+        # CHECKING FOR TICKETS THAT NEED UPDATING ON JIRA SIDE
+        try:
+            tickets = run_sql_stmt(
+                db_path,
+                stmt_type="select",
+                sql="SELECT * FROM tickets WHERE needs_update = ?",
+                params=(1,)
+            )
+            for ticket in tickets:
+                if ticket not in jira_queue:
+                    jira_queue.append(ticket)
+        except Exception:
+            print("Error occurred grabbing tickets from database.")
+
+        # MULTITHREAD PROCESS
+        if len(jira_queue) > thread_count:
+            update_list = batch_list(jira_queue, thread_count)
+            threads = []
+            for update in update_list:
+                print(f"{update=}")
+                # thread = Thread(target=jira_task_handler, args=())
+
+        # SINGLE THREAD PROCESS
+        elif len(jira_queue) < thread_count and len(jira_queue) > 0:
+            for jira in jira_queue:
+                ticket_id = jira[0]
+                key = jira[1]
+                update_status = jira[2]
+                sql = "select * from fields where ticket_id = ?"
+                params = (ticket_id,)
+                field_info = run_sql_stmt(
+                    db_path, sql=sql, params=params, stmt_type="select"
+                )
+                url = f"{config.get("server")}rest/api/2/issue/{key}"
+                proxies = None
+                headers = None
+
+                # HANDLING OF NEEDED REQUEST DATA
+                if config.get("auth_type") == "Basic Auth":
+                    headers = {
+                        "Authorization": f"Basic {encode_basic_auth(config.get("username"), config.get("password"))}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    }
+
+                elif config.get("auth_type") == "Token Auth":
+                    headers = {
+                        "Authorization": f"Bearer {config.get("token")}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    }
+
+                if config.get("proxy_option").lower() == "yes":
+                    proxies = {
+                        "http": config.get("http_proxy"),
+                        "https": config.get("https_proxy"),
+                    }
+
+                jira_data = requests.get(url, headers=headers, proxies=proxies)
+                print(f"{jira_data.status_code=}")
+
+                # WORK IN PROGRESS -- THIS WILL FIND WHAT FIELDS NEED TO BE UPDATED ON JIRA SERVER
+                try:
+                    if jira_data.status_code in [200, 204]:
+                        print(f"{jira_data.status_code=}")
+                        items = []
+                        data = jira_data.json()
+                        for field in data["fields"]:
+                            value = data["fields"][field]
+                            for check_field in field_info:
+                                is_editable = check_field[6]
+                                field_type = check_field[4]
+                                field_name = check_field[3]
+                                field_value = check_field[8]
+                                if str(field_name).lower() == str(field).lower() and str(value).lower() != str(field_value).lower():
+                                    print("Bool = ", is_empty(value), " - ", is_empty(field_value))
+                                    if is_empty(value) and is_empty(field_value):
+                                        print(f"{value=}\n{field_value=}")
+                                        save_item = {"field": field_name, "value": field_value, "key": data["key"]}
+                                        print(f"{save_item}")
+                                        if save_item not in items:
+                                            items.append(save_item)
+                              
+                        print(f"{items=}")         
+                except Exception as e:
+                    print(f"{e=}")
+
         sleep(5)
     print("Thread shutting down.")
 
 
-
 def run_database_updates(db_path, server, headers, jira_tickets):
+    print("Running database update")
     for ticket in jira_tickets:
         key = ticket["key"]
         ticket_id = add_or_find_key_return_id(db_path, key)
-        print(f"{ticket_id=}")
         editable_fields = get_editable_fields_v2(key, server, headers)
-        print(f"{editable_fields=}")
         mapped_fields = map_fields_for_db(editable_fields, ticket)
-        print(f"{mapped_fields=}")
         for field in mapped_fields:
             fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
             print(f"{fields_id=}")
 
+
 def map_fields_for_db(editable_fields, current_issue_fields=None):
     """
-        HOW TO USE: 
-        mapped_rows = map_fields_for_db(editable_fields, current_issue["fields"])
-        insert_fields_into_db(sqlite_connection, ticket_id, mapped_rows)
+    HOW TO USE:
+    mapped_rows = map_fields_for_db(editable_fields, current_issue["fields"])
+    insert_fields_into_db(sqlite_connection, ticket_id, mapped_rows)
     """
     field_rows = []
     for fid, fdata in editable_fields.items():
@@ -94,7 +218,7 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
         # Pull current value from live fields or leave empty
         current_value = ""
         if current_issue_fields:
-            current_value = current_issue_fields.get(fid, "")
+            current_value = current_issue_fields["fields"].get(fid, "")
 
         # Prepare one row for each field
         row = {
@@ -286,11 +410,9 @@ def get_theme_mode(config_path="app_config.json"):
     try:
         with open(config_path, "r") as f:
             config = json.load(f)
-            # print("theme=", config["theme"])
             theme = config.get("theme", "light")  # Default to light
             return theme.lower()
-    except Exception as e:
-        # print(f"Error loading config: {e}")
+    except Exception:
         return "light"  # Fallback
 
 
@@ -482,52 +604,30 @@ def configure_results(
         state["active_panel"] = panel_choice["error_panel"].pack()
 
 
-def switch_panel(panel_key, ui_state, panel_choice):
-    print(f"PANEL SWITCH -> {panel_key}")
-    current = ui_state.get("active_panel")
-    if current:
-        current.pack_forget()
-    next_panel = panel_choice[panel_key]
-    if panel_key == "error_panel":
-        next_panel.pack(fill="x", padx=100, pady=10)
-    if panel_key == "configure_panel":
-        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
-    if panel_key == "ticket_panel":
-        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
-    ui_state["active_panel"] = next_panel
-
-
 def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
 
-    widget = widget_registry.get("welcome_label")
     jql_query = widget_registry.get("jql_query")
     db_path = "jira_manager/tickets.db"
+    config_data = load_data()
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
-        # switch_panel("configure_panel", ui_state, panel_choice)
-        config_data = load_data()
-        # print(config_data)
         headers = None
         proxies = None
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
-            widget.pack_forget()
-            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message("Missing JQL Statement.")
-            switch_panel("error_panel", ui_state, panel_choice)
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
 
         if (
             config_data.get("server") == ""
             or config_data.get("server") == "Provide base url"
         ):
-            widget.pack_forget()
-            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message(
                 "Missing Jira server, please provide information in the configuration panel."
             )
-            switch_panel("error_panel", ui_state, panel_choice)
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
 
         if config_data.get("auth_type") == "Basic Auth":
@@ -537,12 +637,10 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
                 or config_data.get("username") == "Enter username or email"
                 or config_data.get("password") == "Enter password or token"
             ):
-                widget.pack_forget()
-                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message(
                     "Missing Username or Password, please provide information in the configuration panel."
                 )
-                switch_panel("error_panel", ui_state, panel_choice)
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                 return
             else:
                 try:
@@ -552,24 +650,20 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
                         "Accept": "application/json",
                     }
                 except JIRAError as e:
-                    widget.pack_forget()
-                    # widget.config(text="Oops!!! A failure has occurred.")
                     panel_choice["error_panel"].update_message(
                         f"Failed to build headers using provided username/password.\nReason = {e}"
                     )
-                    switch_panel("error_panel", ui_state, panel_choice)
+                    switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                     return
         elif config_data.get("auth_type") == "Token Auth":
             if (
                 config_data.get("token") == ""
                 or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
             ):
-                widget.pack_forget()
-                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message(
                     "Missing Bearer Token, please provide information in the configuration panel."
                 )
-                switch_panel("error_panel", ui_state, panel_choice)
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                 return
             else:
                 try:
@@ -580,26 +674,21 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
                         "Accept": "application/json",
                     }
                 except JIRAError as e:
-                    widget.pack_forget()
-                    # widget.config(text="Oops!!! A failure has occurred.")
                     panel_choice["error_panel"].update_message(
                         f"Failed to build headers using provided Bearer Token.\nReason = {e}"
                     )
-                    switch_panel("error_panel", ui_state, panel_choice)
+                    switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                     return
 
         if config_data.get("proxy_option").lower() == "yes":
-            # print("HERE")
             if (
                 config_data.get("http_proxy") == ""
                 or config_data.get("https_proxy") == ""
             ):
-                widget.pack_forget()
-                # widget.config(text="Oops!!! A failure has occurred.")
                 panel_choice["error_panel"].update_message(
                     f"Missing proxy information, please provide information in the configuration panel."
                 )
-                switch_panel("error_panel", ui_state, panel_choice)
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                 return
             else:
                 proxies = {
@@ -608,11 +697,13 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
                 }
 
         # LOGIC FOR PULLING TICKETS GOES HERE
-        print(f"{headers=}\n{proxies=}")
         try:
             # JQL SEARCH FUNCTIONALITY
             url = f"{config_data.get('server')}rest/api/2/search?jql={payload['jql']}"
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=360)
+            params = {"maxResults": 1}
+            response = requests.get(
+                url, headers=headers, proxies=proxies, timeout=360, params=params
+            )
 
             # ERROR HANDLING FOR FAILED REQUESTS
             if response.status_code not in [200, 204]:
@@ -642,108 +733,98 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
 
             # SUCCESSFUL DATA PULL FROM REQUESTS
             else:
-                print(response.status_code)
-                # NEED TO HANDLE DATABASE STORAGE HERE
+                # HANDLING OF API DATA PULL
                 tickets = response.json()
                 total_tickets = tickets["total"]
                 print(f"{total_tickets=}")
 
-                # GRABS ALL FIELDS AND THEIR DATA TYPE
-
-                queue_data = {"db_path": db_path, "server": config_data.get("server"), "headers": headers, "ticket_list": tickets["issues"]}
+                # SETS UP JOB QUEUES
+                queue_data = {
+                    "db_path": db_path,
+                    "server": config_data.get("server"),
+                    "headers": headers,
+                    "ticket_list": tickets["issues"],
+                }
                 queue.append(queue_data)
-                # run_database_updates(db_path, config_data.get("server"), headers, tickets["issues"])
-                    # pprint(jira_ticket)
-                    # ticket_id = add_or_find_key_return_id(db_path, jira_ticket["key"])
-                    # print(f"{ticket_id=}")
-                    # editable_fields = get_editable_fields_v2(jira_ticket["key"], config_data.get("server"), headers)
-                    # mapped_fields = map_fields_for_db(editable_fields, jira_ticket["fields"])
-                    # for field in mapped_fields:
-                    #     fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
-                    #     print(f"{fields_id=}")
 
-                # ticket_data_list = grab_data_list(tickets)
-                # for ticket_data in ticket_data_list:
-                #     print(ticket_data)
-                    # try:
-                    #     insert_into_table(
-                    #         "jira_manager/tickets.db",
-                    #         "Tickets",
-                    #         {"key": ticket_data["key"]},
-                    #     )
-                    # except Exception as e:
-                    #     print(e)
+                # PANEL SWITCH TO BUCKET
+                switch_panel("ticket_panel", ui_state, panel_choice, widget_registry)
 
-                    # for field, typ in ticket_data["fields_types"]:
-                    #     insert_into_table(
-                    #         "jira_manager/tickets.db",
-                    #         "fields",
-                    #         {
-                    #             "ticket_id": 1,
-                    #             "field_name": field,
-                    #             "field_type": str(typ),
-                    #             "payload": str({}),
-                    #         },
-                    #     )
-
-                # THIS WILL INSTEAD NEED TO BE A LOAD SCREEN OF TICKETS GOING INTO THE BUCKET
-                try:
-                    ticket_data = read_from_table(db_path, "tickets")
-                    field_data = read_from_table(db_path, "fields")
-                    print(f"{ticket_data=}")
-                    print(f"{field_data=}")
-                except:
-                    ticket_data = []
-                if ticket_data != []:
-                    widget.config(text="Ticket Bucket")
-                    widget.pack(fill="x", padx=10, pady=10)
-                    switch_panel("ticket_panel", ui_state, panel_choice)
-                else:
-                    widget.pack_forget()
-                    # widget.config(text="Oops!!! A failure has occurred.")
-                    panel_choice["error_panel"].update_message(
-                        "No tickets have been loaded in, please configure a project or search using JQL query."
-                    )
-                    switch_panel("error_panel", ui_state, panel_choice)
         except RequestException as e:
             # This fires if you're offline or the server is unreachable
-            widget.pack_forget()
             panel_choice["error_panel"].update_message(
                 "You're offline or Jira can't be reached.\nPlease check your connection."
             )
-            switch_panel("error_panel", ui_state, panel_choice)
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
         except Exception as e:
-            widget.pack_forget()
-            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message(
                 f"There was an issue with the request to Jira.\nReason = {e}"
             )
-            switch_panel("error_panel", ui_state, panel_choice)
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
 
     # LOGIC FOR CONFIGURE PANEL
     elif payload["type"] == "configure":
-        widget.pack_forget()
-        switch_panel("configure_panel", ui_state, panel_choice)
-        # widget.config(text="Lets configure your setup!")
+
+        switch_panel("configure_panel", ui_state, panel_choice, widget_registry)
 
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
+
+        if (
+            config_data.get("server") == ""
+            or config_data.get("server") == "Provide base url"
+        ):
+            panel_choice["error_panel"].update_message(
+                "Missing Jira server, please provide information in the configuration panel."
+            )
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
+
+        if config_data.get("auth_type") == "Basic Auth":
+            if (
+                config_data.get("username") == ""
+                or config_data.get("password") == ""
+                or config_data.get("username") == "Enter username or email"
+                or config_data.get("password") == "Enter password or token"
+            ):
+                panel_choice["error_panel"].update_message(
+                    "Missing Username or Password, please provide information in the configuration panel."
+                )
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                return
+        elif config_data.get("auth_type") == "Token Auth":
+            if (
+                config_data.get("token") == ""
+                or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
+            ):
+                panel_choice["error_panel"].update_message(
+                    "Missing Bearer Token, please provide information in the configuration panel."
+                )
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                return
+
+        if config_data.get("proxy_option").lower() == "yes":
+            if (
+                config_data.get("http_proxy") == ""
+                or config_data.get("https_proxy") == ""
+            ):
+                panel_choice["error_panel"].update_message(
+                    f"Missing proxy information, please provide information in the configuration panel."
+                )
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                return
+
         # CHANGE BUCKET FOR DATABASE INFO
         try:
-            ticket_data = read_from_table(db_path, "tickets")
-            print(ticket_data)
+            ticket_data = run_sql_stmt(db_path, "select * from tickets", stmt_type="select")
         except:
             ticket_data = []
         if ticket_data != []:
-            widget.config(text="Ticket Bucket")
-            widget.pack(fill="x", padx=10, pady=10)
-            switch_panel("ticket_panel", ui_state, panel_choice)
+            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry)
         else:
-            widget.pack_forget()
-            # widget.config(text="Oops!!! A failure has occurred.")
             panel_choice["error_panel"].update_message(
                 "No tickets have been loaded in, please configure a project or search using JQL query."
             )
-            switch_panel("error_panel", ui_state, panel_choice)
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
 
     jql_query.reset_to_placeholder()

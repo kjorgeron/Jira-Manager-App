@@ -3,7 +3,26 @@ from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder
-from jira_manager.utils import switch_panel
+
+
+def switch_panel(panel_key, ui_state, panel_choice, widget_registry):
+    print(f"PANEL SWITCH -> {panel_key}")
+    current = ui_state.get("active_panel")
+    if current:
+        current.pack_forget()
+    next_panel = panel_choice[panel_key]
+    if panel_key == "error_panel":
+        widget_registry.get("welcome_label").pack_forget()
+        next_panel.pack(fill="x", padx=100, pady=10)
+    if panel_key == "configure_panel":
+        widget_registry.get("welcome_label").pack_forget()
+        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+    if panel_key == "ticket_panel":
+        widget = widget_registry.get("welcome_label")
+        widget.config(text="Ticket Bucket")
+        widget.pack(fill="x", padx=10, pady=10)
+        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+    ui_state["active_panel"] = next_panel
 
 
 class ConfigurationFormBuilder(tk.Frame):
@@ -144,13 +163,8 @@ class ConfigurationFormBuilder(tk.Frame):
 
         # DEFAULTS FOR COMBOBOX
         selected_auth = tk.StringVar(value=self.config.get("auth_type", "Basic Auth"))
-        proxy_option = tk.StringVar(
-            value=(
-                "Yes"
-                if self.config.get("http_proxy") or self.config.get("https_proxy")
-                else "No"
-            )
-        )
+        proxy_option = tk.StringVar(value=self.config.get("proxy_option", "No"))
+
         theme_option = tk.StringVar(
             value=self.config.get("theme", "Light")  # default to 'light' if not set
         )
@@ -447,7 +461,6 @@ class TicketDisplayBuilder(tk.Frame):
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
 
-
     def _build_ticket_board(self):
 
         canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
@@ -482,6 +495,7 @@ class TicketDisplayBuilder(tk.Frame):
 import tkinter as tk
 from tkinter import ttk
 
+
 class TicketFormUI(tk.Frame):
     def __init__(self, master, field_layout):
         super().__init__(master)
@@ -506,10 +520,17 @@ class TicketFormUI(tk.Frame):
                 entry = tk.Text(self, height=4, width=40)
                 entry.insert("1.0", default)
             elif widget_type == "Dropdown":
-                values = [v["name"] if isinstance(v, dict) else v for v in field.get("allowed", [])]
+                values = [
+                    v["name"] if isinstance(v, dict) else v
+                    for v in field.get("allowed", [])
+                ]
                 entry = ttk.Combobox(self, values=values)
                 if default:
-                    entry.set(default if isinstance(default, str) else getattr(default, "name", ""))
+                    entry.set(
+                        default
+                        if isinstance(default, str)
+                        else getattr(default, "name", "")
+                    )
             elif widget_type == "MultiSelect":
                 entry = tk.Listbox(self, selectmode=tk.MULTIPLE)
                 for v in field.get("allowed", []):

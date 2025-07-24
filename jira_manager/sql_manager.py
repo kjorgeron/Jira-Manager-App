@@ -31,9 +31,10 @@ def insert_fields_into_db(db_path, ticket_id, field_rows):
         print(f"[SQL Error] {e}")
 
 
-def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None):
+def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None, params: tuple = None):
+    
+    print(f"Running sql type {stmt_type}")
     items = None
-
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
@@ -42,8 +43,12 @@ def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = 
 
             if stmt_type == "select":
                 if sql:
-                    cursor.execute(sql)
-                    items = cursor.fetchall()
+                    if params:
+                        cursor.execute(sql, params)
+                        items = cursor.fetchall()
+                    else:
+                        cursor.execute(sql)
+                        items = cursor.fetchall()
                 else:
                     raise ValueError("SELECT operation requires an SQL query.")
 
@@ -60,8 +65,12 @@ def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = 
 
             elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
                 if sql:
-                    cursor.execute(sql)
-                    conn.commit()
+                    if not params:
+                        cursor.execute(sql)
+                        conn.commit()
+                    else:
+                        cursor.execute(sql, params)
+                        conn.commit()
                 else:
                     raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
 

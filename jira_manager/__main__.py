@@ -9,6 +9,7 @@ from jira_manager.utils import (
     get_theme_mode,
     initialize_window,
     clear_focus,
+    core_handler,
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -18,17 +19,19 @@ from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     ErrorMessageBuilder,
     TicketDisplayBuilder,
+    switch_panel
 )
 from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
 from multiprocessing import Queue
 from threading import Thread, Event
 from time import sleep
-from jira_manager.utils import database_handler
+from jira_manager.file_manager import load_data
+
 
 def on_close(stop_flag, root):
     stop_flag.set()  # signal the thread to stop
-    root.destroy()   # close the UI
+    root.destroy()  # close the UI
 
 
 def setup_configure_panel(parent, theme_manager):
@@ -66,10 +69,10 @@ def main():
     # WINDOW INIT
     root = initialize_window()
     widget_registry = {}
-    queue = []
+    database_queue = []
+    jira_queue = []
     stop_flag = Event()
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
-
 
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
@@ -90,7 +93,6 @@ def main():
     if root.winfo_exists():
         root.bind_all("<Button-1>", clear_focus)
 
-
     # SETUP THEME CHOICE
     mode = get_theme_mode(config_path="jira_manager/app_config.json")
     try:
@@ -110,7 +112,7 @@ def main():
     configure_panel = setup_configure_panel(root, theme_manager)
     ticket_panel = setup_ticket_panel(root, theme_manager)
 
-    # NEED TO MAKE A LOAD PANEL HERE TO SHOW TICKETS LOADING INTO TICKET BUCKET
+    # PANEL CHOICES
     panel_choice = {
         "error_panel": error_panel,
         "configure_panel": configure_panel,
@@ -141,7 +143,11 @@ def main():
         toolbar,
         text="Configure",
         command=lambda: toolbar_action(
-            {"type": "configure", "jql": ""}, ui_state, panel_choice, widget_registry, queue
+            {"type": "configure", "jql": ""},
+            ui_state,
+            panel_choice,
+            widget_registry,
+            database_queue,
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -151,7 +157,11 @@ def main():
         toolbar,
         text="Ticket Butcket",
         command=lambda: toolbar_action(
-            {"type": "tickets", "jql": ""}, ui_state, panel_choice, widget_registry, queue
+            {"type": "tickets", "jql": ""},
+            ui_state,
+            panel_choice,
+            widget_registry,
+            database_queue,
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -165,7 +175,7 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
-            queue
+            database_queue,
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -187,22 +197,27 @@ def main():
     # WELCOME LABEL
     welcome_label = tk.Label(
         root,
-        text=f"Welcome {getuser()}! Let's manage some Jira Tickets!",
+        text=f"Welcome {getuser()}, let's manage some jira tickets!",
         justify="center",
         font=("Trebuchet MS", 20, "bold"),
     )
-    welcome_label.pack(fill="x", padx=10, pady=10)
+   
     theme_manager.register(welcome_label, "label")
     widget_registry["welcome_label"] = welcome_label
-    # Show default panel
-    # configure_panel.pack(fill="both", expand=True)
-    # ui_state["active_panel"] = configure_panel
+    # sleep(1)
 
-    # START EXTRA LOOP TO CONSTANT SCAN FOR QUEUED ITEMS
-    watcher_process = Thread(target=database_handler, args=(stop_flag, queue))
-    watcher_process.start()
+    # info_frame = tk.Frame(root, padx=10, pady=10)
+    # info_frame.pack(fill="x")
+    # theme_manager.register(info_frame, "frame")
+    # info_message = tk.Label(info_frame, text="Thanks for choosing Ticket Smith by Dead Viking Software.\nFeel free to request new features via the request feature button.", justify="center")
+    # theme_manager.register(info_message, "label")
+    # info_message.pack(padx=10, pady=10)
+
+    # START WATCHER THREADS
+    core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry), daemon=True)
+    core_watcher.start()
+
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()
