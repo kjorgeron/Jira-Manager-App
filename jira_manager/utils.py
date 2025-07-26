@@ -63,6 +63,7 @@ def jira_task_handler(stop_flag, queue):
 def core_handler(
     stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry
 ):
+    had_error = 0
     buffer = 1
     thread_count = cpu_count() - buffer
     while not stop_flag.is_set():
@@ -138,12 +139,40 @@ def core_handler(
                         "https": config.get("https_proxy"),
                     }
 
-                jira_data = requests.get(url, headers=headers, proxies=proxies)
-                print(f"{jira_data.status_code=}")
+                try:
+                    # if state["active_panel"] == panel_choice["error_panel"] and had_error > 0:
+                    #     switch_panel("ticket_panel", state, panel_choice, widget_registry)
+                    #     had_error = 0
+                    jira_data = requests.get(url, headers=headers, proxies=proxies)
+                    print(f"{jira_data.status_code=}")
+
+                except RequestException as e:
+                    # This fires if you're offline or the server is unreachable
+                    class ErrorHandle:
+                        def __init__(self, status_code):
+                            self.status_code = status_code
+                    
+                    if state["active_panel"] != panel_choice["error_panel"]:
+                        panel_choice["error_panel"].update_message(
+                            "You're offline or Jira can't be reached.\nPlease check your connection. You must be online for the background worker to process Jira requests."
+                        )
+                        switch_panel("error_panel", state, panel_choice, widget_registry)
+                    jira_data = ErrorHandle(status_code=500)
+                    had_error += 1
+                except:
+                    class ErrorHandle:
+                        def __init__(self, status_code):
+                            self.status_code = status_code
+
+                    jira_data = ErrorHandle(status_code=404)
+                    had_error += 1
 
                 # WORK IN PROGRESS -- THIS WILL FIND WHAT FIELDS NEED TO BE UPDATED ON JIRA SERVER
                 try:
                     if jira_data.status_code in [200, 204]:
+                        if state["active_panel"] == panel_choice["error_panel"] and had_error > 0:
+                            switch_panel("ticket_panel", state, panel_choice, widget_registry)
+                            had_error = 0
                         print(f"{jira_data.status_code=}")
                         items = []
                         data = jira_data.json()
@@ -162,8 +191,14 @@ def core_handler(
                                         print(f"{save_item}")
                                         if save_item not in items:
                                             items.append(save_item)
-                              
-                        print(f"{items=}")         
+                    else:
+                        if state["active_panel"] != panel_choice["error_panel"]:
+                            panel_choice["error_panel"].update_message(
+                                "There was an error with the background worker.. please restart application or contact customer support."
+                            )
+                            switch_panel("error_panel", state, panel_choice, widget_registry)
+                        if items:
+                            print(f"{items=}")         
                 except Exception as e:
                     print(f"{e=}")
 
