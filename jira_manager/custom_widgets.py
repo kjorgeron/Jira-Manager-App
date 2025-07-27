@@ -111,3 +111,35 @@ class ScrollableFrame(tk.Frame):
         self.scrollable_frame.bind_all("<MouseWheel>", on_scroll)
 
         canvas.pack(side="left", fill="both", expand=True)
+
+
+class TicketCard(tk.Frame):
+    def __init__(self, ticket_data, theme_manager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.ticket_key = ticket_data[1]  # Adjust index to match your data structure
+        self.configure(padx=10, pady=5, bd=1, relief="solid")
+        theme_manager.register(self, "frame")
+
+        # Title or ticket key
+        title = tk.Label(
+            self,
+            text=self.ticket_key,
+            font=("Segoe UI", 12, "bold"),
+        )
+        title.pack(anchor="w")
+        theme_manager.register(title, "label")
+
+        # Optional Description or Detail
+        if len(ticket_data) > 2:
+            descript = tk.Label(
+                self,
+                text=ticket_data[2],
+                font=("Segoe UI", 10),
+                wraplength=400,
+                justify="left"
+            )
+            descript.pack(anchor="w")
+            theme_manager.register(descript, "label")
+
+        # Feel free to add buttons, status indicators, icons, etc.

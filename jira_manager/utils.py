@@ -6,7 +6,7 @@ import base64
 from tkinter import ttk
 from jira import JIRAError, JIRA
 from requests.auth import HTTPBasicAuth
-from jira_manager.custom_widgets import EntryWithPlaceholder, ScrollableFrame
+from jira_manager.custom_widgets import EntryWithPlaceholder, ScrollableFrame, TicketCard
 from pprint import pprint
 from PIL import Image, ImageTk
 from jira_manager.file_manager import save_data, load_data
@@ -22,7 +22,7 @@ from jira_manager.sql_manager import (
 from requests.exceptions import RequestException
 from multiprocessing import Process, Queue, cpu_count
 from time import sleep
-from threading import Thread
+from threading import Thread, Lock
 from jira_manager.custom_panels import ErrorMessageBuilder, switch_panel
 
 # def create_jira_card(parent, title, description, theme_manager, aspect_ratio=3.0, radius=20):
@@ -202,8 +202,8 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
     # Clear previous content
-    for widget in base_frame.winfo_children():
-        widget.destroy()
+    # for widget in base_frame.winfo_children():
+    #     widget.destroy()
 
     max_cols = 5
 
@@ -217,6 +217,38 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
 
         card = create_jira_card(base_frame, item[1], "Test Description", theme_manager, pull_jira_fields)
         card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")  # sticky makes the card stretch
+
+# def update_ticket_bucket_with_single(ticket_item, panel_choice, theme_manager):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+#     max_cols = 5
+
+#     # Ensure column expandability is configured
+#     for col in range(max_cols):
+#         base_frame.columnconfigure(col, weight=1)
+
+#     # Check current number of placed items
+#     existing_widgets = base_frame.winfo_children()
+#     index = len(existing_widgets)  # Next available slot
+
+#     # Compute row and column based on index
+#     row = index // max_cols
+#     col = index % max_cols
+
+#     # Create and place new ticket card
+#     card = create_jira_card(base_frame, ticket_item[1], "Test Description", theme_manager, pull_jira_fields)
+#     card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+    base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+    card = TicketCard(ticket, theme_manager, master=base_frame)
+
+    children = base_frame.winfo_children()
+    if children and children[0].winfo_ismapped():
+        card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+    else:
+        card.pack(side="top", fill="x", padx=5, pady=3)
 
 # def core_handler(
 #     stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry
@@ -240,6 +272,55 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
 #         if check_len > last_count:
 #             update_ticket_bucket(check_bucket_items, panel_choice)
 #             last_count = check_len
+
+# def manage_ui_state(db_path, panel_choice, theme_manager, stop_flag):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+#     displayed_keys = set()  # Track unique ticket keys
+
+#     while not stop_flag.is_set():
+#         print("Checking update ...")
+
+#         def _update():
+#             ticket_bucket_items = run_sql_stmt(
+#                 db_path,
+#                 "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;",
+#                 stmt_type="select"
+#             )
+
+#             for ticket in ticket_bucket_items:
+#                 ticket_key = ticket[1]  # Adjust based on where the key is in your tuple
+#                 if ticket_key not in displayed_keys:
+#                     update_ticket_bucket_with_single(ticket, panel_choice, theme_manager)
+#                     displayed_keys.add(ticket_key)
+
+#         panel_choice["ticket_panel"].after(0, _update)
+#         sleep(1)
+
+def manage_ui_state(db_path, panel_choice, theme_manager, stop_flag):
+    base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    displayed_keys = set()
+
+    while not stop_flag.is_set():
+        print("Checking update ...")
+
+        def _update():
+            # Fetch tickets already ordered DESC by numeric portion of key
+            ticket_bucket_items = run_sql_stmt(
+                db_path,
+                "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;",
+                stmt_type="select"
+            )
+
+            for ticket in ticket_bucket_items:
+                ticket_key = ticket[1]  # Adjust based on your ticket structure
+                if ticket_key not in displayed_keys:
+                    update_ticket_bucket_with_single(ticket, panel_choice, theme_manager)
+                    displayed_keys.add(ticket_key)
+
+        panel_choice["ticket_panel"].after(0, _update)
+        sleep(1)
+
 def core_handler(
     stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry, theme_manager
 ):
@@ -248,25 +329,31 @@ def core_handler(
     buffer = 1
     thread_count = cpu_count() - buffer
 
-    def queue_ui_update(items):
-        def _update():
-            update_ticket_bucket(items, panel_choice, theme_manager)
-        panel_choice["ticket_panel"].after(0, _update)
+    # def queue_ui_update():
+    #     print("Checking update ...")
+    #     def _update():
+    #         ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
+    #         update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager)
+    #     panel_choice["ticket_panel"].after(0, _update)
+    #     sleep(1)
 
     # INITIAL DRAW
-    ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
-    last_count = len(ticket_bucket_items)
-    queue_ui_update(ticket_bucket_items)
+    # ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
+    # last_count = len(ticket_bucket_items)
+    # queue_ui_update(ticket_bucket_items)
 
+    # MAY WANT TO HAVE BUCKET JOB AS ITS OWN THREAD HERE... SO ITS ALWAYS DYNAMICALLY LOADING IN NEW UPDATES
+    # thread = Thread(target=queue_ui_update, args=(db_path, panel_choice, theme_manager))
+    # thread.start()
     # BACKGROUND LOOP
     while not stop_flag.is_set():
-        check_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
-        check_len = len(check_bucket_items)
-        print(f"Last Count: {last_count}\nCheck Bucket Length: {check_len}")
+        # check_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
+        # check_len = len(check_bucket_items)
+        # print(f"Last Count: {last_count}\nCheck Bucket Length: {check_len}")
 
-        if check_len > last_count:
-            queue_ui_update(check_bucket_items)
-            last_count = check_len
+        # if check_len > last_count:
+        #     queue_ui_update(check_bucket_items)
+        #     last_count = check_len
 
         config = load_data()
         print("Checking databse queue...")
@@ -894,6 +981,70 @@ def fetch_all_issues(config_data, payload, headers, proxies):
 
     return all_issues
 
+
+def fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count=4):
+    base_url = f"{config_data.get('server')}rest/api/2/search"
+    jql = payload["jql"]
+    max_results = 100
+
+    # First, make an initial request to determine total
+    response = requests.get(
+        base_url,
+        headers=headers,
+        proxies=proxies,
+        timeout=360,
+        params={
+            "jql": jql,
+            "startAt": 0,
+            "maxResults": 1  # just get metadata
+        }
+    )
+    response.raise_for_status()
+    total_issues = response.json().get("total", 0)
+
+    issue_lock = Lock()
+    all_issues = []
+
+    def worker(start_at):
+        params = {
+            "jql": jql,
+            "startAt": start_at,
+            "maxResults": max_results
+        }
+        res = requests.get(
+            base_url,
+            headers=headers,
+            proxies=proxies,
+            timeout=360,
+            params=params
+        )
+
+        if res.status_code not in [200, 204]:
+            print(f"⚠️ Thread failed: {start_at} → {res.status_code}")
+            return  # optional: raise or retry
+
+        data = res.json()
+        issues = data.get("issues", [])
+
+        with issue_lock:
+            all_issues.extend(issues)
+
+    threads = []
+    for start in range(0, total_issues, max_results):
+        t = Thread(target=worker, args=(start,))
+        threads.append(t)
+
+    # Start batches of threads
+    for i in range(0, len(threads), thread_count):
+        batch = threads[i:i+thread_count]
+        for t in batch:
+            t.start()
+        for t in batch:
+            t.join()
+
+    return all_issues
+
+
 def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
 
     jql_query = widget_registry.get("jql_query")
@@ -989,7 +1140,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
         # LOGIC FOR PULLING TICKETS GOES HERE
         try:
             # JQL SEARCH FUNCTIONALITY
-            tickets = fetch_all_issues(config_data, payload, headers, proxies)
+            tickets = fetch_all_issues_threaded(config_data, payload, headers, proxies, 10)
 
             # SETS UP JOB QUEUES
             queue_data = {

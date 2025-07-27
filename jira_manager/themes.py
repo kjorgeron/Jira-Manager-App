@@ -134,6 +134,8 @@ class ThemeManager:
                     fg=self.theme["error_color"],
                     bg=self.theme["background"],
                 )
+            case "fg_highlight":
+                widget.configure(fg=self.theme["btn_highlight"])
 
     # def update_theme(self, new_theme):
     #     self.theme = new_theme

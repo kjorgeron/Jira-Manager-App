@@ -10,6 +10,7 @@ from jira_manager.utils import (
     initialize_window,
     clear_focus,
     core_handler,
+    manage_ui_state
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -216,6 +217,9 @@ def main():
     # START WATCHER THREADS
     core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry, theme_manager), daemon=True)
     core_watcher.start()
+
+    thread = Thread(target=manage_ui_state, args=(db_path, panel_choice, theme_manager, stop_flag), daemon=True)
+    thread.start()
 
     root.mainloop()
 
