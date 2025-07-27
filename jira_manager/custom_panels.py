@@ -3,9 +3,11 @@ from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder
+from jira_manager.sql_manager import run_sql_stmt
+# from jira_manager.utils import create_jira_card
 
 
-def switch_panel(panel_key, ui_state, panel_choice, widget_registry):
+def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: str = None):
     print(f"PANEL SWITCH -> {panel_key}")
     current = ui_state.get("active_panel")
     if current:
@@ -20,7 +22,7 @@ def switch_panel(panel_key, ui_state, panel_choice, widget_registry):
     if panel_key == "ticket_panel":
         widget = widget_registry.get("welcome_label")
         widget.config(text="Ticket Bucket")
-        widget.pack(fill="x", padx=10, pady=10)
+        widget.pack(fill="x", padx=5, pady=5)
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
 
@@ -452,25 +454,26 @@ class ErrorMessageBuilder(tk.Frame):
 
         return border_frame
 
-
 class TicketDisplayBuilder(tk.Frame):
     def __init__(self, master=None, theme_manager=None, **kwargs):
         super().__init__(master, **kwargs)
         self.theme_manager = theme_manager
+        self.widget_registry = {}
 
-        # Build UI immediately or delay via external trigger
         self._build_ticket_board()
 
     def _build_ticket_board(self):
-
-        canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
-        canvas.pack(fill="both", expand=True, side="left")
+        canvas = tk.Canvas(self, highlightthickness=0)
+        canvas.pack(fill="both", expand=True)
         self.theme_manager.register(canvas, "frame")
-        # Scrollbar is created but not packed, so it's hidden
+
+        # Create a vertical scrollbar (still hidden)
         hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=hidden_scrollbar.set)
 
-        base_frame = tk.Frame(canvas, borderwidth=2, relief="groove")
+
+        # ✅ Correctly create a scrollable inner frame
+        base_frame = tk.Frame(canvas, padx=10, pady=10)
         self.theme_manager.register(base_frame, "frame")
 
         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
@@ -480,16 +483,59 @@ class TicketDisplayBuilder(tk.Frame):
 
         base_frame.bind("<Configure>", on_configure)
 
+        # ✅ Store base_frame (not canvas) so cards get placed correctly
+        self.widget_registry["base_frame"] = base_frame
+
         def on_resize(event):
             canvas.itemconfig(window_id, width=event.width)
 
         canvas.bind("<Configure>", on_resize)
 
-        # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+# class TicketDisplayBuilder(tk.Frame):
+#     def __init__(self, master=None, theme_manager=None, **kwargs):
+#         super().__init__(master, **kwargs)
+#         self.theme_manager = theme_manager
+#         self.widget_registry = {}
+
+#         # Build UI immediately or delay via external trigger
+#         self._build_ticket_board()
+
+#     def _build_ticket_board(self):
+
+#         canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
+#         canvas.pack(fill="both", expand=True)
+#         self.theme_manager.register(canvas, "frame")
+
+#         # Scrollbar is created but not packed, so it's hidden
+#         hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         canvas.configure(yscrollcommand=hidden_scrollbar.set)
+
+#         base_frame = tk.Frame(canvas, borderwidth=2, relief="groove", padx=10, pady=10)
+#         self.theme_manager.register(base_frame, "frame")
+
+#         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
+
+#         def on_configure(event):
+#             canvas.configure(scrollregion=canvas.bbox("all"))
+
+#         base_frame.bind("<Configure>", on_configure)
+#         self.widget_registry["base_frame"] = canvas
+
+#         def on_resize(event):
+#             canvas.itemconfig(window_id, width=event.width)
+
+#         canvas.bind("<Configure>", on_resize)
+
+#         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
+#         def _on_mousewheel(event):
+#             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+#         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
 
 import tkinter as tk

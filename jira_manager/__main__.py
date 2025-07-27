@@ -214,7 +214,7 @@ def main():
     # info_message.pack(padx=10, pady=10)
 
     # START WATCHER THREADS
-    core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry), daemon=True)
+    core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry, theme_manager), daemon=True)
     core_watcher.start()
 
     root.mainloop()
