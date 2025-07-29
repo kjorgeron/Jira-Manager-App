@@ -154,16 +154,43 @@ def task_generator(queue):
         yield queue.pop(0)
 
 
-def thread_handler(stop_flag, queue):
+def thread_handler(stop_flag, queue, panel_choice, theme_manager):
     while not stop_flag.is_set():
         print("Running thread...")
         generator = task_generator(queue)
         try:
             task = next(generator)
-            print(f"{task.get("type")=}")
-            task.get("run_count")["count"] = task.get("run_count")["count"] - 1
+            t_type = task.get("type")
+
+            # HANDLE JQL SEARCH
+            if t_type == "jql_search":
+                print(f"{task.get("type")=}")
+                config_data = task.get("config_data")
+                payload = task.get("payload")
+                headers = task.get("headers")
+                proxies = task.get("proxies")
+                thread_count = task.get("thread_count")
+                run_count = task.get("run_count")
+
+                try:
+                    issues = fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count)
+                    print(f"{len(issues)=}")
+
+                    threads = []
+                    for batch in batch_list(issues, thread_count):
+                        thread = Thread(target=update_ticket_bucket, args=(batch, panel_choice, theme_manager))
+                        threads.append(thread)
+                        threads[-1].start()
+                    for thread in threads:
+                        thread.join()
+                except requests.exceptions.HTTPError as err:
+                    print(err)
+
+
+            run_count["count"] = run_count["count"] - 1
             
         except StopIteration:
+
             break
     print("Thread shutting down.")
 
@@ -216,10 +243,10 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     for index, item in enumerate(ticket_bucket_items):
         row = index // max_cols
         col = index % max_cols
-
-        card = create_jira_card(base_frame, item[1], "Test Description", theme_manager, pull_jira_fields)
-        card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")  # sticky makes the card stretch
-
+        print(f"{item=}")
+        # card = create_jira_card(base_frame, item["key"], "Test Description", theme_manager, pull_jira_fields)
+        # card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")  # sticky makes the card stretch
+        update_ticket_bucket_with_single(item, panel_choice, theme_manager)
 # def update_ticket_bucket_with_single(ticket_item, panel_choice, theme_manager):
 #     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
@@ -1176,7 +1203,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
                     "thread_count": thread_count,
                     "run_count": run_count
                 }
-                thread = Thread(target=thread_handler, args=(stop_flag, [task]))
+                thread = Thread(target=thread_handler, args=(stop_flag, [task], panel_choice, theme_manager))
                 thread.start()
             except:
                 pass

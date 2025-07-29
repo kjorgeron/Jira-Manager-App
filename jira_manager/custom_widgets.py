@@ -117,15 +117,29 @@ class TicketCard(tk.Frame):
     def __init__(self, ticket_data, theme_manager, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.ticket_key = ticket_data[1]  # Adjust index to match your data structure
+        self.ticket_key = ticket_data["key"]  # Adjust index to match your data structure
         self.configure(padx=10, pady=5, bd=1, relief="solid")
         theme_manager.register(self, "frame")
 
+        base = tk.Frame(self)
+        base.pack(fill="x")
+        theme_manager.register(base, "frame")
+
+        info = tk.Frame(base)
+        info.pack(side="left", fill="y")
+        theme_manager.register(info, "frame")
+
+        actions = tk.Frame(base)
+        actions.pack(side="right", fill="y")
+        theme_manager.register(actions, "frame")
+
+
         # Title or ticket key
         title = tk.Label(
-            self,
+            info,
             text=self.ticket_key,
             font=("Segoe UI", 12, "bold"),
+            justify="left"
         )
         title.pack(anchor="w")
         theme_manager.register(title, "label")
@@ -133,8 +147,8 @@ class TicketCard(tk.Frame):
         # Optional Description or Detail
         if len(ticket_data) > 2:
             descript = tk.Label(
-                self,
-                text=ticket_data[2],
+                info,
+                text=ticket_data["fields"]["description"],
                 font=("Segoe UI", 10),
                 wraplength=400,
                 justify="left"
@@ -143,3 +157,10 @@ class TicketCard(tk.Frame):
             theme_manager.register(descript, "label")
 
         # Feel free to add buttons, status indicators, icons, etc.
+        update_btn = tk.Button(actions, text="Update", justify="right")
+        update_btn.pack(side="left", padx=10, pady=10)
+        theme_manager.register(update_btn, "base_button")
+
+        select_btn = tk.Button(actions, text="Select", justify="right")
+        select_btn.pack(side="right", padx=10, pady=10)
+        theme_manager.register(select_btn, "flashy_button")
