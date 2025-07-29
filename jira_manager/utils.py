@@ -22,7 +22,7 @@ from jira_manager.sql_manager import (
 from requests.exceptions import RequestException
 from multiprocessing import Process, Queue, cpu_count
 from time import sleep
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 from jira_manager.custom_panels import ErrorMessageBuilder, switch_panel
 
 # def create_jira_card(parent, title, description, theme_manager, aspect_ratio=3.0, radius=20):
@@ -154,15 +154,17 @@ def task_generator(queue):
         yield queue.pop(0)
 
 
-def jira_task_handler(stop_flag, queue):
+def thread_handler(stop_flag, queue):
     while not stop_flag.is_set():
-        print("Checking jira queue...")
+        print("Running thread...")
         generator = task_generator(queue)
         try:
             task = next(generator)
+            print(f"{task.get("type")=}")
+            task.get("run_count")["count"] = task.get("run_count")["count"] - 1
+            
         except StopIteration:
-            pass
-        sleep(1)
+            break
     print("Thread shutting down.")
 
 
@@ -982,7 +984,7 @@ def fetch_all_issues(config_data, payload, headers, proxies):
     return all_issues
 
 
-def fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count=4):
+def fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count=4, return_queue: Queue = None):
     base_url = f"{config_data.get('server')}rest/api/2/search"
     jql = payload["jql"]
     max_results = 100
@@ -1042,26 +1044,17 @@ def fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_cou
         for t in batch:
             t.join()
 
-    return all_issues
+    if return_queue == None:
+        return all_issues
+    else:
+        return_queue.put(all_issues)
 
+def configure_project_credentials(config_data, panel_choice, ui_state, widget_registry):
 
-def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
+    headers = None
+    proxies = None
 
-    jql_query = widget_registry.get("jql_query")
-    db_path = "jira_manager/tickets.db"
-    config_data = load_data()
-
-    # LOGIC FOR JIRA SEARCH PANEL
-    if payload["type"] == "search_jiras":
-        headers = None
-        proxies = None
-        # HANDLE FOR EMPTY SEARCH BAR
-        if payload["jql"] == "Enter proper JQL query":
-            panel_choice["error_panel"].update_message("Missing JQL Statement.")
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-            return
-
-        if (
+    if (
             config_data.get("server") == ""
             or config_data.get("server") == "Provide base url"
         ):
@@ -1071,89 +1064,122 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue):
             switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
 
-        if config_data.get("auth_type") == "Basic Auth":
-            if (
-                config_data.get("username") == ""
-                or config_data.get("password") == ""
-                or config_data.get("username") == "Enter username or email"
-                or config_data.get("password") == "Enter password or token"
-            ):
-                panel_choice["error_panel"].update_message(
-                    "Missing Username or Password, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
-            else:
-                try:
-                    headers = {
-                        "Authorization": f"Basic {encode_basic_auth(config_data.get("username"), config_data.get("password"))}",
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    }
-                except JIRAError as e:
-                    panel_choice["error_panel"].update_message(
-                        f"Failed to build headers using provided username/password.\nReason = {e}"
-                    )
-                    switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                    return
-        elif config_data.get("auth_type") == "Token Auth":
-            if (
-                config_data.get("token") == ""
-                or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
-            ):
-                panel_choice["error_panel"].update_message(
-                    "Missing Bearer Token, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
-            else:
-                try:
-                    # jira = JIRA(server=server, token_auth=token)
-                    headers = {
-                        "Authorization": f"Bearer {config_data.get("token")}",
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    }
-                except JIRAError as e:
-                    panel_choice["error_panel"].update_message(
-                        f"Failed to build headers using provided Bearer Token.\nReason = {e}"
-                    )
-                    switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                    return
-
-        if config_data.get("proxy_option").lower() == "yes":
-            if (
-                config_data.get("http_proxy") == ""
-                or config_data.get("https_proxy") == ""
-            ):
-                panel_choice["error_panel"].update_message(
-                    f"Missing proxy information, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
-            else:
-                proxies = {
-                    "http": config_data.get("http_proxy"),
-                    "https": config_data.get("https_proxy"),
+    if config_data.get("auth_type") == "Basic Auth":
+        if (
+            config_data.get("username") == ""
+            or config_data.get("password") == ""
+            or config_data.get("username") == "Enter username or email"
+            or config_data.get("password") == "Enter password or token"
+        ):
+            panel_choice["error_panel"].update_message(
+                "Missing Username or Password, please provide information in the configuration panel."
+            )
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
+        else:
+            try:
+                headers = {
+                    "Authorization": f"Basic {encode_basic_auth(config_data.get("username"), config_data.get("password"))}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
                 }
+            except JIRAError as e:
+                panel_choice["error_panel"].update_message(
+                    f"Failed to build headers using provided username/password.\nReason = {e}"
+                )
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                return
+    elif config_data.get("auth_type") == "Token Auth":
+        if (
+            config_data.get("token") == ""
+            or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
+        ):
+            panel_choice["error_panel"].update_message(
+                "Missing Bearer Token, please provide information in the configuration panel."
+            )
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
+        else:
+            try:
+                # jira = JIRA(server=server, token_auth=token)
+                headers = {
+                    "Authorization": f"Bearer {config_data.get("token")}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                }
+            except JIRAError as e:
+                panel_choice["error_panel"].update_message(
+                    f"Failed to build headers using provided Bearer Token.\nReason = {e}"
+                )
+                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                return
 
-        # LOGIC FOR PULLING TICKETS GOES HERE
+    if config_data.get("proxy_option").lower() == "yes":
+        if (
+            config_data.get("http_proxy") == ""
+            or config_data.get("https_proxy") == ""
+        ):
+            panel_choice["error_panel"].update_message(
+                f"Missing proxy information, please provide information in the configuration panel."
+            )
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
+        else:
+            proxies = {
+                "http": config_data.get("http_proxy"),
+                "https": config_data.get("https_proxy"),
+            }
+
+    return (headers, proxies)
+    
+
+
+
+def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, theme_manager, event_queue, stop_flag, thread_count, run_count):
+
+    jql_query = widget_registry.get("jql_query")
+    db_path = "jira_manager/tickets.db"
+    config_data = load_data()
+    jira_queue = []
+    database_queue = []
+    print(run_count)
+
+
+
+    headers, proxies = configure_project_credentials(config_data, panel_choice, ui_state, widget_registry)
+    
+    # LOGIC FOR JIRA SEARCH PANEL
+    if payload["type"] == "search_jiras":
+        if run_count["count"] > thread_count:
+            panel_choice["error_panel"].update_message(
+                "You have exceeded your limit of threads. Please let current tasks finish."
+            )
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
+
+        # HANDLE FOR EMPTY SEARCH BAR
+        if payload["jql"] == "Enter proper JQL query":
+            panel_choice["error_panel"].update_message("Missing JQL Statement.")
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
         try:
             # JQL SEARCH FUNCTIONALITY
-            tickets = fetch_all_issues_threaded(config_data, payload, headers, proxies, 10)
-
-            # SETS UP JOB QUEUES
-            queue_data = {
-                "db_path": db_path,
-                "server": config_data.get("server"),
-                "headers": headers,
-                "ticket_list": tickets,
-            }
-            queue.append(queue_data)
-
-            # PANEL SWITCH TO BUCKET
-            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path)
-
+            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry)
+            try:
+                run_count["count"] += 1
+                task = {
+                    "type": "jql_search",
+                    "config_data": config_data,
+                    "payload": payload,
+                    "headers": headers,
+                    "proxies": proxies,
+                    "thread_count": thread_count,
+                    "run_count": run_count
+                }
+                thread = Thread(target=thread_handler, args=(stop_flag, [task]))
+                thread.start()
+            except:
+                pass
         except RequestException as e:
             # This fires if you're offline or the server is unreachable
             panel_choice["error_panel"].update_message(

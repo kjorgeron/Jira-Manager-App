@@ -10,7 +10,8 @@ from jira_manager.utils import (
     initialize_window,
     clear_focus,
     core_handler,
-    manage_ui_state
+    manage_ui_state,
+    fetch_all_issues_threaded
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -66,6 +67,7 @@ def main():
     db_path = "jira_manager/tickets.db"
     run_sql_stmt(db_path, tickets_table, stmt_type="create")
     run_sql_stmt(db_path, fields_table, stmt_type="create")
+    stop_flag = Event()
 
     # WINDOW INIT
     root = initialize_window()
@@ -73,10 +75,14 @@ def main():
     database_queue = []
     jira_queue = []
     stop_flag = Event()
+    thread_count = 2
+    run_count = {"count": 1}
+    button_event_queue = Queue()
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
 
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
+
         allowed_classes = (
             "Entry",
             "TEntry",
@@ -149,6 +155,11 @@ def main():
             panel_choice,
             widget_registry,
             database_queue,
+            theme_manager,
+            button_event_queue,
+            stop_flag,
+            thread_count,
+            run_count
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -163,6 +174,11 @@ def main():
             panel_choice,
             widget_registry,
             database_queue,
+            theme_manager,
+            button_event_queue,
+            stop_flag,
+            thread_count,
+            run_count
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -177,6 +193,11 @@ def main():
             panel_choice,
             widget_registry,
             database_queue,
+            theme_manager,
+            button_event_queue,
+            stop_flag,
+            thread_count,
+            run_count
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -215,11 +236,11 @@ def main():
     # info_message.pack(padx=10, pady=10)
 
     # START WATCHER THREADS
-    core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry, theme_manager), daemon=True)
-    core_watcher.start()
+    # core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry, theme_manager), daemon=True)
+    # core_watcher.start()
 
-    thread = Thread(target=manage_ui_state, args=(db_path, panel_choice, theme_manager, stop_flag), daemon=True)
-    thread.start()
+    # thread = Thread(target=manage_ui_state, args=(db_path, panel_choice, theme_manager, stop_flag), daemon=True)
+    # thread.start()
 
     root.mainloop()
 
