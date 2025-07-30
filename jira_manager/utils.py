@@ -154,7 +154,7 @@ def task_generator(queue):
         yield queue.pop(0)
 
 
-def thread_handler(stop_flag, queue, panel_choice, theme_manager):
+def thread_handler(stop_flag, queue, panel_choice, theme_manager, card_retainer):
     while not stop_flag.is_set():
         print("Running thread...")
         generator = task_generator(queue)
@@ -176,6 +176,10 @@ def thread_handler(stop_flag, queue, panel_choice, theme_manager):
                     issues = fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count)
                     print(f"{len(issues)=}")
 
+                    for i, issue in enumerate(issues):
+                        if {"key": issue["key"]} in card_retainer:
+                            issues.pop(i)
+
                     threads = []
                     for batch in batch_list(issues, thread_count):
                         thread = Thread(target=update_ticket_bucket, args=(batch, panel_choice, theme_manager))
@@ -195,45 +199,11 @@ def thread_handler(stop_flag, queue, panel_choice, theme_manager):
     print("Thread shutting down.")
 
 
-# def update_ticket_bucket(ticket_bucket_items, panel_choice):
-#     canvas = panel_choice["ticket_panel"].widget_registry.get("base_frame")  # this is your Canvas
-
-#     # Clear previous canvas content
-#     canvas.delete("all")
-
-#     max_cols = 5
-#     card_width = 180
-#     card_height = 120
-#     spacing_x = 10
-#     spacing_y = 10
-
-#     for index, item in enumerate(ticket_bucket_items):
-#         row = index // max_cols
-#         col = index % max_cols
-
-#         x = col * (card_width + spacing_x)
-#         y = row * (card_height + spacing_y)
-
-#         card = create_jira_card(canvas, item[1], "Test Description")
-#         canvas.create_window(x, y, window=card, anchor="nw", width=card_width, height=card_height)
-
-#     # Update scrollable region
-#     canvas.update_idletasks()
-#     canvas.configure(scrollregion=canvas.bbox("all"))
-
-#     # Rebind mousewheel scrolling
-#     canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
-
 def pull_jira_fields():
     print("hello!")
 
 def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-
-    # Clear previous content
-    # for widget in base_frame.winfo_children():
-    #     widget.destroy()
-
     max_cols = 5
 
     # Make columns expandable
@@ -244,29 +214,7 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
         row = index // max_cols
         col = index % max_cols
         print(f"{item=}")
-        # card = create_jira_card(base_frame, item["key"], "Test Description", theme_manager, pull_jira_fields)
-        # card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")  # sticky makes the card stretch
         update_ticket_bucket_with_single(item, panel_choice, theme_manager)
-# def update_ticket_bucket_with_single(ticket_item, panel_choice, theme_manager):
-#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-
-#     max_cols = 5
-
-#     # Ensure column expandability is configured
-#     for col in range(max_cols):
-#         base_frame.columnconfigure(col, weight=1)
-
-#     # Check current number of placed items
-#     existing_widgets = base_frame.winfo_children()
-#     index = len(existing_widgets)  # Next available slot
-
-#     # Compute row and column based on index
-#     row = index // max_cols
-#     col = index % max_cols
-
-#     # Create and place new ticket card
-#     card = create_jira_card(base_frame, ticket_item[1], "Test Description", theme_manager, pull_jira_fields)
-#     card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
 def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
@@ -351,7 +299,7 @@ def manage_ui_state(db_path, panel_choice, theme_manager, stop_flag):
         sleep(1)
 
 def core_handler(
-    stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry, theme_manager
+    stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry, theme_manager, card_retainer = None
 ):
     items = None
     had_error = 0
@@ -488,7 +436,7 @@ def core_handler(
                 try:
                     if jira_data.status_code in [200, 204]:
                         if state["active_panel"] == panel_choice["error_panel"] and had_error > 0:
-                            switch_panel("ticket_panel", state, panel_choice, widget_registry, db_path)
+                            switch_panel("ticket_panel", state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
                             had_error = 0
                         print(f"{jira_data.status_code=}")
                         items = []
@@ -1162,7 +1110,7 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
 
 
 
-def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, theme_manager, event_queue, stop_flag, thread_count, run_count):
+def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, theme_manager, event_queue, stop_flag, thread_count, run_count, card_retainer):
 
     jql_query = widget_registry.get("jql_query")
     db_path = "jira_manager/tickets.db"
@@ -1191,7 +1139,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
             return
         try:
             # JQL SEARCH FUNCTIONALITY
-            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry)
+            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
             try:
                 run_count["count"] += 1
                 task = {
@@ -1203,7 +1151,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
                     "thread_count": thread_count,
                     "run_count": run_count
                 }
-                thread = Thread(target=thread_handler, args=(stop_flag, [task], panel_choice, theme_manager))
+                thread = Thread(target=thread_handler, args=(stop_flag, [task], panel_choice, theme_manager, card_retainer))
                 thread.start()
             except:
                 pass
@@ -1277,7 +1225,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
         except:
             ticket_data = []
         if ticket_data != []:
-            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path)
+            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
         else:
             panel_choice["error_panel"].update_message(
                 "No tickets have been loaded in, please configure a project or search using JQL query."

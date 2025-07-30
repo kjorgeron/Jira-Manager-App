@@ -2,12 +2,36 @@ import tkinter as tk
 from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
-from jira_manager.custom_widgets import EntryWithPlaceholder
+from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
-# from jira_manager.utils import create_jira_card
+
+def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+    base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+    card = TicketCard(ticket, theme_manager, master=base_frame)
+
+    children = base_frame.winfo_children()
+    if children and children[0].winfo_ismapped():
+        card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+    else:
+        card.pack(side="top", fill="x", padx=5, pady=3)
+
+def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
+    base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    max_cols = 5
+
+    # Make columns expandable
+    for col in range(max_cols):
+        base_frame.columnconfigure(col, weight=1)
+
+    for index, item in enumerate(ticket_bucket_items):
+        row = index // max_cols
+        col = index % max_cols
+        print(f"{item=}")
+        update_ticket_bucket_with_single(item, panel_choice, theme_manager)
 
 
-def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: str = None):
+def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: str = None, theme_manager: ThemeManager = None, card_retainer: list = None):
     print(f"PANEL SWITCH -> {panel_key}")
     current = ui_state.get("active_panel")
     if current:
@@ -20,6 +44,26 @@ def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: st
         widget_registry.get("welcome_label").pack_forget()
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     if panel_key == "ticket_panel":
+        if db_path:
+            try:
+                issues = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
+                show_issues = []
+                for issue in issues:
+                    key = issue[1]
+                    show_issue = {"key": key}
+                    if show_issue not in card_retainer:
+                        show_issues.append(show_issue)
+                
+                if show_issues != []:
+                    update_ticket_bucket(show_issues, panel_choice, theme_manager)
+                
+                for issue in show_issues:
+                    if issue not in card_retainer:
+                        card_retainer.append(issue)
+
+            except:
+                # NEED TO ADD ERROR HANDLING
+                pass
         widget = widget_registry.get("welcome_label")
         widget.config(text="Ticket Bucket")
         widget.pack(fill="x", padx=5, pady=5)

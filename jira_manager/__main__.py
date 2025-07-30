@@ -74,6 +74,7 @@ def main():
     widget_registry = {}
     database_queue = []
     jira_queue = []
+    card_retainer = []
     stop_flag = Event()
     thread_count = 2
     run_count = {"count": 1}
@@ -159,7 +160,8 @@ def main():
             button_event_queue,
             stop_flag,
             thread_count,
-            run_count
+            run_count,
+            card_retainer
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -178,7 +180,8 @@ def main():
             button_event_queue,
             stop_flag,
             thread_count,
-            run_count
+            run_count,
+            card_retainer
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -197,7 +200,8 @@ def main():
             button_event_queue,
             stop_flag,
             thread_count,
-            run_count
+            run_count,
+            card_retainer
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
