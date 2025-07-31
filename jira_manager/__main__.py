@@ -9,7 +9,7 @@ from jira_manager.utils import (
     get_theme_mode,
     initialize_window,
     clear_focus,
-    fetch_all_issues_threaded
+    fetch_all_issues_threaded,
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -19,7 +19,7 @@ from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     ErrorMessageBuilder,
     TicketDisplayBuilder,
-    switch_panel
+    switch_panel,
 )
 from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
@@ -27,6 +27,36 @@ from multiprocessing import Queue
 from threading import Thread, Event
 from time import sleep
 from jira_manager.file_manager import load_data
+
+
+def enter_key_clear_focus_run_btn_event(
+    root,
+    payload,
+    ui_state,
+    panel_choice,
+    widget_registry,
+    database_queue,
+    theme_manager,
+    button_event_queue,
+    stop_flag,
+    thread_count,
+    run_count,
+    card_retainer,
+):
+    toolbar_action(
+        payload,
+        ui_state,
+        panel_choice,
+        widget_registry,
+        database_queue,
+        theme_manager,
+        button_event_queue,
+        stop_flag,
+        thread_count,
+        run_count,
+        card_retainer,
+    )
+    root.focus_set()
 
 
 def on_close(stop_flag, root):
@@ -50,8 +80,8 @@ def setup_configure_panel(parent, theme_manager):
     return config
 
 
-def setup_ticket_panel(parent, theme_manager):
-    tickets = TicketDisplayBuilder(parent, theme_manager=theme_manager)
+def setup_ticket_panel(parent, theme_manager, card_retainer):
+    tickets = TicketDisplayBuilder(parent, theme_manager=theme_manager, tickets=card_retainer)
     # ticket_bucket = tickets.build_ticket_board()
     # ticket_bucket.pack(expand=True, fill="both")
     theme_manager.register(tickets, "frame")
@@ -71,7 +101,6 @@ def main():
     root = initialize_window()
     widget_registry = {}
     database_queue = []
-    jira_queue = []
     card_retainer = []
     stop_flag = Event()
     thread_count = 2
@@ -116,7 +145,7 @@ def main():
 
     error_panel = ErrorMessageBuilder(root, theme_manager)
     configure_panel = setup_configure_panel(root, theme_manager)
-    ticket_panel = setup_ticket_panel(root, theme_manager)
+    ticket_panel = setup_ticket_panel(root, theme_manager, card_retainer)
 
     # PANEL CHOICES
     panel_choice = {
@@ -124,6 +153,8 @@ def main():
         "configure_panel": configure_panel,
         "ticket_panel": ticket_panel,
     }
+
+    panel_choice["ticket_panel"].set_panel_choice(panel_choice)
 
     # APP LOGO
     logo_frame = tk.Frame(root, height=60)
@@ -159,7 +190,7 @@ def main():
             stop_flag,
             thread_count,
             run_count,
-            card_retainer
+            card_retainer,
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -179,7 +210,7 @@ def main():
             stop_flag,
             thread_count,
             run_count,
-            card_retainer
+            card_retainer,
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -199,7 +230,7 @@ def main():
             stop_flag,
             thread_count,
             run_count,
-            card_retainer
+            card_retainer,
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -214,6 +245,23 @@ def main():
     jql_search.pack(side="left", padx=10)
     theme_manager.register(jql_search, "placeholder_entry")
     widget_registry["jql_query"] = jql_search
+    jql_search.bind(
+        "<Return>",
+        lambda event: enter_key_clear_focus_run_btn_event(
+            root,
+            {"type": "search_jiras", "jql": jql_search.get()},
+            ui_state,
+            panel_choice,
+            widget_registry,
+            database_queue,
+            theme_manager,
+            button_event_queue,
+            stop_flag,
+            thread_count,
+            run_count,
+            card_retainer,
+        ),
+    )
 
     # DIVIDER
     create_divider(root, mode["muted_text"])
@@ -225,26 +273,12 @@ def main():
         justify="center",
         font=("Trebuchet MS", 20, "bold"),
     )
-   
+
     theme_manager.register(welcome_label, "label")
     widget_registry["welcome_label"] = welcome_label
-    # sleep(1)
-
-    # info_frame = tk.Frame(root, padx=10, pady=10)
-    # info_frame.pack(fill="x")
-    # theme_manager.register(info_frame, "frame")
-    # info_message = tk.Label(info_frame, text="Thanks for choosing Ticket Smith by Dead Viking Software.\nFeel free to request new features via the request feature button.", justify="center")
-    # theme_manager.register(info_message, "label")
-    # info_message.pack(padx=10, pady=10)
-
-    # START WATCHER THREADS
-    # core_watcher = Thread(target=core_handler, args=(stop_flag, database_queue, db_path, jira_queue, ui_state, panel_choice, widget_registry, theme_manager), daemon=True)
-    # core_watcher.start()
-
-    # thread = Thread(target=manage_ui_state, args=(db_path, panel_choice, theme_manager, stop_flag), daemon=True)
-    # thread.start()
 
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()

@@ -234,6 +234,8 @@ class ThemeManager:
         match role:
             case "label":
                 widget.configure(bg=self.theme["background"], fg=self.theme["primary_color"])
+            case "flashy_label":
+                widget.configure(bg=self.theme["background"], fg=self.theme["btn_highlight"])
             case "flashy_button":
                 widget.configure(
                     font=("Trebuchet MS", 12, "bold"),
@@ -268,16 +270,16 @@ class ThemeManager:
                     highlightcolor=self.theme["btn_highlight"],
                     relief=tk.FLAT,
                     bd=0,
-                    font=("Arial", 14, "bold"),
+                    font=("Trebuchet MS", 14, "bold"),
                 )
                 widget.default_fg_color = self.theme["primary_color"]
                 widget.placeholder_color = self.theme["btn_highlight"]
-                widget.default_font = ("Arial", 14, "bold")
-                widget.placeholder_font = ("Arial", 14, "italic")
+                widget.default_font = ("Trebuchet MS", 14, "bold")
+                widget.placeholder_font = ("Trebuchet MS", 14, "italic")
                 widget.refresh_placeholder()
             case "entry":
                 widget.configure(
-                    font=("Arial", 14, "bold"),
+                    font=("Trebuchet MS", 14, "bold"),
                     highlightbackground=self.theme["primary_color"],
                     highlightcolor=self.theme["btn_highlight"],
                     highlightthickness=2,
