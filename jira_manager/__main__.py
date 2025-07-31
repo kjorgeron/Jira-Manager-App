@@ -9,8 +9,6 @@ from jira_manager.utils import (
     get_theme_mode,
     initialize_window,
     clear_focus,
-    core_handler,
-    manage_ui_state,
     fetch_all_issues_threaded
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder

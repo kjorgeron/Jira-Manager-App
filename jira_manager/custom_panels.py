@@ -1,20 +1,43 @@
+import platform
 import tkinter as tk
 from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
+from threading import Thread
+
+def batch_list(lst, batch_size):
+    for i in range(0, len(lst), batch_size):
+        yield lst[i : i + batch_size]
 
 def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
     card = TicketCard(ticket, theme_manager, master=base_frame)
-
+    print(f"{ticket=}")
     children = base_frame.winfo_children()
     if children and children[0].winfo_ismapped():
         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
     else:
         card.pack(side="top", fill="x", padx=5, pady=3)
+
+# def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+#     canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
+
+#     card = TicketCard(ticket, theme_manager, master=base_frame)
+#     children = base_frame.winfo_children()
+
+#     if children and children[0].winfo_ismapped():
+#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+#     else:
+#         card.pack(side="top", fill="x", padx=5, pady=3)
+
+#     # 💡 Force canvas to re-sync scrollregion after packing
+#     base_frame.update_idletasks()
+#     canvas.configure(scrollregion=canvas.bbox("all"))
+
 
 def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
@@ -23,15 +46,25 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     # Make columns expandable
     for col in range(max_cols):
         base_frame.columnconfigure(col, weight=1)
-
     for index, item in enumerate(ticket_bucket_items):
         row = index // max_cols
         col = index % max_cols
         print(f"{item=}")
         update_ticket_bucket_with_single(item, panel_choice, theme_manager)
+        print(f"TICKET = {item}")
+
+# def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+#     canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
+
+#     for item in ticket_bucket_items:
+#         update_ticket_bucket_with_single(item, panel_choice, theme_manager)
+
+#     base_frame.update_idletasks()
+#     canvas.configure(scrollregion=canvas.bbox("all"))
 
 
-def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: str = None, theme_manager: ThemeManager = None, card_retainer: list = None):
+def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: str = None, theme_manager: ThemeManager = None, card_retainer: list = None, thread_count: int = None):
     print(f"PANEL SWITCH -> {panel_key}")
     current = ui_state.get("active_panel")
     if current:
@@ -46,20 +79,31 @@ def switch_panel(panel_key, ui_state, panel_choice, widget_registry, db_path: st
     if panel_key == "ticket_panel":
         if db_path:
             try:
-                issues = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
+                issues = run_sql_stmt(db_path, "SELECT * FROM tickets WHERE ticket_id >= 0 and ticket_id <= 50", stmt_type="select")
                 show_issues = []
                 for issue in issues:
-                    key = issue[1]
-                    show_issue = {"key": key}
-                    if show_issue not in card_retainer:
-                        show_issues.append(show_issue)
+                    show = {"key": issue[1]}
+                    if show not in card_retainer:
+                        card_retainer.append(show)
+
+                        show_issues.append(show)
+                print(f"{len(show_issues)=}")
+                update_ticket_bucket(show_issues, panel_choice, theme_manager)
+                # panel_choice["ticket_panel"].after(100, panel_choice["ticket_panel"].finalize_scrollregion)
                 
-                if show_issues != []:
-                    update_ticket_bucket(show_issues, panel_choice, theme_manager)
+                print(f"{issues=}")
+
+                #     key = issue[1]
+                #     show_issue = {"key": key}
+                #     if show_issue not in card_retainer:
+                #         show_issues.append(show_issue)
                 
-                for issue in show_issues:
-                    if issue not in card_retainer:
-                        card_retainer.append(issue)
+                # if show_issues != []:
+                #     update_ticket_bucket(show_issues, panel_choice, theme_manager)
+                
+                # for issue in show_issues:
+                #     if issue not in card_retainer:
+                #         card_retainer.append(issue)
 
             except:
                 # NEED TO ADD ERROR HANDLING
@@ -498,26 +542,209 @@ class ErrorMessageBuilder(tk.Frame):
 
         return border_frame
 
+
+# class TicketDisplayBuilder(tk.Frame):
+#     def __init__(self, master=None, theme_manager=None, **kwargs):
+#         super().__init__(master, **kwargs)
+#         self.theme_manager = theme_manager
+#         self.widget_registry = {}
+#         self.user_is_scrolling = False
+#         self.load_queue = []  # Ticket widgets or ticket data
+
+#         self._build_ticket_board()
+
+#     def _build_ticket_board(self):
+#         canvas = tk.Canvas(self, highlightthickness=0)
+#         canvas.pack(fill="both", expand=True)
+#         self.theme_manager.register(canvas, "frame")
+
+#         # hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         # canvas.configure(yscrollcommand=hidden_scrollbar.set)
+
+#         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         canvas.configure(yscrollcommand=self.scrollbar.set)
+#         # self.scrollbar_visible = False  # Track scrollbar state
+
+
+#         base_frame = tk.Frame(canvas, padx=10, pady=10)
+#         self.theme_manager.register(base_frame, "frame")
+
+#         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
+#         self.widget_registry["base_frame"] = base_frame
+
+#         def on_configure(event):
+#             canvas.configure(scrollregion=canvas.bbox("all"))
+#         base_frame.bind("<Configure>", on_configure)
+
+#         def on_resize(event):
+#             canvas.itemconfig(window_id, width=event.width)
+#         canvas.bind("<Configure>", on_resize)
+
+#         def on_mousewheel(event):
+#             self.user_is_scrolling = True
+#             delta = event.delta
+
+#             # Normalize scroll delta across platforms
+#             if platform.system() == "Darwin":  # macOS
+#                 scroll_units = int(-1 * delta)
+#             else:  # Windows/Linux
+#                 scroll_units = int(-1 * (delta / 120))
+
+#             canvas.yview_scroll(int(scroll_units * 0.3), "units")  # Slow down scroll
+#             self.after(200, self._reset_scroll_flag)
+
+#         # def _on_mousewheel(event):
+#         #     self.user_is_scrolling = True
+#         #     scroll_units = int(-1 * (event.delta / 120))
+#         #     canvas.yview_scroll(int(scroll_units * 0.3), "units")
+
+#         #     if not self.scrollbar_visible:
+#         #         self.scrollbar.pack(side="right", fill="y")
+#         #         self.scrollbar_visible = True
+
+#         #     self.after(1000, self._hide_scrollbar)
+#         #     self.after(200, self._reset_scroll_flag)
+
+
+#         canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+#         self._poll_loader()
+
+#     def _hide_scrollbar(self):
+#         self.scrollbar.pack_forget()
+#         self.scrollbar_visible = False
+
+#     def _reset_scroll_flag(self):
+#         self.user_is_scrolling = False
+
+#     def queue_ticket(self, ticket_widget):
+#         """Add ticket widget to load queue"""
+#         self.load_queue.append(ticket_widget)
+
+#     def _poll_loader(self, chunk_size=5, delay=100):
+#         """Batch insert tickets if not scrolling"""
+#         if not self.user_is_scrolling and self.load_queue:
+#             base_frame = self.widget_registry["base_frame"]
+#             for _ in range(min(chunk_size, len(self.load_queue))):
+#                 widget = self.load_queue.pop(0)
+#                 widget.pack(fill="x", pady=5, in_=base_frame)
+#         self.after(delay, self._poll_loader)
+
+# import tkinter as tk
+# import platform
+
+import tkinter as tk
+import platform
+
+# class TicketDisplayBuilder(tk.Frame):
+#     def __init__(self, master=None, theme_manager=None, **kwargs):
+#         super().__init__(master, **kwargs)
+#         self.theme_manager = theme_manager
+#         self.widget_registry = {}
+#         self.load_queue = []
+
+#         self._build_ticket_board()
+
+#     def _build_ticket_board(self):
+#         canvas = tk.Canvas(self, highlightthickness=0)
+#         canvas.pack(fill="both", expand=True)
+#         self.theme_manager.register(canvas, "frame")
+
+#         # Hidden scrollbar setup
+#         scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         scrollbar.configure(width=0)  # Make it invisible
+#         canvas.configure(yscrollcommand=scrollbar.set)
+#         self.theme_manager.register(scrollbar, "scrollbar")
+
+#         content_frame = tk.Frame(canvas, padx=10, pady=10)
+#         self.theme_manager.register(content_frame, "frame")
+
+#         window_id = canvas.create_window((0, 0), window=content_frame, anchor="nw")
+
+#         self.widget_registry.update({
+#             "base_frame": content_frame,
+#             "canvas": canvas,
+#             "window_id": window_id
+#         })
+
+#         # Scroll sizing and sync
+#         content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+#         canvas.bind("<Configure>", lambda e: canvas.itemconfig(window_id, width=e.width))
+
+#         # Mousewheel scrolling
+#         def on_mousewheel(event):
+#             factor = -1 * (event.delta if platform.system() == "Darwin" else event.delta // 120)
+#             canvas.yview_scroll(int(factor * 0.3), "units")
+
+#         canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", on_mousewheel))
+#         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+#         self._poll_loader()
+
+#     def queue_ticket(self, ticket_widget):
+#         self.load_queue.append(ticket_widget)
+
+#     # def _poll_loader(self, chunk_size=5, delay=100):
+#     #     base_frame = self.widget_registry["base_frame"]
+#     #     canvas = self.widget_registry["canvas"]
+
+#     #     for _ in range(min(chunk_size, len(self.load_queue))):
+#     #         widget = self.load_queue.pop(0)
+#     #         widget.pack(fill="x", pady=5, in_=base_frame)
+
+#     #     # 💡 Ensure canvas recognizes new layout after updates
+#     #     canvas.update_idletasks()
+#     #     canvas.configure(scrollregion=canvas.bbox("all"))
+
+#     #     self.after(delay, lambda: self._poll_loader(chunk_size, delay))
+#     def _poll_loader(self, chunk_size=5, delay=100):
+#         base_frame = self.widget_registry["base_frame"]
+#         canvas = self.widget_registry["canvas"]
+#         window_id = self.widget_registry["window_id"]
+
+#         for _ in range(min(chunk_size, len(self.load_queue))):
+#             widget = self.load_queue.pop(0)
+#             widget.pack(fill="x", pady=5, in_=base_frame)
+
+#         def delayed_scroll_update():
+#             canvas.update_idletasks()
+#             canvas.itemconfig(window_id, width=canvas.winfo_width())
+#             canvas.configure(scrollregion=canvas.bbox("all"))
+
+#         self.after(50, delayed_scroll_update)  # Small delay lets layout settle
+#         self.after(delay, lambda: self._poll_loader(chunk_size, delay))
+
+#     def finalize_scrollregion(self):
+#         canvas = self.widget_registry["canvas"]
+#         window_id = self.widget_registry["window_id"]
+
+#         self.update_idletasks()  # Ensures all geometry is up to date
+#         canvas.itemconfig(window_id, width=canvas.winfo_width())  # Sync canvas width
+#         canvas.configure(scrollregion=canvas.bbox("all"))  # Update the scrollable region
+
 class TicketDisplayBuilder(tk.Frame):
     def __init__(self, master=None, theme_manager=None, **kwargs):
         super().__init__(master, **kwargs)
         self.theme_manager = theme_manager
         self.widget_registry = {}
 
+        # Build UI immediately or delay via external trigger
         self._build_ticket_board()
 
-    def _build_ticket_board(self):
-        canvas = tk.Canvas(self, highlightthickness=0)
-        canvas.pack(fill="both", expand=True)
-        self.theme_manager.register(canvas, "frame")
 
-        # Create a vertical scrollbar (still hidden)
+    def _build_ticket_board(self):
+
+        canvas = tk.Canvas(self, highlightthickness=0)
+        # canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
+        canvas.pack(fill="both", expand=True, side="left")
+        self.theme_manager.register(canvas, "frame")
+        # Scrollbar is created but not packed, so it's hidden
         hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=hidden_scrollbar.set)
 
-
-        # ✅ Correctly create a scrollable inner frame
-        base_frame = tk.Frame(canvas, padx=10, pady=10)
+        # base_frame = tk.Frame(canvas, borderwidth=2, relief="groove")
+        base_frame = tk.Frame(canvas)
+        self.widget_registry["base_frame"] = base_frame
         self.theme_manager.register(base_frame, "frame")
 
         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
@@ -527,64 +754,72 @@ class TicketDisplayBuilder(tk.Frame):
 
         base_frame.bind("<Configure>", on_configure)
 
-        # ✅ Store base_frame (not canvas) so cards get placed correctly
-        self.widget_registry["base_frame"] = base_frame
-
         def on_resize(event):
             canvas.itemconfig(window_id, width=event.width)
 
         canvas.bind("<Configure>", on_resize)
 
+        # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
+
 # class TicketDisplayBuilder(tk.Frame):
 #     def __init__(self, master=None, theme_manager=None, **kwargs):
 #         super().__init__(master, **kwargs)
 #         self.theme_manager = theme_manager
 #         self.widget_registry = {}
+#         self.load_queue = []
 
-#         # Build UI immediately or delay via external trigger
 #         self._build_ticket_board()
 
 #     def _build_ticket_board(self):
-
-#         canvas = tk.Canvas(self, borderwidth=2, relief="groove", highlightthickness=0)
-#         canvas.pack(fill="both", expand=True)
+#         canvas = tk.Canvas(self, highlightthickness=0)
+#         canvas.pack(side="left", fill="both", expand=True)
 #         self.theme_manager.register(canvas, "frame")
 
-#         # Scrollbar is created but not packed, so it's hidden
-#         hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
-#         canvas.configure(yscrollcommand=hidden_scrollbar.set)
+#         # Visible scrollbar
+#         scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         scrollbar.pack(side="right", fill="y")
+#         canvas.configure(yscrollcommand=scrollbar.set)
+#         self.theme_manager.register(scrollbar, "scrollbar")
 
-#         base_frame = tk.Frame(canvas, borderwidth=2, relief="groove", padx=10, pady=10)
+#         base_frame = tk.Frame(canvas, padx=10, pady=10)
 #         self.theme_manager.register(base_frame, "frame")
 
 #         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
+#         self.widget_registry["base_frame"] = base_frame
 
 #         def on_configure(event):
 #             canvas.configure(scrollregion=canvas.bbox("all"))
-
 #         base_frame.bind("<Configure>", on_configure)
-#         self.widget_registry["base_frame"] = canvas
 
 #         def on_resize(event):
 #             canvas.itemconfig(window_id, width=event.width)
-
 #         canvas.bind("<Configure>", on_resize)
 
-#         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
-#         def _on_mousewheel(event):
-#             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+#         def on_mousewheel(event):
+#             # Normalize scroll delta across platforms
+#             if platform.system() == "Darwin":
+#                 scroll_units = int(-1 * event.delta)
+#             else:
+#                 scroll_units = int(-1 * (event.delta / 120))
+#             canvas.yview_scroll(int(scroll_units * 0.3), "units")
 
-#         canvas.bind_all("<MouseWheel>", _on_mousewheel)
+#         canvas.bind_all("<MouseWheel>", on_mousewheel)
 
+#         self._poll_loader()
 
-import tkinter as tk
-from tkinter import ttk
+#     def queue_ticket(self, ticket_widget):
+#         self.load_queue.append(ticket_widget)
 
+#     def _poll_loader(self, chunk_size=5, delay=100):
+#         base_frame = self.widget_registry["base_frame"]
+#         for _ in range(min(chunk_size, len(self.load_queue))):
+#             widget = self.load_queue.pop(0)
+#             widget.pack(fill="x", pady=5, in_=base_frame)
+#         self.after(delay, lambda: self._poll_loader(chunk_size, delay))
 
 class TicketFormUI(tk.Frame):
     def __init__(self, master, field_layout):

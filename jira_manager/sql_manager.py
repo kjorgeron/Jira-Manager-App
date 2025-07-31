@@ -53,15 +53,8 @@ def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = 
                     raise ValueError("SELECT operation requires an SQL query.")
 
             elif stmt_type == "insert":
-                if table_name and data:
-                    columns = ", ".join(data.keys())
-                    placeholders = ", ".join(["?" for _ in data])
-                    values = tuple(data.values())
-                    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-                    cursor.execute(sql, values)
-                    conn.commit()
-                else:
-                    raise ValueError("INSERT operation requires table_name and data.")
+                cursor.execute(sql, params)
+                conn.commit()
 
             elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
                 if sql:

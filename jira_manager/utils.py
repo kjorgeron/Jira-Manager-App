@@ -25,89 +25,6 @@ from time import sleep
 from threading import Thread, Lock, Event
 from jira_manager.custom_panels import ErrorMessageBuilder, switch_panel
 
-# def create_jira_card(parent, title, description, theme_manager, aspect_ratio=3.0, radius=20):
-#     # Create a canvas to draw the rounded background
-#     canvas = tk.Canvas(parent, highlightthickness=0)
-#     canvas.config(width=300, height=100)  # Initial size
-#     theme_manager.register(canvas, "frame")
-#     # Create a frame to hold the content
-#     content = tk.Frame(canvas)
-#     theme_manager.register(content, "frame")
-#     # Add title and description
-#     title = tk.Label(
-#         content,
-#         text=title,
-#         font=("Trebuchet MS", 12, "bold"),
-#         anchor="center",
-#         justify="center",
-#     )
-#     title.pack(pady=(5, 2))
-#     theme_manager.register(title, "label")
-
-#     description = tk.Label(
-#         content, text=description, wraplength=280, justify="center"
-#     )
-#     description.pack(pady=(0, 5))
-#     theme_manager.register(description, "label")
-
-#     # Draw rounded rectangle on canvas
-#     # def draw_rounded_rect(w, h):
-#     #     canvas.delete("bg")
-#     #     x1, y1, x2, y2 = 0, 0, w, h
-#     #     r = radius
-#     #     points = [
-#     #         x1 + r,
-#     #         y1,
-#     #         x2 - r,
-#     #         y1,
-#     #         x2,
-#     #         y1,
-#     #         x2,
-#     #         y1 + r,
-#     #         x2,
-#     #         y2 - r,
-#     #         x2,
-#     #         y2,
-#     #         x2 - r,
-#     #         y2,
-#     #         x1 + r,
-#     #         y2,
-#     #         x1,
-#     #         y2,
-#     #         x1,
-#     #         y2 - r,
-#     #         x1,
-#     #         y1 + r,
-#     #         x1,
-#     #         y1,
-#     #     ]
-#     #     canvas.create_polygon(
-#     #         points, fill="black", outline="#ccc", smooth=True, tags="bg"
-#     #     )
-
-#     # Handle resizing and aspect ratio
-#     def enforce_aspect(event):
-#         width = event.width
-#         height = int(width / aspect_ratio)
-#         canvas.config(width=width, height=height)
-#         # draw_rounded_rect(width, height)
-#         canvas.coords("content", width // 2, height // 2)
-
-#     # Bind resize event
-#     canvas.bind("<Configure>", enforce_aspect)
-
-#     # Place content in the center of the canvas
-#     canvas.create_window(0, 0, window=content, anchor="center", tags="content")
-
-#     return canvas
-
-# def create_jira_card(parent, title, description, theme_manager, aspect_ratio=3.0, radius=20):
-#     card_frame = tk.Frame(parent)
-#     title = tk.Label(card_frame, text=title)
-#     title.pack(padx=10, pady=10)
-#     description = tk.Label(card_frame, text=description)
-#     description.pack(padx=10, pady=10)
-#     return card_frame
 
 def create_jira_card(parent, title_text, description_text, theme_manager, on_click=None):
     card_frame = tk.Frame(parent, cursor="hand2", bd=2, relief="groove")
@@ -153,8 +70,26 @@ def task_generator(queue):
     while queue:
         yield queue.pop(0)
 
+def ticket_handler(stop_flag, panel_choice, ui_state, widget_registry, db_path, theme_manager, card_retainer, thread_count):
+    while not stop_flag.is_set():
+        # CHANGE BUCKET FOR DATABASE INFO
+        # try:
+        #     ticket_data = run_sql_stmt(db_path, "select * from tickets", stmt_type="select")
+        # except:
+        #     ticket_data = []
+        # if ticket_data != []:
+        switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, thread_count)
+        # else:
+        #     panel_choice["error_panel"].update_message(
+        #         "No tickets have been loaded in, please configure a project or search using JQL query."
+        #     )
+        #     switch_panel("error_panel", ui_state, panel_choice, widget_registry)
 
-def thread_handler(stop_flag, queue, panel_choice, theme_manager, card_retainer):
+        break
+    print("Thread shutting down.")
+
+def jql_search_handler(stop_flag, queue, panel_choice, theme_manager, card_retainer, db_path):
+    print(f"{card_retainer=}")
     while not stop_flag.is_set():
         print("Running thread...")
         generator = task_generator(queue)
@@ -176,13 +111,17 @@ def thread_handler(stop_flag, queue, panel_choice, theme_manager, card_retainer)
                     issues = fetch_all_issues_threaded(config_data, payload, headers, proxies, thread_count)
                     print(f"{len(issues)=}")
 
-                    for i, issue in enumerate(issues):
-                        if {"key": issue["key"]} in card_retainer:
-                            issues.pop(i)
+                    for issue in issues[:]:
+                        check = {"key": issue["key"]}
+                        if check in card_retainer:
+                            print(f"HERE!!! {issue["key"]}")
+                            issues.remove(issue)
+                        else:
+                            card_retainer.append({"key": issue["key"]})
 
                     threads = []
                     for batch in batch_list(issues, thread_count):
-                        thread = Thread(target=update_ticket_bucket, args=(batch, panel_choice, theme_manager))
+                        thread = Thread(target=update_ticket_bucket, args=(batch, panel_choice, theme_manager, db_path))
                         threads.append(thread)
                         threads[-1].start()
                     for thread in threads:
@@ -202,7 +141,7 @@ def thread_handler(stop_flag, queue, panel_choice, theme_manager, card_retainer)
 def pull_jira_fields():
     print("hello!")
 
-def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
+def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager, db_path):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
 
@@ -214,51 +153,58 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
         row = index // max_cols
         col = index % max_cols
         print(f"{item=}")
-        update_ticket_bucket_with_single(item, panel_choice, theme_manager)
+        update_ticket_bucket_with_single(item, panel_choice, theme_manager, db_path)
 
-def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+# def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+#     canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
+
+#     for item in ticket_bucket_items:
+#         update_ticket_bucket_with_single(item, panel_choice, theme_manager)
+
+#     base_frame.update_idletasks()
+#     canvas.configure(scrollregion=canvas.bbox("all"))
+
+def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager, db_path):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
     card = TicketCard(ticket, theme_manager, master=base_frame)
+    print(f"{ticket=}")
+    run_sql_stmt(db_path, "INSERT INTO tickets (key) VALUES (?)", params=(ticket["key"],), stmt_type="insert")
 
     children = base_frame.winfo_children()
     if children and children[0].winfo_ismapped():
         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
     else:
         card.pack(side="top", fill="x", padx=5, pady=3)
+    sleep(1)
 
-# def core_handler(
-#     stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry
-# ):
-#     items = None
-#     had_error = 0
-#     buffer = 1
-#     thread_count = cpu_count() - buffer
+# def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+#     canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
 
-#     # SETUP TICKET BUCKET
-#     ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
-#     last_count = len(ticket_bucket_items)
-#     update_ticket_bucket(ticket_bucket_items, panel_choice)
+#     card = TicketCard(ticket, theme_manager, master=base_frame)
+#     children = base_frame.winfo_children()
 
-#     # RUN LOOP LOGIC
-#     while not stop_flag.is_set():
-#         # CHECK FOR UPDATE IN TICKET BUCKET
-#         check_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
-#         check_len = len(check_bucket_items)
-#         print(f"Last Count: {last_count}\nCheck Bucket Length: {len(check_bucket_items)}")
-#         if check_len > last_count:
-#             update_ticket_bucket(check_bucket_items, panel_choice)
-#             last_count = check_len
+#     if children and children[0].winfo_ismapped():
+#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+#     else:
+#         card.pack(side="top", fill="x", padx=5, pady=3)
+
+#     # 💡 Force canvas to re-sync scrollregion after packing
+#     base_frame.update_idletasks()
+#     canvas.configure(scrollregion=canvas.bbox("all"))
+
 
 # def manage_ui_state(db_path, panel_choice, theme_manager, stop_flag):
 #     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-
-#     displayed_keys = set()  # Track unique ticket keys
+#     displayed_keys = set()
 
 #     while not stop_flag.is_set():
 #         print("Checking update ...")
 
 #         def _update():
+#             # Fetch tickets already ordered DESC by numeric portion of key
 #             ticket_bucket_items = run_sql_stmt(
 #                 db_path,
 #                 "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;",
@@ -266,211 +212,13 @@ def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
 #             )
 
 #             for ticket in ticket_bucket_items:
-#                 ticket_key = ticket[1]  # Adjust based on where the key is in your tuple
+#                 ticket_key = ticket[1]  # Adjust based on your ticket structure
 #                 if ticket_key not in displayed_keys:
 #                     update_ticket_bucket_with_single(ticket, panel_choice, theme_manager)
 #                     displayed_keys.add(ticket_key)
 
 #         panel_choice["ticket_panel"].after(0, _update)
 #         sleep(1)
-
-def manage_ui_state(db_path, panel_choice, theme_manager, stop_flag):
-    base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-    displayed_keys = set()
-
-    while not stop_flag.is_set():
-        print("Checking update ...")
-
-        def _update():
-            # Fetch tickets already ordered DESC by numeric portion of key
-            ticket_bucket_items = run_sql_stmt(
-                db_path,
-                "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;",
-                stmt_type="select"
-            )
-
-            for ticket in ticket_bucket_items:
-                ticket_key = ticket[1]  # Adjust based on your ticket structure
-                if ticket_key not in displayed_keys:
-                    update_ticket_bucket_with_single(ticket, panel_choice, theme_manager)
-                    displayed_keys.add(ticket_key)
-
-        panel_choice["ticket_panel"].after(0, _update)
-        sleep(1)
-
-def core_handler(
-    stop_flag, queue, db_path, jira_queue, state, panel_choice, widget_registry, theme_manager, card_retainer = None
-):
-    items = None
-    had_error = 0
-    buffer = 1
-    thread_count = cpu_count() - buffer
-
-    # def queue_ui_update():
-    #     print("Checking update ...")
-    #     def _update():
-    #         ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
-    #         update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager)
-    #     panel_choice["ticket_panel"].after(0, _update)
-    #     sleep(1)
-
-    # INITIAL DRAW
-    # ticket_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
-    # last_count = len(ticket_bucket_items)
-    # queue_ui_update(ticket_bucket_items)
-
-    # MAY WANT TO HAVE BUCKET JOB AS ITS OWN THREAD HERE... SO ITS ALWAYS DYNAMICALLY LOADING IN NEW UPDATES
-    # thread = Thread(target=queue_ui_update, args=(db_path, panel_choice, theme_manager))
-    # thread.start()
-    # BACKGROUND LOOP
-    while not stop_flag.is_set():
-        # check_bucket_items = run_sql_stmt(db_path, "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, \"-\") + 1) AS INTEGER) DESC;", stmt_type="select")
-        # check_len = len(check_bucket_items)
-        # print(f"Last Count: {last_count}\nCheck Bucket Length: {check_len}")
-
-        # if check_len > last_count:
-        #     queue_ui_update(check_bucket_items)
-        #     last_count = check_len
-
-        config = load_data()
-        print("Checking databse queue...")
-        generator = task_generator(queue)
-        try:
-            task = next(generator)
-            run_database_updates(
-                task.get("db_path"),
-                task.get("server"),
-                task.get("headers"),
-                task.get("ticket_list"),
-            )
-        except StopIteration:
-            pass  # Nothing to do this round
-
-        # CHECKING FOR TICKETS THAT NEED UPDATING ON JIRA SIDE
-        try:
-            tickets = run_sql_stmt(
-                db_path,
-                stmt_type="select",
-                sql="SELECT * FROM tickets WHERE needs_update = ?",
-                params=(1,)
-            )
-            for ticket in tickets:
-                if ticket not in jira_queue:
-                    jira_queue.append(ticket)
-        except Exception:
-            print("Error occurred grabbing tickets from database.")
-
-        # MULTITHREAD PROCESS
-        if len(jira_queue) > thread_count:
-            update_list = batch_list(jira_queue, thread_count)
-            threads = []
-            for update in update_list:
-                print(f"{update=}")
-                # thread = Thread(target=jira_task_handler, args=())
-
-        # SINGLE THREAD PROCESS
-        elif len(jira_queue) < thread_count and len(jira_queue) > 0:
-            for jira in jira_queue:
-                ticket_id = jira[0]
-                key = jira[1]
-                update_status = jira[2]
-                sql = "select * from fields where ticket_id = ?"
-                params = (ticket_id,)
-                field_info = run_sql_stmt(
-                    db_path, sql=sql, params=params, stmt_type="select"
-                )
-                url = f"{config.get("server")}rest/api/2/issue/{key}"
-                proxies = None
-                headers = None
-
-                # HANDLING OF NEEDED REQUEST DATA
-                if config.get("auth_type") == "Basic Auth":
-                    headers = {
-                        "Authorization": f"Basic {encode_basic_auth(config.get("username"), config.get("password"))}",
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    }
-
-                elif config.get("auth_type") == "Token Auth":
-                    headers = {
-                        "Authorization": f"Bearer {config.get("token")}",
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    }
-
-                if config.get("proxy_option").lower() == "yes":
-                    proxies = {
-                        "http": config.get("http_proxy"),
-                        "https": config.get("https_proxy"),
-                    }
-
-                try:
-                    # if state["active_panel"] == panel_choice["error_panel"] and had_error > 0:
-                    #     switch_panel("ticket_panel", state, panel_choice, widget_registry)
-                    #     had_error = 0
-                    jira_data = requests.get(url, headers=headers, proxies=proxies)
-                    print(f"{jira_data.status_code=}")
-
-                # except RequestException as e:
-                #     # This fires if you're offline or the server is unreachable
-                #     class ErrorHandle:
-                #         def __init__(self, status_code):
-                #             self.status_code = status_code
-                    
-                #     if state["active_panel"] != panel_choice["error_panel"] and state["active_panel"] != panel_choice["configure_panel"]:
-                #         panel_choice["error_panel"].update_message(
-                #             "You're offline or Jira can't be reached.\nPlease check your connection. You must be online for the background worker to process Jira requests."
-                #         )
-                #         switch_panel("error_panel", state, panel_choice, widget_registry)
-                #     jira_data = ErrorHandle(status_code=500)
-                #     had_error += 1
-                except:
-                    class ErrorHandle:
-                        def __init__(self, status_code):
-                            self.status_code = status_code
-
-                    jira_data = ErrorHandle(status_code=404)
-                    had_error += 1
-
-                # WORK IN PROGRESS -- THIS WILL FIND WHAT FIELDS NEED TO BE UPDATED ON JIRA SERVER
-                try:
-                    if jira_data.status_code in [200, 204]:
-                        if state["active_panel"] == panel_choice["error_panel"] and had_error > 0:
-                            switch_panel("ticket_panel", state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
-                            had_error = 0
-                        print(f"{jira_data.status_code=}")
-                        items = []
-                        data = jira_data.json()
-                        for field in data["fields"]:
-                            value = data["fields"][field]
-                            for check_field in field_info:
-                                is_editable = check_field[6]
-                                field_type = check_field[4]
-                                field_name = check_field[3]
-                                field_value = check_field[8]
-                                if str(field_name).lower() == str(field).lower() and str(value).lower() != str(field_value).lower():
-                                    print("Bool = ", is_empty(value), " - ", is_empty(field_value))
-                                    if is_empty(value) and is_empty(field_value):
-                                        print(f"{value=}\n{field_value=}")
-                                        save_item = {"field": field_name, "value": field_value, "key": data["key"]}
-                                        print(f"{save_item}")
-                                        if save_item not in items:
-                                            items.append(save_item)
-                    else:
-                        # if state["active_panel"] != panel_choice["error_panel"] and state["active_panel"] != panel_choice["configure_panel"]:
-                        #     panel_choice["error_panel"].update_message(
-                        #         "There was an error with the background worker.. please restart application or contact customer support."
-                        #     )
-                        #     switch_panel("error_panel", state, panel_choice, widget_registry)
-                        # print(f"Error with job - {jira_queue[0]}")
-                        print(f"Error occurred trying to update {jira_queue[0]}")
-                    if items:
-                        print(f"{items=}")         
-                except Exception as e:
-                    print(f"{e=}")
-
-        sleep(1)
-    print("Thread shutting down.")
 
 
 def run_database_updates(db_path, server, headers, jira_tickets):
@@ -545,34 +293,6 @@ def get_editable_fields_v2(issue_key, base_url, headers):
     return response.json().get("fields", {})
 
 
-# def map_fields_to_widgets(editable_fields):
-#     widget_map = {
-#         "string": "text_input",
-#         "text": "multiline_text",
-#         "user": "user_picker",
-#         "array": "multi_select",
-#         "number": "numeric_input",
-#         "date": "date_picker",
-#         "option": "dropdown"
-#     }
-
-#     field_definitions = []
-#     for field_id, field_data in editable_fields.items():
-#         field_type = field_data["schema"].get("type", "string")
-#         widget = widget_map.get(field_type, "text_input")
-#         allowed_values = field_data.get("allowedValues", [])
-
-#         field_definitions.append({
-#             "id": field_id,
-#             "name": field_data.get("name", field_id),
-#             "type": field_type,
-#             "widget": widget,
-#             "allowed": allowed_values
-#         })
-
-#     return field_definitions
-
-
 def map_fields_to_widgets(editable_fields, current_issue_fields=None):
     widget_map = {
         "string": "TextEntry",
@@ -617,65 +337,6 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None):
         )
 
     return field_layout
-
-
-# def grab_data_list(tickets) -> list:
-#     excluded_fields = [
-#         # System-managed or read-only
-#         "statuscategorychangedate",
-#         "created",
-#         "updated",
-#         "lastViewed",
-#         "workratio",
-#         "aggregateprogress",
-#         "aggregatetimespent",
-#         "aggregatetimeestimate",
-#         "aggregatetimeoriginalestimate",
-#         # "resolutiondate",
-#         "votes",
-#         "watches",
-#         "progress",
-#         # Permission-sensitive or restricted updates
-#         "security",
-#         # "creator",
-#         # "reporter",
-#         "statusCategory",
-#         "project",
-#         # "status",
-#         "issuetype",
-#         # Fields currently NoneType / unset
-#         "timespent",
-#         "timeoriginalestimate",
-#         # "description",
-#         "resolution",
-#         # "customfield_10021",
-#         # "customfield_10001",
-#         # "customfield_10016",
-#         # "customfield_10038",
-#         "environment",
-#         "timeestimate",
-#         # "duedate",
-#         "comment",  # Requires separate endpoint for updates
-#         "worklog",  # Also updated via a dedicated endpoint
-#         "attachment",  # Cannot be updated via issue PUT; use upload API
-#         "customfield_*_readonly",  # Any custom fields that are read-only by config
-#         "parent",  # Only relevant for sub-tasks; changing it moves the issue
-#         "epic",  # Epic link field (varies by instance, often custom)
-#         "sprint",  # Sprint field (Scrum boards); may be managed by board automation
-#         "rank",
-#     ]
-#     ticket_data = {}
-#     data_list = []
-#     ticket_field_list = []
-#     for ticket in tickets["issues"]:
-#         ticket_data["key"] = ticket["key"]
-#         for field in ticket["fields"]:
-#             if "NoneType" not in str(type(ticket["fields"][field])):
-#                 if field not in excluded_fields:
-#                     ticket_field_list.append((field, type(ticket["fields"][field])))
-#         ticket_data["fields_types"] = ticket_field_list
-#         data_list.append(ticket_data)
-#     return data_list
 
 
 def initialize_window():
@@ -757,78 +418,6 @@ def encode_basic_auth(username: str, password: str) -> str:
     base64_token = base64.b64encode(token_bytes).decode("utf-8")
     return base64_token
 
-
-# def create_jira_card(parent, title, description, aspect_ratio=3.0, radius=20):
-#     # Create a canvas to draw the rounded background
-#     canvas = tk.Canvas(parent, bg=parent["bg"], highlightthickness=0)
-#     canvas.config(width=300, height=100)  # Initial size
-
-#     # Create a frame to hold the content
-#     content = tk.Frame(canvas, bg="white")
-
-#     # Add title and description
-#     tk.Label(
-#         content,
-#         text=title,
-#         font=("Trebuchet MS", 12, "bold"),
-#         bg="white",
-#         anchor="center",
-#         justify="center",
-#     ).pack(pady=(5, 2))
-#     tk.Label(
-#         content, text=description, wraplength=280, justify="center", bg="white"
-#     ).pack(pady=(0, 5))
-
-#     # Draw rounded rectangle on canvas
-#     def draw_rounded_rect(w, h):
-#         canvas.delete("bg")
-#         x1, y1, x2, y2 = 0, 0, w, h
-#         r = radius
-#         points = [
-#             x1 + r,
-#             y1,
-#             x2 - r,
-#             y1,
-#             x2,
-#             y1,
-#             x2,
-#             y1 + r,
-#             x2,
-#             y2 - r,
-#             x2,
-#             y2,
-#             x2 - r,
-#             y2,
-#             x1 + r,
-#             y2,
-#             x1,
-#             y2,
-#             x1,
-#             y2 - r,
-#             x1,
-#             y1 + r,
-#             x1,
-#             y1,
-#         ]
-#         canvas.create_polygon(
-#             points, fill="white", outline="#ccc", smooth=True, tags="bg"
-#         )
-
-#     # Handle resizing and aspect ratio
-#     def enforce_aspect(event):
-#         width = event.width
-#         height = int(width / aspect_ratio)
-#         canvas.config(width=width, height=height)
-#         draw_rounded_rect(width, height)
-#         canvas.coords("content", width // 2, height // 2)
-
-#     # Bind resize event
-#     canvas.bind("<Configure>", enforce_aspect)
-
-#     # Place content in the center of the canvas
-#     canvas.create_window(0, 0, window=content, anchor="center", tags="content")
-
-#     return canvas
 
 
 def create_toolbar(parent, bg="#4C30EB", padding=10):
@@ -1139,7 +728,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
             return
         try:
             # JQL SEARCH FUNCTIONALITY
-            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
+            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, thread_count)
             try:
                 run_count["count"] += 1
                 task = {
@@ -1151,7 +740,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
                     "thread_count": thread_count,
                     "run_count": run_count
                 }
-                thread = Thread(target=thread_handler, args=(stop_flag, [task], panel_choice, theme_manager, card_retainer))
+                thread = Thread(target=jql_search_handler, args=(stop_flag, [task], panel_choice, theme_manager, card_retainer, db_path))
                 thread.start()
             except:
                 pass
@@ -1174,62 +763,64 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
 
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
+        switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, thread_count)
+        # thread = Thread(target=ticket_handler, args=(stop_flag, panel_choice, ui_state, widget_registry, db_path, theme_manager, card_retainer, thread_count))
+        # thread.start()
+        # if (
+        #     config_data.get("server") == ""
+        #     or config_data.get("server") == "Provide base url"
+        # ):
+        #     panel_choice["error_panel"].update_message(
+        #         "Missing Jira server, please provide information in the configuration panel."
+        #     )
+        #     switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        #     return
 
-        if (
-            config_data.get("server") == ""
-            or config_data.get("server") == "Provide base url"
-        ):
-            panel_choice["error_panel"].update_message(
-                "Missing Jira server, please provide information in the configuration panel."
-            )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-            return
+        # if config_data.get("auth_type") == "Basic Auth":
+        #     if (
+        #         config_data.get("username") == ""
+        #         or config_data.get("password") == ""
+        #         or config_data.get("username") == "Enter username or email"
+        #         or config_data.get("password") == "Enter password or token"
+        #     ):
+        #         panel_choice["error_panel"].update_message(
+        #             "Missing Username or Password, please provide information in the configuration panel."
+        #         )
+        #         switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        #         return
+        # elif config_data.get("auth_type") == "Token Auth":
+        #     if (
+        #         config_data.get("token") == ""
+        #         or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
+        #     ):
+        #         panel_choice["error_panel"].update_message(
+        #             "Missing Bearer Token, please provide information in the configuration panel."
+        #         )
+        #         switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        #         return
 
-        if config_data.get("auth_type") == "Basic Auth":
-            if (
-                config_data.get("username") == ""
-                or config_data.get("password") == ""
-                or config_data.get("username") == "Enter username or email"
-                or config_data.get("password") == "Enter password or token"
-            ):
-                panel_choice["error_panel"].update_message(
-                    "Missing Username or Password, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
-        elif config_data.get("auth_type") == "Token Auth":
-            if (
-                config_data.get("token") == ""
-                or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
-            ):
-                panel_choice["error_panel"].update_message(
-                    "Missing Bearer Token, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
+        # if config_data.get("proxy_option").lower() == "yes":
+        #     if (
+        #         config_data.get("http_proxy") == ""
+        #         or config_data.get("https_proxy") == ""
+        #     ):
+        #         panel_choice["error_panel"].update_message(
+        #             f"Missing proxy information, please provide information in the configuration panel."
+        #         )
+        #         switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        #         return
 
-        if config_data.get("proxy_option").lower() == "yes":
-            if (
-                config_data.get("http_proxy") == ""
-                or config_data.get("https_proxy") == ""
-            ):
-                panel_choice["error_panel"].update_message(
-                    f"Missing proxy information, please provide information in the configuration panel."
-                )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-                return
-
-        # CHANGE BUCKET FOR DATABASE INFO
-        try:
-            ticket_data = run_sql_stmt(db_path, "select * from tickets", stmt_type="select")
-        except:
-            ticket_data = []
-        if ticket_data != []:
-            switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
-        else:
-            panel_choice["error_panel"].update_message(
-                "No tickets have been loaded in, please configure a project or search using JQL query."
-            )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        # # CHANGE BUCKET FOR DATABASE INFO
+        # try:
+        #     ticket_data = run_sql_stmt(db_path, "select * from tickets", stmt_type="select")
+        # except:
+        #     ticket_data = []
+        # if ticket_data != []:
+        #     switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer)
+        # else:
+        #     panel_choice["error_panel"].update_message(
+        #         "No tickets have been loaded in, please configure a project or search using JQL query."
+        #     )
+        #     switch_panel("error_panel", ui_state, panel_choice, widget_registry)
 
     jql_query.reset_to_placeholder()
