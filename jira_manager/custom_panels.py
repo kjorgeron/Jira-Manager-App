@@ -545,42 +545,13 @@ class TicketDisplayBuilder(tk.Frame):
         base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
         children = base_frame.winfo_children()
         for child in children:
+            child.pack_forget()
             child.destroy()
 
         update_ticket_bucket(
             self.tickets[minimum:maximum], self.panel_choice, self.theme_manager
         )
         print(f"{minimum=}\n{maximum=}")
-
-    # def prev_action(self):
-    #     pg_num = self.widget_registry.get("current_pg")
-    #     self.widget_registry.get("prev_btn").config(state="disabled")
-
-    #     if int(pg_num.cget("text")) > 1:
-    #         new_pg = int(pg_num.cget("text")) - 1
-    #     else:
-    #         new_pg = 1
-
-    #     self.set_page_contents(new_pg)
-    #     pg_num.config(text=f"{new_pg}")
-
-    #     # Schedule re-enable after 100ms
-    #     self.widget_registry.get("prev_btn").after(100, lambda: self.widget_registry.get("prev_btn").config(state="normal"))
-
-    # def nxt_action(self):
-    #     pg_num = self.widget_registry.get("current_pg")
-    #     self.widget_registry.get("nxt_btn").config(state="disabled")
-
-    #     if int(pg_num.cget("text")) + 1 <= ceil(len(self.tickets) / 50):
-    #         new_pg = int(pg_num.cget("text")) + 1
-    #     else:
-    #         new_pg = ceil(len(self.tickets) / 50)
-
-    #     self.set_page_contents(new_pg)
-    #     pg_num.config(text=f"{new_pg}")
-
-    #     # Re-enable after 100ms non-blocking
-    #     self.widget_registry.get("nxt_btn").after(100, lambda: self.widget_registry.get("nxt_btn").config(state="normal"))
 
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
