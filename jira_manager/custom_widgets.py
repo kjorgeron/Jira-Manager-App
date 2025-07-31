@@ -88,29 +88,29 @@ class EntryWithPlaceholder(tk.Entry):
         return "" if self._placeholder_active else self.get()
 
 
-class ScrollableFrame(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
+# class ScrollableFrame(tk.Frame):
+#     def __init__(self, parent, *args, **kwargs):
+#         super().__init__(parent, *args, **kwargs)
 
-        canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
-        self.scrollable_frame = tk.Frame(canvas)
+#         canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+#         self.scrollable_frame = tk.Frame(canvas)
 
-        # Hide scrollbar but retain scroll functionality
-        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack_forget()  # 🫥 hides scrollbar from view
+#         # Hide scrollbar but retain scroll functionality
+#         scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+#         canvas.configure(yscrollcommand=scrollbar.set)
+#         scrollbar.pack_forget()  # 🫥 hides scrollbar from view
 
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+#         canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
 
-        def on_scroll(event):
-            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+#         def on_scroll(event):
+#             canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
-        self.scrollable_frame.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        self.scrollable_frame.bind_all("<MouseWheel>", on_scroll)
+#         self.scrollable_frame.bind(
+#             "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+#         )
+#         self.scrollable_frame.bind_all("<MouseWheel>", on_scroll)
 
-        canvas.pack(side="left", fill="both", expand=True)
+#         canvas.pack(side="left", fill="both", expand=True)
 
 
 class TicketCard(tk.Frame):
@@ -167,8 +167,8 @@ class TicketCard(tk.Frame):
         self.widget_registry["select_btn"] = select_btn
 
         # Bind click and hover to all non-button children
-        if on_click:
-            self._bind_all_children(self, lambda event: on_click(self.ticket_key))
+        # if on_click:
+        #     self._bind_all_children(self, lambda event: on_click(self.ticket_key))
 
     def _bind_all_children(self, widget, callback):
         # Avoid binding click event to buttons

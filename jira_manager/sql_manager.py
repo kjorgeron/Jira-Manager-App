@@ -1,34 +1,34 @@
 import sqlite3
 
-def insert_fields_into_db(db_path, ticket_id, field_rows):
-    try:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-            for field in field_rows:
-                cursor.execute("""
-                    INSERT INTO fields (
-                        ticket_id,
-                        field_key,
-                        field_name,
-                        field_type,
-                        widget_type,
-                        is_editable,
-                        allowed_values,
-                        current_value
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    ticket_id,
-                    field["field_key"],
-                    field["field_name"],
-                    field["field_type"],
-                    field["widget_type"],
-                    field["is_editable"],
-                    field["allowed_values"],
-                    field["current_value"]
-                ))
-            conn.commit()
-    except Exception as e:
-        print(f"[SQL Error] {e}")
+# def insert_fields_into_db(db_path, ticket_id, field_rows):
+#     try:
+#         with sqlite3.connect(db_path) as conn:
+#             cursor = conn.cursor()
+#             for field in field_rows:
+#                 cursor.execute("""
+#                     INSERT INTO fields (
+#                         ticket_id,
+#                         field_key,
+#                         field_name,
+#                         field_type,
+#                         widget_type,
+#                         is_editable,
+#                         allowed_values,
+#                         current_value
+#                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+#                 """, (
+#                     ticket_id,
+#                     field["field_key"],
+#                     field["field_name"],
+#                     field["field_type"],
+#                     field["widget_type"],
+#                     field["is_editable"],
+#                     field["allowed_values"],
+#                     field["current_value"]
+#                 ))
+#             conn.commit()
+#     except Exception as e:
+#         print(f"[SQL Error] {e}")
 
 
 def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None, params: tuple = None):
@@ -108,16 +108,16 @@ def table_exists(db_path, table_name):
         conn.close()
 
 
-def create_table(db_name: str, table_name: str, columns: dict):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
+# def create_table(db_name: str, table_name: str, columns: dict):
+#     conn = sqlite3.connect(db_name)
+#     cursor = conn.cursor()
 
-    column_defs = ", ".join([f"{col} {dtype}" for col, dtype in columns.items()])
-    sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({column_defs})"
+#     column_defs = ", ".join([f"{col} {dtype}" for col, dtype in columns.items()])
+#     sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({column_defs})"
 
-    cursor.execute(sql)
-    conn.commit()
-    conn.close()
+#     cursor.execute(sql)
+#     conn.commit()
+#     conn.close()
 
 
 def insert_into_table(db_name: str, table_name: str, data: dict):
@@ -135,22 +135,22 @@ def insert_into_table(db_name: str, table_name: str, data: dict):
     conn.close()
 
 
-def read_from_table(db_name: str, table_name: str, filters: dict = None):
-    conn = sqlite3.connect(db_name)
-    cursor = conn.cursor()
+# def read_from_table(db_name: str, table_name: str, filters: dict = None):
+#     conn = sqlite3.connect(db_name)
+#     cursor = conn.cursor()
 
-    if filters:
-        conditions = " AND ".join([f"{col}=?" for col in filters])
-        sql = f"SELECT * FROM {table_name} WHERE {conditions}"
-        values = tuple(filters.values())
-    else:
-        sql = f"SELECT * FROM {table_name}"
-        values = ()
+#     if filters:
+#         conditions = " AND ".join([f"{col}=?" for col in filters])
+#         sql = f"SELECT * FROM {table_name} WHERE {conditions}"
+#         values = tuple(filters.values())
+#     else:
+#         sql = f"SELECT * FROM {table_name}"
+#         values = ()
 
-    cursor.execute(sql, values)
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+#     cursor.execute(sql, values)
+#     rows = cursor.fetchall()
+#     conn.close()
+#     return rows
 
 
 def add_column_to_table(

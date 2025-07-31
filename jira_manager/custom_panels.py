@@ -1,13 +1,10 @@
-import platform
 import tkinter as tk
 from tkinter import ttk
 from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
-from threading import Thread
 from math import ceil
-from time import sleep
 
 
 def batch_list(lst, batch_size):
@@ -15,8 +12,8 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
-def ticket_click_event(ticket_key):
-    print(f"Clicked {ticket_key}")
+# def ticket_click_event(ticket_key):
+#     print(f"Clicked {ticket_key}")
 
 
 def update_ticket_bucket_with_single(
@@ -29,7 +26,7 @@ def update_ticket_bucket_with_single(
         ticket,
         theme_manager,
         master=base_frame,
-        on_click=ticket_click_event,
+        # on_click=ticket_click_event,
         selected_items=selected_items,
     )
     if ticket["key"] in selected_items:
@@ -39,9 +36,9 @@ def update_ticket_bucket_with_single(
         )
     children = base_frame.winfo_children()
     if children and children[0].winfo_ismapped():
-        card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+        card.pack(side="top", fill="x", padx=5, pady=3, before=children[0], expand=True)
     else:
-        card.pack(side="top", fill="x", padx=5, pady=3)
+        card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
 
 
 def update_ticket_bucket(
@@ -69,7 +66,6 @@ def switch_panel(
     db_path: str = None,
     theme_manager: ThemeManager = None,
     card_retainer: list = None,
-    thread_count: int = None,
     selected_items: list = None,
 ):
     print(f"PANEL SWITCH -> {panel_key}")
@@ -268,7 +264,6 @@ class ConfigurationFormBuilder(tk.Frame):
                     self.db_path,
                     self.theme_manager,
                     self.card_retainer,
-                    self.thread_count,
                     self.selected_items,
                 )
 
@@ -281,7 +276,8 @@ class ConfigurationFormBuilder(tk.Frame):
                     if card.ticket_key in self.selected_items:
                         card.set_bg(self.theme_manager.theme["pending_color"])
                         card.widget_registry.get("select_btn").config(
-                            text="Unselect", bg=self.theme_manager.theme["pending_color"]
+                            text="Unselect",
+                            bg=self.theme_manager.theme["pending_color"],
                         )
 
             except Exception as e:
@@ -725,6 +721,7 @@ class TicketDisplayBuilder(tk.Frame):
         # Scrollbar is created but not packed, so it's hidden
         hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=hidden_scrollbar.set)
+        self.widget_registry["canvas"] = canvas
 
         base_frame = tk.Frame(canvas)
         self.widget_registry["base_frame"] = base_frame
@@ -749,74 +746,74 @@ class TicketDisplayBuilder(tk.Frame):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
 
-class TicketFormUI(tk.Frame):
-    def __init__(self, master, field_layout):
-        super().__init__(master)
-        self.field_layout = field_layout
-        self.entries = {}
-        self.build_ui()
+# class TicketFormUI(tk.Frame):
+#     def __init__(self, master, field_layout):
+#         super().__init__(master)
+#         self.field_layout = field_layout
+#         self.entries = {}
+#         self.build_ui()
 
-    def build_ui(self):
-        row = 0
-        for field in self.field_layout:
-            label = ttk.Label(self, text=field["name"])
-            label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
+#     def build_ui(self):
+#         row = 0
+#         for field in self.field_layout:
+#             label = ttk.Label(self, text=field["name"])
+#             label.grid(row=row, column=0, sticky="w", padx=5, pady=5)
 
-            widget_type = field["widget"]
-            default = field["value"]
+#             widget_type = field["widget"]
+#             default = field["value"]
 
-            # Assign widget based on type
-            if widget_type == "TextEntry":
-                entry = ttk.Entry(self)
-                entry.insert(0, default)
-            elif widget_type == "RichTextBox":
-                entry = tk.Text(self, height=4, width=40)
-                entry.insert("1.0", default)
-            elif widget_type == "Dropdown":
-                values = [
-                    v["name"] if isinstance(v, dict) else v
-                    for v in field.get("allowed", [])
-                ]
-                entry = ttk.Combobox(self, values=values)
-                if default:
-                    entry.set(
-                        default
-                        if isinstance(default, str)
-                        else getattr(default, "name", "")
-                    )
-            elif widget_type == "MultiSelect":
-                entry = tk.Listbox(self, selectmode=tk.MULTIPLE)
-                for v in field.get("allowed", []):
-                    entry.insert(tk.END, v["name"] if isinstance(v, dict) else v)
-            elif widget_type == "UserPicker":
-                entry = ttk.Combobox(self, values=["Kevin", "User A", "User B"])
-                if default:
-                    entry.set(default)
-            elif widget_type == "DatePicker":
-                entry = ttk.Entry(self)
-                entry.insert(0, default or "YYYY-MM-DD")
-            elif widget_type == "NumericEntry":
-                entry = ttk.Entry(self)
-                entry.insert(0, str(default) if default else "0")
-            else:
-                entry = ttk.Entry(self)
-                entry.insert(0, str(default) if default else "")
+#             # Assign widget based on type
+#             if widget_type == "TextEntry":
+#                 entry = ttk.Entry(self)
+#                 entry.insert(0, default)
+#             elif widget_type == "RichTextBox":
+#                 entry = tk.Text(self, height=4, width=40)
+#                 entry.insert("1.0", default)
+#             elif widget_type == "Dropdown":
+#                 values = [
+#                     v["name"] if isinstance(v, dict) else v
+#                     for v in field.get("allowed", [])
+#                 ]
+#                 entry = ttk.Combobox(self, values=values)
+#                 if default:
+#                     entry.set(
+#                         default
+#                         if isinstance(default, str)
+#                         else getattr(default, "name", "")
+#                     )
+#             elif widget_type == "MultiSelect":
+#                 entry = tk.Listbox(self, selectmode=tk.MULTIPLE)
+#                 for v in field.get("allowed", []):
+#                     entry.insert(tk.END, v["name"] if isinstance(v, dict) else v)
+#             elif widget_type == "UserPicker":
+#                 entry = ttk.Combobox(self, values=["Kevin", "User A", "User B"])
+#                 if default:
+#                     entry.set(default)
+#             elif widget_type == "DatePicker":
+#                 entry = ttk.Entry(self)
+#                 entry.insert(0, default or "YYYY-MM-DD")
+#             elif widget_type == "NumericEntry":
+#                 entry = ttk.Entry(self)
+#                 entry.insert(0, str(default) if default else "0")
+#             else:
+#                 entry = ttk.Entry(self)
+#                 entry.insert(0, str(default) if default else "")
 
-            entry.grid(row=row, column=1, padx=5, pady=5)
-            self.entries[field["id"]] = entry
-            row += 1
+#             entry.grid(row=row, column=1, padx=5, pady=5)
+#             self.entries[field["id"]] = entry
+#             row += 1
 
-        submit_btn = ttk.Button(self, text="Submit", command=self.collect_data)
-        submit_btn.grid(row=row, column=0, columnspan=2, pady=10)
+#         submit_btn = ttk.Button(self, text="Submit", command=self.collect_data)
+#         submit_btn.grid(row=row, column=0, columnspan=2, pady=10)
 
-    def collect_data(self):
-        data = {}
-        for field_id, widget in self.entries.items():
-            if isinstance(widget, tk.Text):
-                data[field_id] = widget.get("1.0", tk.END).strip()
-            elif isinstance(widget, tk.Listbox):
-                selections = widget.curselection()
-                data[field_id] = [widget.get(i) for i in selections]
-            else:
-                data[field_id] = widget.get()
-        print("Collected Form Data:", data)  # Hook this into your update logic
+#     def collect_data(self):
+#         data = {}
+#         for field_id, widget in self.entries.items():
+#             if isinstance(widget, tk.Text):
+#                 data[field_id] = widget.get("1.0", tk.END).strip()
+#             elif isinstance(widget, tk.Listbox):
+#                 selections = widget.curselection()
+#                 data[field_id] = [widget.get(i) for i in selections]
+#             else:
+#                 data[field_id] = widget.get()
+#         print("Collected Form Data:", data)  # Hook this into your update logic

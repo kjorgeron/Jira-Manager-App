@@ -1,7 +1,5 @@
 import functools
 import tkinter as tk
-import os
-from PIL import Image, ImageTk
 from getpass import getuser
 from jira_manager.utils import (
     create_toolbar,
@@ -9,25 +7,21 @@ from jira_manager.utils import (
     create_divider,
     get_theme_mode,
     initialize_window,
-    clear_focus,
-    fetch_all_issues_threaded,
+    # switch_panel
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
-from jira_manager.file_manager import save_data, get_config_path
 from tkinter import ttk
 from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     ErrorMessageBuilder,
     TicketDisplayBuilder,
-    switch_panel,
+    switch_panel
 )
-from jira_manager.sql_manager import table_exists, create_table, run_sql_stmt
+from jira_manager.sql_manager import run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
 from multiprocessing import Queue
-from threading import Thread, Event
-from time import sleep
-from jira_manager.file_manager import load_data
+from threading import Event
 
 
 def _set_cursor(event, widget, cursor):
@@ -45,10 +39,6 @@ def set_combobox_cursors(widget):
             )
         else:
             set_combobox_cursors(child)
-
-
-def _set_cursor(event, widget, cursor):
-    widget.configure(cursor=cursor)
 
 
 def set_button_cursors(widget):
@@ -70,26 +60,24 @@ def enter_key_clear_focus_run_btn_event(
     ui_state,
     panel_choice,
     widget_registry,
-    database_queue,
     theme_manager,
-    button_event_queue,
     stop_flag,
     thread_count,
     run_count,
     card_retainer,
+    selected_items,
 ):
     toolbar_action(
         payload,
         ui_state,
         panel_choice,
         widget_registry,
-        database_queue,
         theme_manager,
-        button_event_queue,
         stop_flag,
         thread_count,
         run_count,
         card_retainer,
+        selected_items,
     )
     root.focus_set()
 
@@ -117,13 +105,14 @@ def setup_configure_panel(parent, theme_manager):
 
 def setup_ticket_panel(parent, theme_manager, card_retainer, selected_items):
     tickets = TicketDisplayBuilder(
-        parent, theme_manager=theme_manager, tickets=card_retainer, selected_items=selected_items
+        parent,
+        theme_manager=theme_manager,
+        tickets=card_retainer,
+        selected_items=selected_items,
     )
-    # ticket_bucket = tickets.build_ticket_board()
-    # ticket_bucket.pack(expand=True, fill="both")
     theme_manager.register(tickets, "frame")
-    # theme_manager.register(ticket_bucket, "frame")
     return tickets
+
 
 
 def main():
@@ -146,6 +135,7 @@ def main():
     button_event_queue = Queue()
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
 
+
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
 
@@ -156,7 +146,6 @@ def main():
             "Text",
             "Custom.TCombobox",
             "Listbox",
-            # "Button",
             "Checkbutton",
             "Radiobutton",
         )
@@ -183,7 +172,9 @@ def main():
 
     error_panel = ErrorMessageBuilder(root, theme_manager)
     configure_panel = setup_configure_panel(root, theme_manager)
-    ticket_panel = setup_ticket_panel(root, theme_manager, card_retainer, selected_items_for_update)
+    ticket_panel = setup_ticket_panel(
+        root, theme_manager, card_retainer, selected_items_for_update
+    )
 
     # PANEL CHOICES
     panel_choice = {
@@ -193,7 +184,15 @@ def main():
     }
 
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
-    panel_choice["configure_panel"].set_choices_for_selected_item_retention(panel_choice, ui_state, widget_registry, db_path, card_retainer, thread_count, selected_items_for_update)
+    panel_choice["configure_panel"].set_choices_for_selected_item_retention(
+        panel_choice,
+        ui_state,
+        widget_registry,
+        db_path,
+        card_retainer,
+        thread_count,
+        selected_items_for_update,
+    )
 
     # APP LOGO
     logo_frame = tk.Frame(root, height=60)
@@ -223,14 +222,12 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
-            database_queue,
             theme_manager,
-            button_event_queue,
             stop_flag,
             thread_count,
             run_count,
             card_retainer,
-            selected_items_for_update
+            selected_items_for_update,
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -244,14 +241,12 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
-            database_queue,
             theme_manager,
-            button_event_queue,
             stop_flag,
             thread_count,
             run_count,
             card_retainer,
-            selected_items_for_update
+            selected_items_for_update,
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -265,14 +260,12 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
-            database_queue,
             theme_manager,
-            button_event_queue,
             stop_flag,
             thread_count,
             run_count,
             card_retainer,
-            selected_items_for_update
+            selected_items_for_update,
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -295,13 +288,12 @@ def main():
             ui_state,
             panel_choice,
             widget_registry,
-            database_queue,
             theme_manager,
-            button_event_queue,
             stop_flag,
             thread_count,
             run_count,
             card_retainer,
+            selected_items_for_update,
         ),
     )
 
@@ -321,6 +313,19 @@ def main():
 
     set_button_cursors(root)
     set_combobox_cursors(root)
+
+    # SET STARTER PANEL
+    root.after(100, lambda: switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, selected_items_for_update))
+    
+
+    def on_configure(event):
+        theme_manager.register(root, "root")
+        theme_manager.register(panel_choice["ticket_panel"], "frame")
+        theme_manager.register(panel_choice["configure_panel"], "frame")
+        theme_manager.register(panel_choice["error_panel"], "frame")
+        # Optionally, reapply to all major frames/widgets if needed
+
+    root.bind("<Configure>", on_configure)
 
     root.mainloop()
 
