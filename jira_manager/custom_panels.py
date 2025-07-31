@@ -14,13 +14,29 @@ def batch_list(lst, batch_size):
     for i in range(0, len(lst), batch_size):
         yield lst[i : i + batch_size]
 
+
 def ticket_click_event(ticket_key):
     print(f"Clicked {ticket_key}")
 
-def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
+
+def update_ticket_bucket_with_single(
+    ticket, panel_choice, theme_manager, selected_items
+):
+
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
-    card = TicketCard(ticket, theme_manager, master=base_frame, on_click=ticket_click_event)
+    card = TicketCard(
+        ticket,
+        theme_manager,
+        master=base_frame,
+        on_click=ticket_click_event,
+        selected_items=selected_items,
+    )
+    if ticket["key"] in selected_items:
+        card.set_bg(theme_manager.theme["pending_color"])
+        card.widget_registry.get("select_btn").config(
+            text="Unselect", bg=theme_manager.theme["pending_color"]
+        )
     children = base_frame.winfo_children()
     if children and children[0].winfo_ismapped():
         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
@@ -28,7 +44,9 @@ def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
         card.pack(side="top", fill="x", padx=5, pady=3)
 
 
-def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
+def update_ticket_bucket(
+    ticket_bucket_items, panel_choice, theme_manager, selected_items
+):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
 
@@ -38,7 +56,9 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager):
     for index, item in enumerate(ticket_bucket_items):
         row = index // max_cols
         col = index % max_cols
-        update_ticket_bucket_with_single(item, panel_choice, theme_manager)
+        update_ticket_bucket_with_single(
+            item, panel_choice, theme_manager, selected_items
+        )
 
 
 def switch_panel(
@@ -50,6 +70,7 @@ def switch_panel(
     theme_manager: ThemeManager = None,
     card_retainer: list = None,
     thread_count: int = None,
+    selected_items: list = None,
 ):
     print(f"PANEL SWITCH -> {panel_key}")
     current = ui_state.get("active_panel")
@@ -83,7 +104,9 @@ def switch_panel(
                 panel_choice["ticket_panel"].widget_registry.get(
                     "total_tickets"
                 ).config(text=f"{ceil(len(panel_choice["ticket_panel"].tickets) / 50)}")
-                update_ticket_bucket(show_issues, panel_choice, theme_manager)
+                update_ticket_bucket(
+                    show_issues, panel_choice, theme_manager, selected_items
+                )
 
             except:
                 # NEED TO ADD ERROR HANDLING
@@ -154,6 +177,31 @@ class ConfigurationFormBuilder(tk.Frame):
         self.font_style = ("Arial", 12, "bold")
         self.light_mode = light_mode
         self.dark_mode = dark_mode
+        self.panel_choice = None
+        self.ui_state = None
+        self.widget_registry = None
+        self.db_path = None
+        self.card_retainer = None
+        self.thread_count = None
+        self.selected_items = None
+
+    def set_choices_for_selected_item_retention(
+        self,
+        panel_choice,
+        ui_state,
+        widget_registry,
+        db_path,
+        card_retainer,
+        thread_count,
+        selected_items,
+    ):
+        self.panel_choice = panel_choice
+        self.ui_state = ui_state
+        self.widget_registry = widget_registry
+        self.db_path = db_path
+        self.card_retainer = card_retainer
+        self.thread_count = thread_count
+        self.selected_items = selected_items
 
     def build_form(self):
 
@@ -210,6 +258,31 @@ class ConfigurationFormBuilder(tk.Frame):
                     mode = "No mode registered"
                 print(mode)
                 theme_manager.update_theme(new_theme=mode)
+
+                # MAYBE CAN FIX UI ISSUE WITH SELECT ITEMS HERE... SWITCH TO TICKET PANEL TO LOAD IN TICKETS... THEN PULL THEM AND DO CHECKS FOR SELECTED TICKETS
+                switch_panel(
+                    "ticket_panel",
+                    self.ui_state,
+                    self.panel_choice,
+                    self.widget_registry,
+                    self.db_path,
+                    self.theme_manager,
+                    self.card_retainer,
+                    self.thread_count,
+                    self.selected_items,
+                )
+
+                ticket_cards = (
+                    self.panel_choice["ticket_panel"]
+                    .widget_registry.get("base_frame")
+                    .winfo_children()
+                )
+                for card in ticket_cards:
+                    if card.ticket_key in self.selected_items:
+                        card.set_bg(self.theme_manager.theme["pending_color"])
+                        card.widget_registry.get("select_btn").config(
+                            text="Unselect", bg=self.theme_manager.theme["pending_color"]
+                        )
 
             except Exception as e:
                 print(f"{e=}")
@@ -524,12 +597,20 @@ class ErrorMessageBuilder(tk.Frame):
 
 
 class TicketDisplayBuilder(tk.Frame):
-    def __init__(self, master=None, theme_manager=None, tickets=None, **kwargs):
+    def __init__(
+        self,
+        master=None,
+        theme_manager=None,
+        tickets=None,
+        selected_items=None,
+        **kwargs,
+    ):
         super().__init__(master, **kwargs)
         self.theme_manager = theme_manager
         self.widget_registry = {}
         self.tickets = tickets
         self.panel_choice = None
+        self.selected_items = selected_items
 
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
@@ -537,7 +618,7 @@ class TicketDisplayBuilder(tk.Frame):
     def set_panel_choice(self, panel_choice):
         self.panel_choice = panel_choice
 
-    def set_page_contents(self, pg_num: int):
+    def set_page_contents(self, pg_num: int, selected_items):
         maximum = pg_num * 50
         minimum = maximum - 50
 
@@ -551,19 +632,24 @@ class TicketDisplayBuilder(tk.Frame):
             child.destroy()
 
         update_ticket_bucket(
-            self.tickets[minimum:maximum], self.panel_choice, self.theme_manager
+            self.tickets[minimum:maximum],
+            self.panel_choice,
+            self.theme_manager,
+            selected_items,
         )
         print(f"{minimum=}\n{maximum=}")
 
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("prev_btn").config(state="disabled")
-        self.widget_registry.get("nxt_btn").config(state="disabled")  # Pre-disable next_btn
+        self.widget_registry.get("nxt_btn").config(
+            state="disabled"
+        )  # Pre-disable next_btn
 
         current_page = int(pg_num.cget("text"))
         new_pg = current_page - 1 if current_page > 1 else 1
 
-        self.set_page_contents(new_pg)
+        self.set_page_contents(new_pg, self.selected_items)
         pg_num.config(text=f"{new_pg}")
 
         def enable_buttons():
@@ -578,13 +664,15 @@ class TicketDisplayBuilder(tk.Frame):
     def nxt_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("nxt_btn").config(state="disabled")
-        self.widget_registry.get("prev_btn").config(state="disabled")  # Pre-disable prev_btn
+        self.widget_registry.get("prev_btn").config(
+            state="disabled"
+        )  # Pre-disable prev_btn
 
         current_page = int(pg_num.cget("text"))
         last_page = ceil(len(self.tickets) / 50)
         new_pg = current_page + 1 if current_page < last_page else last_page
 
-        self.set_page_contents(new_pg)
+        self.set_page_contents(new_pg, self.selected_items)
         pg_num.config(text=f"{new_pg}")
 
         def enable_buttons():
@@ -608,7 +696,9 @@ class TicketDisplayBuilder(tk.Frame):
         self.theme_manager.register(prev_btn, "base_button")
         self.widget_registry["prev_btn"] = prev_btn
 
-        current_pg = tk.Label(tool_bar, text="1", font=("Trebuchet MS", 12), width=max_pg_count + 1)
+        current_pg = tk.Label(
+            tool_bar, text="1", font=("Trebuchet MS", 12), width=max_pg_count + 1
+        )
         current_pg.pack(side="left")
         self.theme_manager.register(current_pg, "flashy_label")
         self.widget_registry["current_pg"] = current_pg

@@ -114,24 +114,28 @@ class ScrollableFrame(tk.Frame):
 
 
 class TicketCard(tk.Frame):
-    def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):
+    def __init__(self, ticket_data, theme_manager, on_click=None, selected_items=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.widget_registry = {}
+        self.selected_items = selected_items
+        self.theme_manager = theme_manager
 
         self.ticket_key = ticket_data["key"]
         self.configure(padx=10, pady=5, bd=1, relief="solid")
-        theme_manager.register(self, "frame")
+        self.theme_manager.register(self, "frame")
 
         base = tk.Frame(self)
         base.pack(fill="x")
-        theme_manager.register(base, "frame")
+        self.theme_manager.register(base, "frame")
 
         info = tk.Frame(base)
         info.pack(side="left", fill="y")
-        theme_manager.register(info, "frame")
+        self.theme_manager.register(info, "frame")
 
         actions = tk.Frame(base)
         actions.pack(side="right", fill="y")
-        theme_manager.register(actions, "frame")
+        self.theme_manager.register(actions, "frame")
 
         title = tk.Label(
             info,
@@ -157,9 +161,10 @@ class TicketCard(tk.Frame):
         update_btn.pack(side="left", padx=10, pady=10)
         theme_manager.register(update_btn, "base_button")
 
-        select_btn = tk.Button(actions, text="Select", justify="right")
+        select_btn = tk.Button(actions, text="Select", justify="right", command=self.select_for_update)
         select_btn.pack(side="right", padx=10, pady=10)
         theme_manager.register(select_btn, "flashy_button")
+        self.widget_registry["select_btn"] = select_btn
 
         # Bind click and hover to all non-button children
         if on_click:
@@ -176,6 +181,25 @@ class TicketCard(tk.Frame):
 
         for child in widget.winfo_children():
             self._bind_all_children(child, callback)
+    
+    def select_for_update(self):
+        select = self.widget_registry["select_btn"]
+        old_bg = self.theme_manager.theme["background"]
+
+        if select.cget("text") == "Select":
+            self.configure(bg=self.theme_manager.theme["pending_color"])
+            self.selected_items.append(self.ticket_key)
+            print(f"{self.selected_items=}")
+            select.config(bg=self.theme_manager.theme["pending_color"])
+            self.widget_registry["select_btn"].config(text="Unselect")
+        elif select.cget("text") == "Unselect":
+            self.configure(bg=old_bg)
+            select.config(bg=self.theme_manager.theme["btn_highlight"])
+            self.selected_items.remove(self.ticket_key)
+            self.widget_registry["select_btn"].config(text="Select")
+    
+    def set_bg(self, bg):
+        self.configure(bg=bg)
 
 # class TicketCard(tk.Frame):
 #     def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):

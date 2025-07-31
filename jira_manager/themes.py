@@ -11,6 +11,9 @@ light_mode = {
     # "btn_highlight": "#E3B23C",  # Forge Gold
     "error_color": "#C45D5D",  # Itron Red
     "conf_btn_bg": "#2E3A4F",
+    "success_color": "#2E7D32",
+    "pending_color": "#FFA500",
+    "selected_color": "#32424E",
 }
 
 dark_mode = {
@@ -22,6 +25,9 @@ dark_mode = {
     "btn_highlight": "#E3B23C",  # Forge Gold
     "error_color": "#C45D5D",  # Iron Red
     "conf_btn_bg": "#D2691E",
+    "success_color": "#66BB6A",
+    "pending_color": "#F4C430",
+    "selected_color": "#5E7E8C",
 }
 
 

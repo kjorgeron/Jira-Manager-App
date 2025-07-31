@@ -115,9 +115,9 @@ def setup_configure_panel(parent, theme_manager):
     return config
 
 
-def setup_ticket_panel(parent, theme_manager, card_retainer):
+def setup_ticket_panel(parent, theme_manager, card_retainer, selected_items):
     tickets = TicketDisplayBuilder(
-        parent, theme_manager=theme_manager, tickets=card_retainer
+        parent, theme_manager=theme_manager, tickets=card_retainer, selected_items=selected_items
     )
     # ticket_bucket = tickets.build_ticket_board()
     # ticket_bucket.pack(expand=True, fill="both")
@@ -138,6 +138,7 @@ def main():
     root = initialize_window()
     widget_registry = {}
     database_queue = []
+    selected_items_for_update = []
     card_retainer = []
     stop_flag = Event()
     thread_count = 2
@@ -182,7 +183,7 @@ def main():
 
     error_panel = ErrorMessageBuilder(root, theme_manager)
     configure_panel = setup_configure_panel(root, theme_manager)
-    ticket_panel = setup_ticket_panel(root, theme_manager, card_retainer)
+    ticket_panel = setup_ticket_panel(root, theme_manager, card_retainer, selected_items_for_update)
 
     # PANEL CHOICES
     panel_choice = {
@@ -192,6 +193,7 @@ def main():
     }
 
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
+    panel_choice["configure_panel"].set_choices_for_selected_item_retention(panel_choice, ui_state, widget_registry, db_path, card_retainer, thread_count, selected_items_for_update)
 
     # APP LOGO
     logo_frame = tk.Frame(root, height=60)
@@ -228,6 +230,7 @@ def main():
             thread_count,
             run_count,
             card_retainer,
+            selected_items_for_update
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -248,6 +251,7 @@ def main():
             thread_count,
             run_count,
             card_retainer,
+            selected_items_for_update
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -268,6 +272,7 @@ def main():
             thread_count,
             run_count,
             card_retainer,
+            selected_items_for_update
         ),
     )
     jql_search_btn.pack(side="left", padx=10)

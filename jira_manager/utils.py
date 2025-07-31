@@ -165,10 +165,13 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager, db_pa
 #     base_frame.update_idletasks()
 #     canvas.configure(scrollregion=canvas.bbox("all"))
 
-def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager, db_path):
+def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager, db_path, selected_items):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
     card = TicketCard(ticket, theme_manager, master=base_frame)
+    if ticket["key"] in selected_items:
+        card.set_bg(theme_manager.theme["pending_color"])
+        card.widget_registry.get("select_btn").config(text="Unselect", bg=theme_manager.theme["pending_color"])
     print(f"{ticket=}")
     run_sql_stmt(db_path, "INSERT INTO tickets (key) VALUES (?)", params=(ticket["key"],), stmt_type="insert")
 
@@ -699,7 +702,7 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
 
 
 
-def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, theme_manager, event_queue, stop_flag, thread_count, run_count, card_retainer):
+def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, theme_manager, event_queue, stop_flag, thread_count, run_count, card_retainer, selected_items):
 
     jql_query = widget_registry.get("jql_query")
     db_path = "jira_manager/tickets.db"
@@ -763,7 +766,7 @@ def toolbar_action(payload, ui_state, panel_choice, widget_registry, queue, them
 
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
-        switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, thread_count)
+        switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, thread_count, selected_items)
         # thread = Thread(target=ticket_handler, args=(stop_flag, panel_choice, ui_state, widget_registry, db_path, theme_manager, card_retainer, thread_count))
         # thread.start()
         # if (
