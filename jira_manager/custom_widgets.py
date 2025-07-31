@@ -114,10 +114,10 @@ class ScrollableFrame(tk.Frame):
 
 
 class TicketCard(tk.Frame):
-    def __init__(self, ticket_data, theme_manager, *args, **kwargs):
+    def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.ticket_key = ticket_data["key"]  # Adjust index to match your data structure
+        self.ticket_key = ticket_data["key"]
         self.configure(padx=10, pady=5, bd=1, relief="solid")
         theme_manager.register(self, "frame")
 
@@ -133,8 +133,6 @@ class TicketCard(tk.Frame):
         actions.pack(side="right", fill="y")
         theme_manager.register(actions, "frame")
 
-
-        # Title or ticket key
         title = tk.Label(
             info,
             text=self.ticket_key,
@@ -144,7 +142,6 @@ class TicketCard(tk.Frame):
         title.pack(anchor="w")
         theme_manager.register(title, "label")
 
-        # Optional Description or Detail
         if len(ticket_data) > 2:
             descript = tk.Label(
                 info,
@@ -156,7 +153,6 @@ class TicketCard(tk.Frame):
             descript.pack(anchor="w")
             theme_manager.register(descript, "label")
 
-        # Feel free to add buttons, status indicators, icons, etc.
         update_btn = tk.Button(actions, text="Update", justify="right")
         update_btn.pack(side="left", padx=10, pady=10)
         theme_manager.register(update_btn, "base_button")
@@ -164,3 +160,77 @@ class TicketCard(tk.Frame):
         select_btn = tk.Button(actions, text="Select", justify="right")
         select_btn.pack(side="right", padx=10, pady=10)
         theme_manager.register(select_btn, "flashy_button")
+
+        # Bind click and hover to all non-button children
+        if on_click:
+            self._bind_all_children(self, lambda event: on_click(self.ticket_key))
+
+    def _bind_all_children(self, widget, callback):
+        # Avoid binding click event to buttons
+        if not isinstance(widget, tk.Button):
+            widget.bind("<Button-1>", callback)
+
+        # All widgets still get the cursor change for hover
+        widget.bind("<Enter>", lambda e: widget.configure(cursor="hand2"))
+        widget.bind("<Leave>", lambda e: widget.configure(cursor=""))
+
+        for child in widget.winfo_children():
+            self._bind_all_children(child, callback)
+
+# class TicketCard(tk.Frame):
+#     def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+
+#         self.ticket_key = ticket_data["key"]
+#         self.configure(padx=10, pady=5, bd=1, relief="solid")
+#         theme_manager.register(self, "frame")
+
+#         base = tk.Frame(self)
+#         base.pack(fill="x")
+#         theme_manager.register(base, "frame")
+
+#         info = tk.Frame(base)
+#         info.pack(side="left", fill="y")
+#         theme_manager.register(info, "frame")
+
+#         actions = tk.Frame(base)
+#         actions.pack(side="right", fill="y")
+#         theme_manager.register(actions, "frame")
+
+#         title = tk.Label(
+#             info,
+#             text=self.ticket_key,
+#             font=("Segoe UI", 12, "bold"),
+#             justify="left"
+#         )
+#         title.pack(anchor="w")
+#         theme_manager.register(title, "label")
+
+#         if len(ticket_data) > 2:
+#             descript = tk.Label(
+#                 info,
+#                 text=ticket_data["fields"]["description"],
+#                 font=("Segoe UI", 10),
+#                 wraplength=400,
+#                 justify="left"
+#             )
+#             descript.pack(anchor="w")
+#             theme_manager.register(descript, "label")
+
+#         update_btn = tk.Button(actions, text="Update", justify="right")
+#         update_btn.pack(side="left", padx=10, pady=10)
+#         theme_manager.register(update_btn, "base_button")
+
+#         select_btn = tk.Button(actions, text="Select", justify="right")
+#         select_btn.pack(side="right", padx=10, pady=10)
+#         theme_manager.register(select_btn, "flashy_button")
+
+#         # Bind click event to all children if callback provided
+#         if on_click:
+#             self._bind_all_children(self, lambda event: on_click(self.ticket_key))
+
+#     def _bind_all_children(self, widget, callback):
+#         widget.bind("<Button-1>", callback)
+#         for child in widget.winfo_children():
+#             self._bind_all_children(child, callback)
+

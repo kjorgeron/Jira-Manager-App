@@ -1,3 +1,4 @@
+import functools
 import tkinter as tk
 import os
 from PIL import Image, ImageTk
@@ -27,6 +28,40 @@ from multiprocessing import Queue
 from threading import Thread, Event
 from time import sleep
 from jira_manager.file_manager import load_data
+
+
+def _set_cursor(event, widget, cursor):
+    widget.configure(cursor=cursor)
+
+
+def set_combobox_cursors(widget):
+    for child in widget.winfo_children():
+        if isinstance(child, ttk.Combobox):
+            child.bind(
+                "<Enter>", functools.partial(_set_cursor, widget=child, cursor="hand2")
+            )
+            child.bind(
+                "<Leave>", functools.partial(_set_cursor, widget=child, cursor="")
+            )
+        else:
+            set_combobox_cursors(child)
+
+
+def _set_cursor(event, widget, cursor):
+    widget.configure(cursor=cursor)
+
+
+def set_button_cursors(widget):
+    for child in widget.winfo_children():
+        if isinstance(child, tk.Button):
+            child.bind(
+                "<Enter>", functools.partial(_set_cursor, widget=child, cursor="hand2")
+            )
+            child.bind(
+                "<Leave>", functools.partial(_set_cursor, widget=child, cursor="")
+            )
+        else:
+            set_button_cursors(child)
 
 
 def enter_key_clear_focus_run_btn_event(
@@ -81,7 +116,9 @@ def setup_configure_panel(parent, theme_manager):
 
 
 def setup_ticket_panel(parent, theme_manager, card_retainer):
-    tickets = TicketDisplayBuilder(parent, theme_manager=theme_manager, tickets=card_retainer)
+    tickets = TicketDisplayBuilder(
+        parent, theme_manager=theme_manager, tickets=card_retainer
+    )
     # ticket_bucket = tickets.build_ticket_board()
     # ticket_bucket.pack(expand=True, fill="both")
     theme_manager.register(tickets, "frame")
@@ -276,6 +313,9 @@ def main():
 
     theme_manager.register(welcome_label, "label")
     widget_registry["welcome_label"] = welcome_label
+
+    set_button_cursors(root)
+    set_combobox_cursors(root)
 
     root.mainloop()
 

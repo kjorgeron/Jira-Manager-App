@@ -14,11 +14,13 @@ def batch_list(lst, batch_size):
     for i in range(0, len(lst), batch_size):
         yield lst[i : i + batch_size]
 
+def ticket_click_event(ticket_key):
+    print(f"Clicked {ticket_key}")
 
 def update_ticket_bucket_with_single(ticket, panel_choice, theme_manager):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
-    card = TicketCard(ticket, theme_manager, master=base_frame)
+    card = TicketCard(ticket, theme_manager, master=base_frame, on_click=ticket_click_event)
     children = base_frame.winfo_children()
     if children and children[0].winfo_ismapped():
         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
