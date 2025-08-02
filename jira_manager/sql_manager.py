@@ -31,52 +31,115 @@ import sqlite3
 #         print(f"[SQL Error] {e}")
 
 
-def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None, params: tuple = None):
+# def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None, params: tuple = None):
     
+#     print(f"Running sql type {stmt_type}")
+#     items = None
+#     try:
+#         with sqlite3.connect(db_path) as conn:
+#             cursor = conn.cursor()
+
+#             stmt_type = stmt_type.lower() if stmt_type else ""
+
+#             if stmt_type == "select":
+#                 if sql:
+#                     if params:
+#                         cursor.execute(sql, params)
+#                         items = cursor.fetchall()
+#                     else:
+#                         cursor.execute(sql)
+#                         items = cursor.fetchall()
+#                 else:
+#                     raise ValueError("SELECT operation requires an SQL query.")
+
+#             elif stmt_type == "insert":
+#                 cursor.execute(sql, params)
+#                 conn.commit()
+#                 conn.close()
+
+#             elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
+#                 if sql:
+#                     if not params:
+#                         cursor.execute(sql)
+#                         conn.commit()
+#                     else:
+#                         cursor.execute(sql, params)
+#                         conn.commit()
+#                 else:
+#                     raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
+
+#             else:
+#                 raise ValueError(f"Unsupported statement type: {stmt_type}")
+
+#             cursor.close()
+
+#     except Exception as e:
+#         print(f"[SQL Error] {e}")
+
+#     return items
+
+def run_sql_stmt(
+    db_path,
+    sql: str = None,
+    table_name: str = None,
+    data: dict = None,
+    stmt_type: str = None,
+    params: tuple = None
+):
     print(f"Running sql type {stmt_type}")
     items = None
+
+    stmt_type = stmt_type.lower() if stmt_type else ""
+
     try:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
+        # Create a new connection for each call
+        conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
+        cursor = conn.cursor()
 
-            stmt_type = stmt_type.lower() if stmt_type else ""
+        if stmt_type == "select":
+            if not sql:
+                raise ValueError("SELECT operation requires an SQL query.")
+            cursor.execute(sql, params or ())
+            items = cursor.fetchall()
 
-            if stmt_type == "select":
-                if sql:
-                    if params:
-                        cursor.execute(sql, params)
-                        items = cursor.fetchall()
-                    else:
-                        cursor.execute(sql)
-                        items = cursor.fetchall()
-                else:
-                    raise ValueError("SELECT operation requires an SQL query.")
+        elif stmt_type == "insert":
+            if not sql:
+                raise ValueError("INSERT operation requires an SQL query.")
+            cursor.execute(sql, params or ())
+            conn.commit()
 
-            elif stmt_type == "insert":
-                cursor.execute(sql, params)
-                conn.commit()
+        elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
+            if not sql:
+                raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
+            cursor.execute(sql, params or ())
+            conn.commit()
 
-            elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
-                if sql:
-                    if not params:
-                        cursor.execute(sql)
-                        conn.commit()
-                    else:
-                        cursor.execute(sql, params)
-                        conn.commit()
-                else:
-                    raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
+        else:
+            raise ValueError(f"Unsupported statement type: {stmt_type}")
 
-            else:
-                raise ValueError(f"Unsupported statement type: {stmt_type}")
+        cursor.close()
+        conn.close()
 
-            cursor.close()
-
-    except Exception as e:
+    except sqlite3.OperationalError as e:
         print(f"[SQL Error] {e}")
 
     return items
 
+def batch_insert_tickets(db_path, tickets):
+    try:
+        conn = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        cursor = conn.cursor()
+
+        keys = [(ticket["key"],) for ticket in tickets]
+        cursor.executemany("INSERT INTO tickets (key) VALUES (?)", keys)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except sqlite3.OperationalError as e:
+        print(f"[SQL Error] {e}")
 
 def table_exists(db_path, table_name):
     """

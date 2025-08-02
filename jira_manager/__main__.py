@@ -16,11 +16,13 @@ from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     TicketDisplayBuilder,
     switch_panel,
+    ErrorMessageBuilder
 )
 from jira_manager.sql_manager import run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
 from multiprocessing import Queue
 from threading import Event
+from jira_manager.custom_widgets import TicketCard
 
 
 def _set_cursor(event, widget, cursor):
@@ -168,8 +170,8 @@ def main():
     theme_manager.register(root, "root")
     ui_state = {"active_panel": None}
 
-    # error_panel = ErrorMessageBuilder(root, theme_manager)
-    # theme_manager.register(error_panel, "frame")
+    error_panel = ErrorMessageBuilder(root, theme_manager)
+    theme_manager.register(error_panel, "frame")
     configure_panel = setup_configure_panel(root, theme_manager)
     ticket_panel = setup_ticket_panel(
         root, theme_manager, card_retainer, selected_items_for_update
@@ -177,7 +179,7 @@ def main():
 
     # PANEL CHOICES
     panel_choice = {
-        # "error_panel": error_panel,
+        "error_panel": error_panel,
         "configure_panel": configure_panel,
         "ticket_panel": ticket_panel,
     }
@@ -217,7 +219,7 @@ def main():
         toolbar,
         text="Configure",
         command=lambda: safe_button_action(
-            config_btn,
+            None,
             lambda: toolbar_action(
                 {"type": "configure", "jql": ""},
                 ui_state,
@@ -231,16 +233,18 @@ def main():
                 selected_items_for_update,
                 root
             ),
+            panel_choice=panel_choice,
         ),
     )
     config_btn.pack(side="left", padx=10)
     theme_manager.register(config_btn, "flashy_button")
+    widget_registry["configure_btn"] = config_btn
 
     ticket_btn = tk.Button(
         toolbar,
         text="Ticket Butcket",
         command=lambda: safe_button_action(
-            config_btn,
+            None,
             lambda: toolbar_action(
                 {"type": "tickets", "jql": ""},
                 ui_state,
@@ -254,6 +258,7 @@ def main():
                 selected_items_for_update,
                 root
             ),
+            panel_choice=panel_choice,
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -263,7 +268,7 @@ def main():
         toolbar,
         text="Search Jira",
         command=lambda: safe_button_action(
-            config_btn,
+            None,
             lambda: toolbar_action(
                 {"type": "search_jiras", "jql": jql_search.get()},
                 ui_state,
@@ -277,6 +282,7 @@ def main():
                 selected_items_for_update,
                 root
             ),
+            panel_choice=panel_choice,
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -305,7 +311,7 @@ def main():
             run_count,
             card_retainer,
             selected_items_for_update,
-            root
+            root,
         ),
     )
 
@@ -326,26 +332,32 @@ def main():
     set_button_cursors(root)
     set_combobox_cursors(root)
 
+
     # SET STARTER PANEL
-    root.after(
-        100,
-        lambda: switch_panel(
-            "ticket_panel",
-            ui_state,
-            panel_choice,
-            widget_registry,
-            db_path,
-            theme_manager,
-            card_retainer,
-            selected_items_for_update,
-        ),
-    )
+    ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
+    if not ticket_bucket:
+            panel_choice["error_panel"].update_message("No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets.")
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+    else:
+        root.after(
+            100,
+            lambda: switch_panel(
+                "ticket_panel",
+                ui_state,
+                panel_choice,
+                widget_registry,
+                db_path,
+                theme_manager,
+                card_retainer,
+                selected_items_for_update,
+            ),
+        )
 
     def on_configure(event):
         theme_manager.register(root, "root")
         theme_manager.register(panel_choice["ticket_panel"], "frame")
         theme_manager.register(panel_choice["configure_panel"], "frame")
-        # theme_manager.register(panel_choice["error_panel"], "frame")
+        theme_manager.register(panel_choice["error_panel"], "frame")
         # Optionally, reapply to all major frames/widgets if needed
 
     root.bind("<Configure>", on_configure)

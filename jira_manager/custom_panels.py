@@ -12,6 +12,35 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
+# def ticket_click_event(ticket_key):
+#     print(f"Clicked {ticket_key}")
+
+
+# def update_ticket_bucket_with_single(
+#     ticket, panel_choice, theme_manager, selected_items
+# ):
+
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+#     card = TicketCard(
+#         ticket,
+#         theme_manager,
+#         master=base_frame,
+#         # on_click=ticket_click_event,
+#         selected_items=selected_items,
+#     )
+#     if ticket["key"] in selected_items:
+#         card.set_bg(theme_manager.theme["pending_color"])
+#         card.widget_registry.get("select_btn").config(
+#             text="Unselect", bg=theme_manager.theme["pending_color"]
+#         )
+#     children = base_frame.winfo_children()
+#     if children and children[0].winfo_ismapped():
+#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0], expand=True)
+#     else:
+#         card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+
+
 def update_ticket_bucket_with_single(
     ticket, panel_choice, theme_manager, selected_items
 ):
@@ -60,15 +89,30 @@ def switch_panel(
 ):
     print(f"PANEL SWITCH -> {panel_key}")
     current = ui_state.get("active_panel")
-    if current:
+
+    if current and current != panel_choice[panel_key]:
         current.pack_forget()
     next_panel = panel_choice[panel_key]
+
+    # Handle welcome_label
+    welcome_label = widget_registry.get("welcome_label")
     if panel_key == "error_panel":
-        widget_registry.get("welcome_label").pack_forget()
+        if welcome_label.winfo_ismapped():
+            welcome_label.pack_forget()
         next_panel.pack(fill="x", padx=100, pady=10)
+
+    # Handle configure button flicker: only enable/disable, never pack/forget
+    configure_btn = widget_registry.get("configure_btn") if widget_registry.get("configure_btn") else None
     if panel_key == "configure_panel":
-        widget_registry.get("welcome_label").pack_forget()
+        if welcome_label.winfo_ismapped():
+            welcome_label.pack_forget()
+        if configure_btn:
+            configure_btn.config(state="disabled")
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+    else:
+        if configure_btn:
+            configure_btn.config(state="normal")
+
     if panel_key == "ticket_panel":
         if db_path:
             try:
@@ -82,7 +126,6 @@ def switch_panel(
                     show = {"key": issue[1]}
                     if show not in panel_choice["ticket_panel"].tickets:
                         panel_choice["ticket_panel"].tickets.append(show)
-
                     if i < 50:
                         show_issues.append(show)
                 panel_choice["ticket_panel"].widget_registry.get(
@@ -92,19 +135,17 @@ def switch_panel(
                     show_issues, panel_choice, theme_manager, selected_items
                 )
                 # Reset page indicator to 1
-                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(
-                    text="1"
-                )
-
+                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(text="1")
                 # If you have a method to set page contents, call it for page 1
                 if hasattr(panel_choice["ticket_panel"], "set_page_contents"):
                     panel_choice["ticket_panel"].set_page_contents(1, selected_items)
-            except:
-                # NEED TO ADD ERROR HANDLING
+            except Exception as e:
+                print(f"Error loading tickets: {e}")
                 pass
         widget = widget_registry.get("welcome_label")
         widget.config(text="Ticket Bucket")
-        widget.pack(fill="x", padx=5, pady=5)
+        if not widget.winfo_ismapped():
+            widget.pack(fill="x", padx=5, pady=5)
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
 
@@ -511,120 +552,27 @@ class ConfigurationFormBuilder(tk.Frame):
         return base_frame
 
 
-# class ErrorMessageBuilder(tk.Frame):
-#     def __init__(self, master=None, theme_manager: ThemeManager = None):
-#         super().__init__(master)
-#         self.theme_manager = theme_manager
-#         self.message = "Do I See This?"
-
-#     def update_message(self, new_message: str):
-#         self.message = new_message
-
-#         # Only reuse if widget exists and is a compatible type
-#         if hasattr(self, "error_label") and self.error_label.winfo_exists():
-#             if isinstance(self.error_label, (tk.Label, tk.Message)):
-#                 self.error_label.config(text=self.message)
-#             else:
-#                 self.error_label.destroy()  # Clean out incompatible widget
-#                 self.error_label = self.build_error_message()
-#                 self.error_label.pack(fill="both", expand=True)
-#         else:
-#             self.error_label = self.build_error_message()
-#             self.error_label.pack(fill="both", expand=True)
-
-#     def build_error_message(self):
-#         border_frame = tk.Frame(self, padx=3, pady=3)
-#         self.theme_manager.register(border_frame, "error_border_frame")
-
-#         canvas = tk.Canvas(border_frame, width=550, height=125)
-#         canvas.pack(fill="both", expand=True)
-#         self.theme_manager.register(canvas, "error_canvas")
-
-#         scrollbar = tk.Scrollbar(border_frame, orient="vertical", command=canvas.yview)
-#         canvas.configure(yscrollcommand=scrollbar.set)
-#         scrollbar.pack_forget()
-
-#         content_frame = tk.Frame(canvas)
-#         canvas.create_window((0, 0), window=content_frame, anchor="nw")
-#         self.theme_manager.register(content_frame, "frame")
-
-#         content_frame.bind(
-#             "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-#         )
-#         canvas.bind_all(
-#             "<MouseWheel>",
-#             lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"),
-#         )
-
-#         error_label = tk.Label(
-#             content_frame,
-#             text=f"⚠️ Error Occurred:\n\n{self.message}",
-#             wraplength=500,
-#             justify="left",
-#             padx=12,
-#             pady=12,
-#         )
-#         error_label.pack(fill="x")
-#         self.theme_manager.register(error_label, "error_label")
-
-#         # 🔽 Scroll to Top Button (bottom right corner)
-#         scroll_button = tk.Button(
-#             border_frame,
-#             text="↑",
-#             font=("Segoe UI", 12, "bold"),
-#             command=lambda: canvas.yview_moveto(0),
-#             width=2,
-#             height=1,
-#             bd=0,
-#             relief="flat",
-#             cursor="hand2",
-#         )
-#         scroll_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
-#         self.theme_manager.register(scroll_button, "base_button")
-
-#         return border_frame
-
-class ErrorPopupBuilder(tk.Toplevel):
-    def __init__(self, master=None, theme_manager=None, message="Do I See This?"):
+class ErrorMessageBuilder(tk.Frame):
+    def __init__(self, master=None, theme_manager: ThemeManager = None):
         super().__init__(master)
         self.theme_manager = theme_manager
-        self.message = message
-
-        self.title("Error")
-        self.resizable(False, False)
-        self.transient(master)  # Keep popup on top of parent
-        self.grab_set()         # Make it modal
-
-        # 🧭 Center the popup on the screen
-        self.update_idletasks()
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        popup_width = 600
-        popup_height = 300
-        x = (screen_width // 2) - (popup_width // 2)
-        y = (screen_height // 2) - (popup_height // 2)
-        self.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
-
-        self.error_frame = self.build_error_message()
-        self.error_frame.pack(fill="both", expand=True)
+        self.message = "Do I See This?"
 
     def update_message(self, new_message: str):
         self.message = new_message
 
+        # Only reuse if widget exists and is a compatible type
         if hasattr(self, "error_label") and self.error_label.winfo_exists():
-            if isinstance(self.error_label, tk.Text):
-                self.error_label.config(state="normal")
-                self.error_label.delete("1.0", "end")
-                self.error_label.insert("1.0", f"⚠️ Error Occurred:\n\n{self.message}", "margin")
-                self.error_label.config(state="disabled")
+            if isinstance(self.error_label, (tk.Label, tk.Message)):
+                self.error_label.config(text=self.message)
             else:
-                self.error_label.destroy()
-                self.error_frame = self.build_error_message()
-                self.error_frame.pack(fill="both", expand=True)
+                self.error_label.destroy()  # Clean out incompatible widget
+                self.error_label = self.build_error_message()
+                self.error_label.pack(fill="both", expand=True)
         else:
-            self.error_frame = self.build_error_message()
-            self.error_frame.pack(fill="both", expand=True)
-            
+            self.error_label = self.build_error_message()
+            self.error_label.pack(fill="both", expand=True)
+
     def build_error_message(self):
         border_frame = tk.Frame(self, padx=3, pady=3)
         self.theme_manager.register(border_frame, "error_border_frame")
@@ -644,28 +592,23 @@ class ErrorPopupBuilder(tk.Toplevel):
         content_frame.bind(
             "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        canvas.bind_all(
+        canvas.bind(
             "<MouseWheel>",
             lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"),
         )
 
-        # 📝 Replace Label with read-only Text widget
-        self.error_label = tk.Text(
+        error_label = tk.Label(
             content_frame,
-            wrap="word",
+            text=f"⚠️ Error Occurred:\n\n{self.message}",
+            wraplength=500,
+            justify="left",
             padx=12,
             pady=12,
-            height=6,
-            width=70,
-            relief="flat",
-            bg=self.cget("bg"),
-            font=("Segoe UI", 10),
         )
-        self.error_label.insert("1.0", f"⚠️ Error Occurred:\n\n{self.message}")
-        self.error_label.config(state="disabled")  # Make it read-only
-        self.error_label.pack(fill="x", expand=True)
-        self.theme_manager.register(self.error_label, "error_label")
+        error_label.pack(fill="x")
+        self.theme_manager.register(error_label, "error_label")
 
+        # 🔽 Scroll to Top Button (bottom right corner)
         scroll_button = tk.Button(
             border_frame,
             text="↑",
@@ -681,7 +624,8 @@ class ErrorPopupBuilder(tk.Toplevel):
         self.theme_manager.register(scroll_button, "base_button")
 
         return border_frame
-    
+
+
 class TicketDisplayBuilder(tk.Frame):
     def __init__(
         self,
@@ -703,6 +647,12 @@ class TicketDisplayBuilder(tk.Frame):
 
     def set_panel_choice(self, panel_choice):
         self.panel_choice = panel_choice
+        # Always re-bind mousewheel when ticket panel is shown
+        canvas = self.widget_registry.get("canvas")
+        if canvas:
+            def _on_mousewheel(event):
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            canvas.bind("<MouseWheel>", _on_mousewheel)
 
     def set_page_contents(self, pg_num: int, selected_items):
         maximum = pg_num * 50
@@ -716,12 +666,7 @@ class TicketDisplayBuilder(tk.Frame):
         # Create overlay on parent to mask base_frame
         overlay = tk.Frame(parent)
         # Place overlay exactly over base_frame
-        overlay.place(
-            x=base_frame.winfo_x(),
-            y=base_frame.winfo_y(),
-            width=base_frame.winfo_width(),
-            height=base_frame.winfo_height(),
-        )
+        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
         self.theme_manager.register(overlay, "frame")
         overlay.lift()
         parent.update_idletasks()
@@ -764,27 +709,40 @@ class TicketDisplayBuilder(tk.Frame):
 
         base_frame.update_idletasks()
         # Reposition overlay in case base_frame moved/resized
-        overlay.place(
-            x=base_frame.winfo_x(),
-            y=base_frame.winfo_y(),
-            width=base_frame.winfo_width(),
-            height=base_frame.winfo_height(),
-        )
+        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
         overlay.lift()
-
         # Keep overlay visible a bit longer to mask ticket loading
         def remove_overlay():
             overlay.destroy()
-
         parent.after(120, remove_overlay)
         print(f"{minimum=}\n{maximum=}")
+            
+    # def set_page_contents(self, pg_num: int, selected_items):
+    #     maximum = pg_num * 50
+    #     minimum = maximum - 50
+
+    #     if maximum > len(self.tickets):
+    #         maximum = len(self.tickets)
+
+    #     base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    #     children = base_frame.winfo_children()
+    #     for child in children:
+    #         child.pack_forget()
+    #         child.destroy()
+    #     base_frame.update_idletasks()
+
+    #     update_ticket_bucket(
+    #         self.tickets[minimum:maximum],
+    #         self.panel_choice,
+    #         self.theme_manager,
+    #         selected_items,
+    #     )
+    #     print(f"{minimum=}\n{maximum=}")
 
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("prev_btn").config(state="disabled")
-        self.widget_registry.get("nxt_btn").config(
-            state="disabled"
-        )  # Pre-disable next_btn
+        self.widget_registry.get("nxt_btn").config(state="disabled")  # Pre-disable next_btn
 
         current_page = int(pg_num.cget("text"))
         new_pg = current_page - 1 if current_page > 1 else 1
@@ -808,9 +766,7 @@ class TicketDisplayBuilder(tk.Frame):
     def nxt_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("nxt_btn").config(state="disabled")
-        self.widget_registry.get("prev_btn").config(
-            state="disabled"
-        )  # Pre-disable prev_btn
+        self.widget_registry.get("prev_btn").config(state="disabled")  # Pre-disable prev_btn
 
         current_page = int(pg_num.cget("text"))
         last_page = ceil(len(self.tickets) / 50)
@@ -869,7 +825,6 @@ class TicketDisplayBuilder(tk.Frame):
 
         # Dropdown-style page jump
         from jira_manager.custom_widgets import EntryWithPlaceholder
-
         page_jump_frame = tk.Frame(tool_bar)
         self.theme_manager.register(page_jump_frame, "frame")
         page_jump_frame.pack_forget()  # Hidden by default
@@ -903,18 +858,13 @@ class TicketDisplayBuilder(tk.Frame):
                         self.widget_registry["prev_btn"].config(state="disabled")
                         self.widget_registry["nxt_btn"].config(state="normal")
 
+                
                 else:
                     page_jump_entry.reset_to_placeholder()
             except ValueError:
                 page_jump_entry.reset_to_placeholder()
 
-        go_btn = tk.Button(
-            page_jump_frame,
-            text="Go",
-            command=jump_to_page,
-            font=("Segoe UI", 11),
-            cursor="hand2",
-        )
+        go_btn = tk.Button(page_jump_frame, text="Go", command=jump_to_page, font=("Segoe UI", 11), cursor="hand2")
         go_btn.pack(side="left", padx=(0, 5))
         self.theme_manager.register(go_btn, "base_button")
 
@@ -925,14 +875,7 @@ class TicketDisplayBuilder(tk.Frame):
                 page_jump_frame.pack(side="left", padx=(5, 10))
                 page_jump_entry.reset_to_placeholder()
 
-        dropdown_btn = tk.Button(
-            tool_bar,
-            text="\u25b6",
-            command=toggle_page_jump,
-            font=("Segoe UI", 13),
-            cursor="hand2",
-            width=2,
-        )
+        dropdown_btn = tk.Button(tool_bar, text="\u25B6", command=toggle_page_jump, font=("Segoe UI", 13), cursor="hand2", width=2)
         dropdown_btn.pack(side="left", padx=(20, 0))
         self.theme_manager.register(dropdown_btn, "base_button")
 
@@ -1038,4 +981,3 @@ class TicketDisplayBuilder(tk.Frame):
 #             else:
 #                 data[field_id] = widget.get()
 #         print("Collected Form Data:", data)  # Hook this into your update logic
-
