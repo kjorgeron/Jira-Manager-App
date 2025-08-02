@@ -803,6 +803,62 @@ class TicketDisplayBuilder(tk.Frame):
         self.theme_manager.register(nxt_btn, "base_button")
         self.widget_registry["nxt_btn"] = nxt_btn
 
+        # Dropdown-style page jump
+        from jira_manager.custom_widgets import EntryWithPlaceholder
+        page_jump_frame = tk.Frame(tool_bar)
+        self.theme_manager.register(page_jump_frame, "frame")
+        page_jump_frame.pack_forget()  # Hidden by default
+
+        page_jump_entry = EntryWithPlaceholder(
+            page_jump_frame,
+            placeholder="page",
+            font=("Trebuchet MS", 12),
+            initial_text="",
+            width=7,
+        )
+        page_jump_entry.pack(side="left", padx=(5, 5))
+        self.theme_manager.register(page_jump_entry, "placeholder_entry")
+
+        def jump_to_page():
+            try:
+                value = page_jump_entry.get()
+                page = int(value)
+                last_page = ceil(len(self.tickets) / 50)
+                if 1 <= page <= last_page:
+                    self.set_page_contents(page, self.selected_items)
+                    self.widget_registry["current_pg"].config(text=f"{page}")
+                    canvas = self.widget_registry.get("canvas")
+                    canvas.yview_moveto(0)
+                    page_jump_frame.pack_forget()
+                    if page > 1:
+                        self.widget_registry["prev_btn"].config(state="normal")
+                        if page == last_page:
+                            self.widget_registry["nxt_btn"].config(state="disabled")
+                    else:
+                        self.widget_registry["prev_btn"].config(state="disabled")
+                        self.widget_registry["nxt_btn"].config(state="normal")
+
+                
+                else:
+                    page_jump_entry.reset_to_placeholder()
+            except ValueError:
+                page_jump_entry.reset_to_placeholder()
+
+        go_btn = tk.Button(page_jump_frame, text="Go", command=jump_to_page, font=("Segoe UI", 11), cursor="hand2")
+        go_btn.pack(side="left", padx=(0, 5))
+        self.theme_manager.register(go_btn, "base_button")
+
+        def toggle_page_jump():
+            if page_jump_frame.winfo_ismapped():
+                page_jump_frame.pack_forget()
+            else:
+                page_jump_frame.pack(side="left", padx=(5, 10))
+                page_jump_entry.reset_to_placeholder()
+
+        dropdown_btn = tk.Button(tool_bar, text="\u25B6", command=toggle_page_jump, font=("Segoe UI", 13), cursor="hand2", width=2)
+        dropdown_btn.pack(side="left", padx=(20, 0))
+        self.theme_manager.register(dropdown_btn, "base_button")
+
         canvas = tk.Canvas(self)
         canvas.pack(fill="both", expand=True, side="left")
         self.theme_manager.register(canvas, "frame")
