@@ -1,3 +1,4 @@
+
 import tkinter as tk
 import json
 import requests
@@ -14,22 +15,52 @@ from jira_manager.sql_manager import (
     batch_insert_tickets
 )
 from requests.exceptions import RequestException
-from multiprocessing import Queue
-from time import sleep
+from queue import Queue, Empty
 from threading import Thread, Lock
-from jira_manager.custom_panels import switch_panel, ErrorMessageBuilder
+from jira_manager.custom_panels import switch_panel, ErrorMessageBuilder, ErrorPopupBuilder
 
-def run_error(panel_choice, ui_state, widget_registry, message):
-    # ErrorMessageBuilder(
-    #     master=root,
-    #     theme_manager=theme_manager,
-    #     message=message,
-    # )
-    # canvas._bind_mousewheel()
-    panel_choice["error_panel"].update_message(
-       message
-    )
-    switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+def jql_worker(panel_choice, theme_manager, card_retainer, db_path, selected_items, ui_state, widget_registry, stop_flag, jql_task_queue, worker_state=None):
+    if worker_state is not None:
+        worker_state['running'] = True
+    try:
+        while not stop_flag.is_set():
+            try:
+                task = jql_task_queue.get(timeout=1)
+            except Empty:
+                break
+            try:
+                jql_search_handler(
+                    stop_flag,
+                    task,
+                    panel_choice,
+                    theme_manager,
+                    card_retainer,
+                    db_path,
+                    selected_items,
+                    ui_state,
+                    widget_registry
+                )
+            except Exception as e:
+                print(f"Error in JQL worker: {e}")
+            finally:
+                jql_task_queue.task_done()
+    finally:
+        if worker_state is not None:
+            worker_state['running'] = False
+        print("JQL worker thread finished.")
+
+def run_error(panel_choice=None, ui_state=None, widget_registry=None, message=None, theme_manager=None, root=None):
+    if panel_choice:
+        panel_choice["error_panel"].update_message(
+           message
+        )
+        switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+    else:
+        ErrorPopupBuilder(
+            master=root,
+            theme_manager=theme_manager,
+            message=message,
+        )
     return
 
 def safe_button_action(button, action, delay=100, panel_choice=None):
@@ -55,9 +86,6 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
-def task_generator(queue):
-    while queue:
-        yield queue.pop(0)
 
 
 def configure_handler(ui_state, panel_choice, widget_registry):
@@ -68,7 +96,7 @@ def configure_handler(ui_state, panel_choice, widget_registry):
 
 def jql_search_handler(
     stop_flag,
-    queue,
+    task,
     panel_choice,
     theme_manager,
     card_retainer,
@@ -78,67 +106,73 @@ def jql_search_handler(
     widget_registry=None,
 ):
     print(f"{card_retainer=}")
-    while not stop_flag.is_set():
-        print("Running thread...")
-        generator = task_generator(queue)
-        try:
-            task = next(generator)
-            t_type = task.get("type")
+    if stop_flag.is_set():
+        print("Thread shutting down.")
+        return
+    print("Running thread...")
+    try:
+        t_type = str(task.get("type"))
 
-            # HANDLE JQL SEARCH
-            if t_type == "jql_search":
-                print(f"{task.get("type")=}")
-                config_data = task.get("config_data")
-                payload = task.get("payload")
-                headers = task.get("headers")
-                proxies = task.get("proxies")
-                thread_count = task.get("thread_count")
-                run_count = task.get("run_count")
+        # HANDLE JQL SEARCH
+        if t_type == "jql_search":
+            print(f"task.get('type')={t_type}")
+            config_data = task.get("config_data")
+            payload = task.get("payload")
+            headers = task.get("headers")
+            proxies = task.get("proxies")
+            thread_count = int(task.get("thread_count", 4))
 
-                try:
-                    issues = fetch_all_issues_threaded(
-                        config_data, payload, headers, proxies, thread_count
+            try:
+                issues = fetch_all_issues_threaded(
+                    config_data, payload, headers, proxies, thread_count
+                )
+                print(f"len(issues)={len(issues)}")
+
+                # Remove duplicates using card_retainer
+                new_issues = []
+                for issue in issues:
+                    key_val_raw = issue.get("key", "")
+                    print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
+                    key_val = str(key_val_raw)
+                    check = {"key": key_val}
+                    print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}")
+                    if check in card_retainer:
+                        print("HERE!!! " + str(key_val))
+                    else:
+                        card_retainer.append({"key": key_val})
+                        new_issues.append(issue)
+
+                threads = []
+                for batch in batch_list(new_issues, thread_count):
+                    def safe_batch_insert(db_path, batch):
+                        try:
+                            batch_insert_tickets(db_path, batch)
+                        except Exception as e:
+                            print(f"Error in batch_insert_tickets: {e}")
+                    thread = Thread(
+                        target=safe_batch_insert,
+                        args=(db_path, batch),
+                        daemon=True,
                     )
-                    print(f"{len(issues)=}")
+                    threads.append(thread)
+                    threads[-1].start()
+                for thread in threads:
+                    thread.join()
+                print("Batch insert completed.")
+                print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
+                print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
+                print(f"DEBUG: selected_items before switch_panel: {selected_items}")
+                print(f"DEBUG: selected_items types: {[type(x) for x in selected_items]}")
+                switch_panel(
+                    "ticket_panel",ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, selected_items)
+            except requests.exceptions.HTTPError as err:
+                print(err)
+                run_error(panel_choice, ui_state, widget_registry, f"There was an issue with the request to Jira.\nReason = {err}")
 
-                    for issue in issues[:]:
-                        check = {"key": issue["key"]}
-                        if check in card_retainer:
-                            print(f"HERE!!! {issue["key"]}")
-                            issues.remove(issue)
-                        else:
-                            card_retainer.append({"key": issue["key"]})
+        # run_count logic removed; queue system handles task sequencing
 
-                    threads = []
-                    for batch in batch_list(issues, thread_count):
-                        thread = Thread(
-                            target=batch_insert_tickets,
-                            args=(db_path, batch),
-                            daemon=True,
-                        )
-                        threads.append(thread)
-                        threads[-1].start()
-                    for thread in threads:
-                        thread.join()
-                    print("Batch insert completed.")
-                    # update_ticket_bucket(
-                    #     card_retainer, panel_choice, theme_manager, db_path, selected_items)
-                    switch_panel(
-                        "ticket_panel",ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, selected_items)
-                except requests.exceptions.HTTPError as err:
-                    print(err)
-                    # ErrorPopupBuilder(
-                    #     master=panel_choice["ticket_panel"].master,
-                    #     theme_manager=theme_manager,
-                    #     message=f"There was an issue with the request to Jira.\nReason = {err}",
-                    # )
-                    run_error(panel_choice, ui_state, widget_registry, f"There was an issue with the request to Jira.\nReason = {err}")
-
-            run_count["count"] = run_count["count"] - 1
-
-        except StopIteration:
-
-            break
+    except Exception as e:
+        print(f"Error in JQL search handler: {e}")
     print("Thread shutting down.")
 
 
@@ -523,106 +557,68 @@ def toolbar_action(
     widget_registry,
     theme_manager,
     stop_flag,
-    thread_count,
-    run_count,
+    jql_task_queue,
+    jql_worker_running,
     card_retainer,
     selected_items,
     root=None,
 ):
-
-    jql_query = widget_registry.get("jql_query")
+    from threading import Thread
     db_path = "jira_manager/tickets.db"
     config_data = load_data()
-    print(run_count)
-
     headers, proxies = configure_project_credentials(
         config_data, panel_choice, ui_state, widget_registry, root, theme_manager
     )
+    jql_query = widget_registry.get("jql_query")
+
+    # Use a mutable worker_state dictionary to track worker status
+    if not hasattr(toolbar_action, "worker_state"):
+        toolbar_action.worker_state = {"running": False}
+    worker_state = toolbar_action.worker_state
+
+    # Ensure jql_task_queue is a Queue object
+    if not isinstance(jql_task_queue, Queue):
+        jql_task_queue = Queue()
+
+    # Ensure card_retainer is a list of dicts with 'key' as str
+    if not isinstance(card_retainer, list):
+        print(f"WARNING: card_retainer was type {type(card_retainer)}, resetting to empty list.")
+        card_retainer = []
+    else:
+        # If card_retainer contains non-dict items, filter out
+        card_retainer = [x for x in card_retainer if isinstance(x, dict) and isinstance(x.get('key', ''), str)]
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
         panel_choice["ticket_panel"].widget_registry.get("canvas").yview_moveto(0)
-        # I NEED TO CHANGE THIS TO BE A QUEUE SO THE USER CAN QUEUE AS MANY AS WANTED BUT IT DOES EACH JOB 1 AT A TIME IN BACKGROUND
-        if run_count["count"] > thread_count:
-            # ErrorPopupBuilder(
-            #     master=root,
-            #     theme_manager=theme_manager,
-            #     message="You have exceeded your limit of threads. Please let current tasks finish.",
-            # )
-            run_error(panel_choice, ui_state, widget_registry, "You have exceeded your limit of threads. Please let current tasks finish.")
-            return
-
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
-            # ErrorPopupBuilder(
-            #     master=root,
-            #     theme_manager=theme_manager,
-            #     message="Missing JQL Statement.",
-            # )
             run_error(panel_choice, ui_state, widget_registry, "Missing JQL Statement.")
             return
-        
         try:
-            print("Running JQL search...")
-            # JQL SEARCH FUNCTIONALITY
-            # switch_panel(
-            #     "ticket_panel",
-            #     ui_state,
-            #     panel_choice,
-            #     widget_registry,
-            #     db_path,
-            #     theme_manager,
-            #     card_retainer,
-            # )
-            try:
-                run_count["count"] += 1
-                task = {
-                    "type": "jql_search",
-                    "config_data": config_data,
-                    "payload": payload,
-                    "headers": headers,
-                    "proxies": proxies,
-                    "thread_count": thread_count,
-                    "run_count": run_count,
-                }
-                thread = Thread(
-                    target=jql_search_handler,
-                    args=(
-                        stop_flag,
-                        [task],
-                        panel_choice,
-                        theme_manager,
-                        card_retainer,
-                        db_path,
-                        selected_items,
-                        ui_state,
-                        widget_registry
-                    ),
+            print("Queueing JQL search task...")
+            task = {
+                "type": "jql_search",
+                "config_data": config_data,
+                "payload": payload,
+                "headers": headers,
+                "proxies": proxies,
+                "thread_count": 4,  # Default to 4 threads for ticket fetching
+            }
+            jql_task_queue.put(task)
+            # Clear the JQL entry after search
+            if jql_query:
+                jql_query.delete(0, "end")
+            # Start worker if not running
+            if not worker_state["running"]:
+                worker_thread = Thread(
+                    target=jql_worker,
+                    args=(panel_choice, theme_manager, card_retainer, db_path, selected_items, ui_state, widget_registry, stop_flag, jql_task_queue, worker_state),
+                    daemon=True
                 )
-                thread.start()
-            except Exception as e:
-                # ErrorPopupBuilder(
-                #     master=root,
-                #     theme_manager=theme_manager,
-                #     message=f"There was an error with the jql request thread handler.\nReason = {e}.",
-                # )
-                run_error(panel_choice, ui_state, widget_registry, f"There was an error with the jql request thread handler.\nReason = {e}.")
-                return
-        except RequestException as e:
-            # ErrorPopupBuilder(
-            #     master=root,
-            #     theme_manager=theme_manager,
-            #     message="You're offline or Jira can't be reached.\nPlease check your connection.",
-            # )
-            run_error(panel_choice, ui_state, widget_registry, "You're offline or Jira can't be reached.\nPlease check your connection.")
-            return
+                worker_thread.start()
         except Exception as e:
-            # ErrorPopupBuilder(
-            #     master=root,
-            #     theme_manager=theme_manager,
-            #     message=f"There was an issue with the request to Jira.\nReason = {e}",
-            # )
-            run_error(panel_choice, ui_state, widget_registry, f"There was an issue with the request to Jira.\nReason = {e}")
+            run_error(theme_manager=theme_manager, root=root, message=f"There was an error queueing the JQL request.\nReason = {e}.")
             return
 
     # LOGIC FOR CONFIGURE PANEL

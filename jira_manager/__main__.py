@@ -76,7 +76,6 @@ def enter_key_clear_focus_run_btn_event(
         theme_manager,
         stop_flag,
         thread_count,
-        run_count,
         card_retainer,
         selected_items,
         root
@@ -131,9 +130,11 @@ def main():
     selected_items_for_update = []
     card_retainer = []
     stop_flag = Event()
-    thread_count = 2
-    run_count = {"count": 1}
-    button_event_queue = Queue()
+    # JQL queue and worker state
+    from queue import Queue
+    JQL_TASK_QUEUE = Queue()
+    JQL_WORKER_RUNNING = False
+    thread_count = 2  # Default value, adjust as needed
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
 
     def clear_focus(event):
@@ -227,8 +228,8 @@ def main():
                 widget_registry,
                 theme_manager,
                 stop_flag,
-                thread_count,
-                run_count,
+                JQL_TASK_QUEUE,
+                JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
                 root
@@ -252,8 +253,8 @@ def main():
                 widget_registry,
                 theme_manager,
                 stop_flag,
-                thread_count,
-                run_count,
+                JQL_TASK_QUEUE,
+                JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
                 root
@@ -276,8 +277,8 @@ def main():
                 widget_registry,
                 theme_manager,
                 stop_flag,
-                thread_count,
-                run_count,
+                JQL_TASK_QUEUE,
+                JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
                 root
@@ -308,7 +309,6 @@ def main():
             theme_manager,
             stop_flag,
             thread_count,
-            run_count,
             card_retainer,
             selected_items_for_update,
             root,

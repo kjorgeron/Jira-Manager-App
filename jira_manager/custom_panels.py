@@ -625,6 +625,103 @@ class ErrorMessageBuilder(tk.Frame):
 
         return border_frame
 
+class ErrorPopupBuilder(tk.Toplevel):
+    def __init__(self, master=None, theme_manager=None, message="Do I See This?"):
+        super().__init__(master)
+        self.theme_manager = theme_manager
+        self.message = message
+
+        self.title("Error")
+        self.resizable(False, False)
+        self.transient(master)  # Keep popup on top of parent
+        self.grab_set()         # Make it modal
+
+        # 🧭 Center the popup on the screen
+        self.update_idletasks()
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        popup_width = 600
+        popup_height = 300
+        x = (screen_width // 2) - (popup_width // 2)
+        y = (screen_height // 2) - (popup_height // 2)
+        self.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
+
+        self.error_frame = self.build_error_message()
+        self.error_frame.pack(fill="both", expand=True)
+
+    def update_message(self, new_message: str):
+        self.message = new_message
+
+        if hasattr(self, "error_label") and self.error_label.winfo_exists():
+            if isinstance(self.error_label, tk.Text):
+                self.error_label.config(state="normal")
+                self.error_label.delete("1.0", "end")
+                self.error_label.insert("1.0", f"⚠️ Error Occurred:\n\n{self.message}", "margin")
+                self.error_label.config(state="disabled")
+            else:
+                self.error_label.destroy()
+                self.error_frame = self.build_error_message()
+                self.error_frame.pack(fill="both", expand=True)
+        else:
+            self.error_frame = self.build_error_message()
+            self.error_frame.pack(fill="both", expand=True)
+            
+    def build_error_message(self):
+        border_frame = tk.Frame(self, padx=3, pady=3)
+        self.theme_manager.register(border_frame, "error_border_frame")
+
+        canvas = tk.Canvas(border_frame, width=550, height=125)
+        canvas.pack(fill="both", expand=True)
+        self.theme_manager.register(canvas, "error_canvas")
+
+        scrollbar = tk.Scrollbar(border_frame, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack_forget()
+
+        content_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=content_frame, anchor="nw")
+        self.theme_manager.register(content_frame, "frame")
+
+        content_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.bind_all(
+            "<MouseWheel>",
+            lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"),
+        )
+
+        # 📝 Replace Label with read-only Text widget
+        self.error_label = tk.Text(
+            content_frame,
+            wrap="word",
+            padx=12,
+            pady=12,
+            height=6,
+            width=70,
+            relief="flat",
+            bg=self.cget("bg"),
+            font=("Segoe UI", 10),
+        )
+        self.error_label.insert("1.0", f"⚠️ Error Occurred:\n\n{self.message}")
+        self.error_label.config(state="disabled")  # Make it read-only
+        self.error_label.pack(fill="x", expand=True)
+        self.theme_manager.register(self.error_label, "error_label")
+
+        scroll_button = tk.Button(
+            border_frame,
+            text="↑",
+            font=("Segoe UI", 12, "bold"),
+            command=lambda: canvas.yview_moveto(0),
+            width=2,
+            height=1,
+            bd=0,
+            relief="flat",
+            cursor="hand2",
+        )
+        scroll_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
+        self.theme_manager.register(scroll_button, "base_button")
+
+        return border_frame
 
 class TicketDisplayBuilder(tk.Frame):
     def __init__(
