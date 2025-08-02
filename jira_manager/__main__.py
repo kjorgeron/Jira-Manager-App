@@ -14,7 +14,6 @@ from jira_manager.themes import light_mode, dark_mode, ThemeManager
 from tkinter import ttk
 from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
-    ErrorMessageBuilder,
     TicketDisplayBuilder,
     switch_panel,
 )
@@ -78,6 +77,7 @@ def enter_key_clear_focus_run_btn_event(
         run_count,
         card_retainer,
         selected_items,
+        root
     )
     root.focus_set()
 
@@ -168,8 +168,8 @@ def main():
     theme_manager.register(root, "root")
     ui_state = {"active_panel": None}
 
-    error_panel = ErrorMessageBuilder(root, theme_manager)
-    theme_manager.register(error_panel, "frame")
+    # error_panel = ErrorMessageBuilder(root, theme_manager)
+    # theme_manager.register(error_panel, "frame")
     configure_panel = setup_configure_panel(root, theme_manager)
     ticket_panel = setup_ticket_panel(
         root, theme_manager, card_retainer, selected_items_for_update
@@ -177,7 +177,7 @@ def main():
 
     # PANEL CHOICES
     panel_choice = {
-        "error_panel": error_panel,
+        # "error_panel": error_panel,
         "configure_panel": configure_panel,
         "ticket_panel": ticket_panel,
     }
@@ -229,6 +229,7 @@ def main():
                 run_count,
                 card_retainer,
                 selected_items_for_update,
+                root
             ),
         ),
     )
@@ -251,6 +252,7 @@ def main():
                 run_count,
                 card_retainer,
                 selected_items_for_update,
+                root
             ),
         ),
     )
@@ -273,6 +275,7 @@ def main():
                 run_count,
                 card_retainer,
                 selected_items_for_update,
+                root
             ),
         ),
     )
@@ -302,6 +305,7 @@ def main():
             run_count,
             card_retainer,
             selected_items_for_update,
+            root
         ),
     )
 
@@ -341,7 +345,7 @@ def main():
         theme_manager.register(root, "root")
         theme_manager.register(panel_choice["ticket_panel"], "frame")
         theme_manager.register(panel_choice["configure_panel"], "frame")
-        theme_manager.register(panel_choice["error_panel"], "frame")
+        # theme_manager.register(panel_choice["error_panel"], "frame")
         # Optionally, reapply to all major frames/widgets if needed
 
     root.bind("<Configure>", on_configure)

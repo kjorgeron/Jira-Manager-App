@@ -1,0 +1,1 @@
+db_path = "jira_manager/tickets.db"

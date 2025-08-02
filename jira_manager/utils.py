@@ -16,9 +16,8 @@ from requests.exceptions import RequestException
 from multiprocessing import Queue
 from time import sleep
 from threading import Thread, Lock
-from jira_manager.custom_panels import switch_panel
-
-
+from jira_manager.custom_panels import switch_panel, ErrorPopupBuilder
+from jira_manager import db_path
 
 
 # def is_empty(value):
@@ -32,12 +31,16 @@ from jira_manager.custom_panels import switch_panel
 #         return value == 0
 #     return False  # Default: consider other types as non-empty
 
+
 def safe_button_action(button, action, delay=100):
     button.config(state="disabled")
+
     def run_and_enable():
         action()
         button.config(state="normal")
+
     button.after(delay, run_and_enable)
+
 
 def batch_list(lst, batch_size):
     for i in range(0, len(lst), batch_size):
@@ -75,7 +78,13 @@ def task_generator(queue):
 
 
 def jql_search_handler(
-    stop_flag, queue, panel_choice, theme_manager, card_retainer, db_path, selected_items
+    stop_flag,
+    queue,
+    panel_choice,
+    theme_manager,
+    card_retainer,
+    db_path,
+    selected_items,
 ):
     print(f"{card_retainer=}")
     while not stop_flag.is_set():
@@ -113,7 +122,13 @@ def jql_search_handler(
                     for batch in batch_list(issues, thread_count):
                         thread = Thread(
                             target=update_ticket_bucket,
-                            args=(batch, panel_choice, theme_manager, db_path, selected_items),
+                            args=(
+                                batch,
+                                panel_choice,
+                                theme_manager,
+                                db_path,
+                                selected_items,
+                            ),
                         )
                         threads.append(thread)
                         threads[-1].start()
@@ -121,6 +136,11 @@ def jql_search_handler(
                         thread.join()
                 except requests.exceptions.HTTPError as err:
                     print(err)
+                    ErrorPopupBuilder(
+                        master=panel_choice["ticket_panel"].master,
+                        theme_manager=theme_manager,
+                        message=f"There was an issue with the request to Jira.\nReason = {err}",
+                    )
 
             run_count["count"] = run_count["count"] - 1
 
@@ -129,12 +149,90 @@ def jql_search_handler(
             break
     print("Thread shutting down.")
 
+# def jql_search_handler(
+#     stop_flag,
+#     queue,
+#     panel_choice,
+#     theme_manager,
+#     card_retainer,
+#     db_path,
+#     selected_items,
+# ):
+#     print(f"{card_retainer=}")
+#     while not stop_flag.is_set():
+#         print("Running thread...")
+#         generator = task_generator(queue)
+#         try:
+#             task = next(generator)
+#             t_type = task.get("type")
 
-# def pull_jira_fields():
-#     print("hello!")
+#             if t_type == "jql_search":
+#                 print(f"{task.get('type')=}")
+#                 config_data = task.get("config_data")
+#                 payload = task.get("payload")
+#                 headers = task.get("headers")
+#                 proxies = task.get("proxies")
+#                 thread_count = task.get("thread_count")
+#                 run_count = task.get("run_count")
+
+#                 try:
+#                     issues = fetch_all_issues_threaded(
+#                         config_data, payload, headers, proxies, thread_count
+#                     )
+#                     print(f"{len(issues)=}")
+
+#                     # for issue in issues[:]:
+#                     #     check = {"key": issue["key"]}
+#                     #     if check in card_retainer:
+#                     #         print(f"HERE!!! {issue['key']}")
+#                     #         issues.remove(issue)
+#                     #     else:
+#                     #         card_retainer.append({"key": issue["key"]})
+
+#                     for issue in issues[:]:
+#                         check = {"key": issue["key"]}
+#                         if check in card_retainer:
+#                             print(f"HERE!!! {issue['key']}")
+#                             issues.remove(issue)
+#                         else:
+#                             card_retainer.append({"key": issue["key"]})
+
+#                     threads = []
+#                     for batch in batch_list(issues, thread_count):
+#                         thread = Thread(
+#                             target=update_ticket_bucket,
+#                             args=(
+#                                 batch,
+#                                 panel_choice,
+#                                 theme_manager,
+#                                 db_path,
+#                                 selected_items,
+#                             ),
+#                         )
+#                         threads.append(thread)
+#                         thread.start()
+
+#                     for thread in threads:
+#                         thread.join()
+
+#                 except requests.exceptions.HTTPError as err:
+#                     print(err)
+#                     ErrorPopupBuilder(
+#                         master=panel_choice["ticket_panel"].master,
+#                         theme_manager=theme_manager,
+#                         message=f"There was an issue with the request to Jira.\nReason = {err}",
+#                     )
+
+#             run_count["count"] -= 1
+
+#         except StopIteration:
+#             break
+#     print("Thread shutting down.")
 
 
-def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager, db_path, selected_items):
+def update_ticket_bucket(
+    ticket_bucket_items, panel_choice, theme_manager, db_path, selected_items
+):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
 
@@ -146,8 +244,33 @@ def update_ticket_bucket(ticket_bucket_items, panel_choice, theme_manager, db_pa
         row = index // max_cols
         col = index % max_cols
         print(f"{item=}")
-        update_ticket_bucket_with_single(item, panel_choice, theme_manager, db_path, selected_items)
+        update_ticket_bucket_with_single(
+            item, panel_choice, theme_manager, db_path, selected_items
+        )
 
+# def update_ticket_bucket(
+#     ticket_bucket_items, panel_choice, theme_manager, db_path, selected_items
+# ):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+#     max_cols = 5
+
+#     for col in range(max_cols):
+#         base_frame.columnconfigure(col, weight=1)
+
+#     for index, item in enumerate(ticket_bucket_items):
+#         row = index // max_cols
+#         col = index % max_cols
+#         print(f"{item=}")
+#         update_ticket_bucket_with_single(
+#             item, panel_choice, theme_manager, db_path, selected_items
+#         )
+
+# def pack_card(card, base_frame):
+#     children = base_frame.winfo_children()
+#     if children and children[0].winfo_ismapped():
+#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
+#     else:
+#         card.pack(side="top", fill="x", padx=5, pady=3)
 
 def update_ticket_bucket_with_single(
     ticket, panel_choice, theme_manager, db_path, selected_items
@@ -161,7 +284,7 @@ def update_ticket_bucket_with_single(
             text="Unselect", bg=theme_manager.theme["pending_color"]
         )
     print(f"{ticket=}")
-    run_sql_stmt(
+    yield run_sql_stmt(
         db_path,
         "INSERT INTO tickets (key) VALUES (?)",
         params=(ticket["key"],),
@@ -173,8 +296,43 @@ def update_ticket_bucket_with_single(
         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0])
     else:
         card.pack(side="top", fill="x", padx=5, pady=3)
-    sleep(1)
 
+# db_queue = Queue()
+
+# def db_writer(db_path):
+#     while True:
+#         item = db_queue.get()
+#         if item is None:
+#             break
+#         run_sql_stmt(
+#             db_path,
+#             "INSERT INTO tickets (key) VALUES (?)",
+#             params=(item["key"],),
+#             stmt_type="insert",
+#         )
+#         db_queue.task_done()
+
+# # Start the DB writer thread once
+# Thread(target=db_writer, args=(db_path,), daemon=True).start()
+
+
+# def update_ticket_bucket_with_single(
+#     ticket, panel_choice, theme_manager, db_path, selected_items
+# ):
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+#     card = TicketCard(ticket, theme_manager, master=base_frame)
+#     if ticket["key"] in selected_items:
+#         card.set_bg(theme_manager.theme["pending_color"])
+#         card.widget_registry.get("select_btn").config(
+#             text="Unselect", bg=theme_manager.theme["pending_color"]
+#         )
+
+#     print(f"{ticket=}")
+#     db_queue.put(ticket)  # ✅ Queue the DB insert
+
+#     # ✅ Schedule UI update on main thread
+#     base_frame.after(0, lambda: pack_card(card, base_frame))
 
 
 def run_database_updates(db_path, server, headers, jira_tickets):
@@ -383,7 +541,6 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
     return toolbar
 
 
-
 # def configure_results(
 #     results, options, parent, state, mode, theme_manager, panel_choice
 # ):
@@ -515,7 +672,9 @@ def fetch_all_issues_threaded(
         return_queue.put(all_issues)
 
 
-def configure_project_credentials(config_data, panel_choice, ui_state, widget_registry):
+def configure_project_credentials(
+    config_data, panel_choice, ui_state, widget_registry, root=None, theme_manager=None
+):
 
     headers = None
     proxies = None
@@ -524,10 +683,16 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
         config_data.get("server") == ""
         or config_data.get("server") == "Provide base url"
     ):
-        panel_choice["error_panel"].update_message(
-            "Missing Jira server, please provide information in the configuration panel."
+        # panel_choice["error_panel"].update_message(
+        #     "Missing Jira server, please provide information in the configuration panel."
+        # )
+        # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        # return
+        ErrorPopupBuilder(
+            master=root,
+            theme_manager=theme_manager,
+            message="Missing Jira server, please provide information in the configuration panel.",
         )
-        switch_panel("error_panel", ui_state, panel_choice, widget_registry)
         return
 
     if config_data.get("auth_type") == "Basic Auth":
@@ -537,10 +702,16 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
             or config_data.get("username") == "Enter username or email"
             or config_data.get("password") == "Enter password or token"
         ):
-            panel_choice["error_panel"].update_message(
-                "Missing Username or Password, please provide information in the configuration panel."
+            # panel_choice["error_panel"].update_message(
+            #     "Missing Username or Password, please provide information in the configuration panel."
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # return
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message="Missing Username or Password, please provide information in the configuration panel.",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
         else:
             try:
@@ -550,20 +721,32 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
                     "Accept": "application/json",
                 }
             except JIRAError as e:
-                panel_choice["error_panel"].update_message(
-                    f"Failed to build headers using provided username/password.\nReason = {e}"
+                # panel_choice["error_panel"].update_message(
+                #     f"Failed to build headers using provided username/password.\nReason = {e}"
+                # )
+                # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                # return
+                ErrorPopupBuilder(
+                    master=root,
+                    theme_manager=theme_manager,
+                    message=f"Failed to build headers using provided username/password.\nReason = {e}",
                 )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                 return
     elif config_data.get("auth_type") == "Token Auth":
         if (
             config_data.get("token") == ""
             or config_data.get("token") == "(Bearer Token) JWT or OAuth 2.0 only"
         ):
-            panel_choice["error_panel"].update_message(
-                "Missing Bearer Token, please provide information in the configuration panel."
+            # panel_choice["error_panel"].update_message(
+            #     "Missing Bearer Token, please provide information in the configuration panel."
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # return
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message="Missing Bearer Token, please provide information in the configuration panel.",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
         else:
             try:
@@ -574,18 +757,30 @@ def configure_project_credentials(config_data, panel_choice, ui_state, widget_re
                     "Accept": "application/json",
                 }
             except JIRAError as e:
-                panel_choice["error_panel"].update_message(
-                    f"Failed to build headers using provided Bearer Token.\nReason = {e}"
+                # panel_choice["error_panel"].update_message(
+                #     f"Failed to build headers using provided Bearer Token.\nReason = {e}"
+                # )
+                # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+                # return
+                ErrorPopupBuilder(
+                    master=root,
+                    theme_manager=theme_manager,
+                    message=f"Failed to build headers using provided Bearer Token.\nReason = {e}",
                 )
-                switch_panel("error_panel", ui_state, panel_choice, widget_registry)
                 return
 
     if config_data.get("proxy_option").lower() == "yes":
         if config_data.get("http_proxy") == "" or config_data.get("https_proxy") == "":
-            panel_choice["error_panel"].update_message(
-                f"Missing proxy information, please provide information in the configuration panel."
+            # panel_choice["error_panel"].update_message(
+            #     f"Missing proxy information, please provide information in the configuration panel."
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # return
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message=f"Missing proxy information, please provide information in the configuration panel.",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
         else:
             proxies = {
@@ -607,6 +802,7 @@ def toolbar_action(
     run_count,
     card_retainer,
     selected_items,
+    root=None,
 ):
 
     jql_query = widget_registry.get("jql_query")
@@ -615,23 +811,35 @@ def toolbar_action(
     print(run_count)
 
     headers, proxies = configure_project_credentials(
-        config_data, panel_choice, ui_state, widget_registry
+        config_data, panel_choice, ui_state, widget_registry, root, theme_manager
     )
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
         panel_choice["ticket_panel"].widget_registry.get("canvas").yview_moveto(0)
         if run_count["count"] > thread_count:
-            panel_choice["error_panel"].update_message(
-                "You have exceeded your limit of threads. Please let current tasks finish."
+            # panel_choice["error_panel"].update_message(
+            #     "You have exceeded your limit of threads. Please let current tasks finish."
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # return
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message="You have exceeded your limit of threads. Please let current tasks finish.",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
             return
 
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
-            panel_choice["error_panel"].update_message("Missing JQL Statement.")
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # panel_choice["error_panel"].update_message("Missing JQL Statement.")
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            # return
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message="Missing JQL Statement.",
+            )
             return
         try:
             # JQL SEARCH FUNCTIONALITY
@@ -664,23 +872,40 @@ def toolbar_action(
                         theme_manager,
                         card_retainer,
                         db_path,
-                        selected_items
+                        selected_items,
                     ),
                 )
                 thread.start()
-            except:
-                pass
+            except Exception as e:
+                ErrorPopupBuilder(
+                    master=root,
+                    theme_manager=theme_manager,
+                    message=f"There was an error with the jql request thread handler.\nReason = {e}.",
+                )
+                return
         except RequestException as e:
-            # This fires if you're offline or the server is unreachable
-            panel_choice["error_panel"].update_message(
-                "You're offline or Jira can't be reached.\nPlease check your connection."
+            # # This fires if you're offline or the server is unreachable
+            # panel_choice["error_panel"].update_message(
+            #     "You're offline or Jira can't be reached.\nPlease check your connection."
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message="You're offline or Jira can't be reached.\nPlease check your connection.",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
         except Exception as e:
-            panel_choice["error_panel"].update_message(
-                f"There was an issue with the request to Jira.\nReason = {e}"
+            # panel_choice["error_panel"].update_message(
+            #     f"There was an issue with the request to Jira.\nReason = {e}"
+            # )
+            # switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            ErrorPopupBuilder(
+                master=root,
+                theme_manager=theme_manager,
+                message=f"There was an issue with the request to Jira.\nReason = {e}",
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            return
 
     # LOGIC FOR CONFIGURE PANEL
     elif payload["type"] == "configure":
@@ -688,7 +913,7 @@ def toolbar_action(
 
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
-        
+
         # WHEN THIS IS PRESSED... DATA PAGE NEEDS TO GO TO PAGE 1
         switch_panel(
             "ticket_panel",
