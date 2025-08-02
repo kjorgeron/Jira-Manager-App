@@ -16,17 +16,39 @@ def batch_list(lst, batch_size):
 #     print(f"Clicked {ticket_key}")
 
 
+# def update_ticket_bucket_with_single(
+#     ticket, panel_choice, theme_manager, selected_items
+# ):
+
+#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+#     card = TicketCard(
+#         ticket,
+#         theme_manager,
+#         master=base_frame,
+#         # on_click=ticket_click_event,
+#         selected_items=selected_items,
+#     )
+#     if ticket["key"] in selected_items:
+#         card.set_bg(theme_manager.theme["pending_color"])
+#         card.widget_registry.get("select_btn").config(
+#             text="Unselect", bg=theme_manager.theme["pending_color"]
+#         )
+#     children = base_frame.winfo_children()
+#     if children and children[0].winfo_ismapped():
+#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0], expand=True)
+#     else:
+#         card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+
+
 def update_ticket_bucket_with_single(
     ticket, panel_choice, theme_manager, selected_items
 ):
-
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-
     card = TicketCard(
         ticket,
         theme_manager,
         master=base_frame,
-        # on_click=ticket_click_event,
         selected_items=selected_items,
     )
     if ticket["key"] in selected_items:
@@ -34,11 +56,8 @@ def update_ticket_bucket_with_single(
         card.widget_registry.get("select_btn").config(
             text="Unselect", bg=theme_manager.theme["pending_color"]
         )
-    children = base_frame.winfo_children()
-    if children and children[0].winfo_ismapped():
-        card.pack(side="top", fill="x", padx=5, pady=3, before=children[0], expand=True)
-    else:
-        card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+    # Always pack at the bottom for correct order
+    card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
 
 
 def update_ticket_bucket(
@@ -95,15 +114,18 @@ def switch_panel(
 
                     if i < 50:
                         show_issues.append(show)
-                print(f"{len(show_issues)=}")
-                print(f"{len(card_retainer)=}")
                 panel_choice["ticket_panel"].widget_registry.get(
                     "total_tickets"
                 ).config(text=f"{ceil(len(panel_choice["ticket_panel"].tickets) / 50)}")
                 update_ticket_bucket(
                     show_issues, panel_choice, theme_manager, selected_items
                 )
+                # Reset page indicator to 1
+                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(text="1")
 
+                # If you have a method to set page contents, call it for page 1
+                if hasattr(panel_choice["ticket_panel"], "set_page_contents"):
+                    panel_choice["ticket_panel"].set_page_contents(1, selected_items)
             except:
                 # NEED TO ADD ERROR HANDLING
                 pass
@@ -132,7 +154,6 @@ class ConfigurationFormBuilder(tk.Frame):
         height=0,
         highlightbackground=None,
         highlightcolor=None,
-        highlightthickness=0,
         name=None,
         padx=0,
         pady=0,
@@ -159,7 +180,6 @@ class ConfigurationFormBuilder(tk.Frame):
             height=height,
             highlightbackground=highlightbackground,
             highlightcolor=highlightcolor,
-            highlightthickness=highlightthickness,
             name=name,
             padx=padx,
             pady=pady,
@@ -622,18 +642,53 @@ class TicketDisplayBuilder(tk.Frame):
             maximum = len(self.tickets)
 
         base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
-        children = base_frame.winfo_children()
-        for child in children:
-            child.pack_forget()
-            child.destroy()
+        # Create a new frame for tickets
+        new_frame = tk.Frame(base_frame.master)
+        self.theme_manager.register(new_frame, "frame")
 
-        update_ticket_bucket(
-            self.tickets[minimum:maximum],
-            self.panel_choice,
-            self.theme_manager,
-            selected_items,
-        )
+        tickets_to_show = self.tickets[minimum:maximum]
+        for ticket in tickets_to_show:
+            card = TicketCard(
+                ticket,
+                self.theme_manager,
+                master=new_frame,
+                selected_items=selected_items,
+            )
+            if ticket["key"] in selected_items:
+                card.set_bg(self.theme_manager.theme["pending_color"])
+                card.widget_registry.get("select_btn").config(
+                    text="Unselect", bg=self.theme_manager.theme["pending_color"]
+                )
+            card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+
+        # Remove old frame and show new one
+        base_frame.destroy()
+        self.panel_choice["ticket_panel"].widget_registry["base_frame"] = new_frame
+        new_frame.pack(fill="both", expand=True)
+        new_frame.update_idletasks()
         print(f"{minimum=}\n{maximum=}")
+        
+    # def set_page_contents(self, pg_num: int, selected_items):
+    #     maximum = pg_num * 50
+    #     minimum = maximum - 50
+
+    #     if maximum > len(self.tickets):
+    #         maximum = len(self.tickets)
+
+    #     base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    #     children = base_frame.winfo_children()
+    #     for child in children:
+    #         child.pack_forget()
+    #         child.destroy()
+    #     base_frame.update_idletasks()
+
+    #     update_ticket_bucket(
+    #         self.tickets[minimum:maximum],
+    #         self.panel_choice,
+    #         self.theme_manager,
+    #         selected_items,
+    #     )
+    #     print(f"{minimum=}\n{maximum=}")
 
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
@@ -715,7 +770,7 @@ class TicketDisplayBuilder(tk.Frame):
         self.theme_manager.register(nxt_btn, "base_button")
         self.widget_registry["nxt_btn"] = nxt_btn
 
-        canvas = tk.Canvas(self, highlightthickness=0)
+        canvas = tk.Canvas(self)
         canvas.pack(fill="both", expand=True, side="left")
         self.theme_manager.register(canvas, "frame")
         # Scrollbar is created but not packed, so it's hidden

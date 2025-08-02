@@ -121,6 +121,8 @@ class ThemeManager:
             case "frame" | "root":
                 try:
                     widget.configure(bg=self.theme["background"])
+                    if isinstance(widget, tk.Canvas):
+                        widget.configure(highlightthickness=0)
                 except Exception as th_e:
                     print(f"{th_e=}")
                     print(f"{widget=}")
@@ -180,6 +182,8 @@ class ThemeManager:
                         highlightbackground=self.theme["btn_highlight"],
                         highlightcolor=self.theme["btn_highlight"],
                     )
+            case "divider":
+                widget.configure(bg=self.theme["muted_text"], height=2)
 
     def update_theme(self, new_theme):
         self.theme = new_theme

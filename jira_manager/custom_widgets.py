@@ -144,7 +144,7 @@ class TicketCard(tk.Frame):
             justify="left"
         )
         title.pack(anchor="w")
-        theme_manager.register(title, "label")
+        self.theme_manager.register(title, "label")
 
         if len(ticket_data) > 2:
             descript = tk.Label(
@@ -155,15 +155,15 @@ class TicketCard(tk.Frame):
                 justify="left"
             )
             descript.pack(anchor="w")
-            theme_manager.register(descript, "label")
+            self.theme_manager.register(descript, "label")
 
         update_btn = tk.Button(actions, text="Update", justify="right")
         update_btn.pack(side="left", padx=10, pady=10)
-        theme_manager.register(update_btn, "base_button")
+        self.theme_manager.register(update_btn, "base_button")
 
         select_btn = tk.Button(actions, text="Select", justify="right", command=self.select_for_update)
         select_btn.pack(side="right", padx=10, pady=10)
-        theme_manager.register(select_btn, "flashy_button")
+        self.theme_manager.register(select_btn, "flashy_button")
         self.widget_registry["select_btn"] = select_btn
 
         # Bind click and hover to all non-button children

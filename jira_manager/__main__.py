@@ -7,7 +7,7 @@ from jira_manager.utils import (
     create_divider,
     get_theme_mode,
     initialize_window,
-    # switch_panel
+    safe_button_action,
 )
 from jira_manager.custom_widgets import EntryWithPlaceholder
 from jira_manager.themes import light_mode, dark_mode, ThemeManager
@@ -16,7 +16,7 @@ from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     ErrorMessageBuilder,
     TicketDisplayBuilder,
-    switch_panel
+    switch_panel,
 )
 from jira_manager.sql_manager import run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
@@ -114,7 +114,6 @@ def setup_ticket_panel(parent, theme_manager, card_retainer, selected_items):
     return tickets
 
 
-
 def main():
 
     # SETUP OF DATABASE TABLES
@@ -134,7 +133,6 @@ def main():
     run_count = {"count": 1}
     button_event_queue = Queue()
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
-
 
     def clear_focus(event):
         widget_class = str(event.widget.winfo_class())
@@ -171,6 +169,7 @@ def main():
     ui_state = {"active_panel": None}
 
     error_panel = ErrorMessageBuilder(root, theme_manager)
+    theme_manager.register(error_panel, "frame")
     configure_panel = setup_configure_panel(root, theme_manager)
     ticket_panel = setup_ticket_panel(
         root, theme_manager, card_retainer, selected_items_for_update
@@ -217,17 +216,20 @@ def main():
     config_btn = tk.Button(
         toolbar,
         text="Configure",
-        command=lambda: toolbar_action(
-            {"type": "configure", "jql": ""},
-            ui_state,
-            panel_choice,
-            widget_registry,
-            theme_manager,
-            stop_flag,
-            thread_count,
-            run_count,
-            card_retainer,
-            selected_items_for_update,
+        command=lambda: safe_button_action(
+            config_btn,
+            lambda: toolbar_action(
+                {"type": "configure", "jql": ""},
+                ui_state,
+                panel_choice,
+                widget_registry,
+                theme_manager,
+                stop_flag,
+                thread_count,
+                run_count,
+                card_retainer,
+                selected_items_for_update,
+            ),
         ),
     )
     config_btn.pack(side="left", padx=10)
@@ -236,17 +238,20 @@ def main():
     ticket_btn = tk.Button(
         toolbar,
         text="Ticket Butcket",
-        command=lambda: toolbar_action(
-            {"type": "tickets", "jql": ""},
-            ui_state,
-            panel_choice,
-            widget_registry,
-            theme_manager,
-            stop_flag,
-            thread_count,
-            run_count,
-            card_retainer,
-            selected_items_for_update,
+        command=lambda: safe_button_action(
+            config_btn,
+            lambda: toolbar_action(
+                {"type": "tickets", "jql": ""},
+                ui_state,
+                panel_choice,
+                widget_registry,
+                theme_manager,
+                stop_flag,
+                thread_count,
+                run_count,
+                card_retainer,
+                selected_items_for_update,
+            ),
         ),
     )
     ticket_btn.pack(side="left", padx=10)
@@ -255,17 +260,20 @@ def main():
     jql_search_btn = tk.Button(
         toolbar,
         text="Search Jira",
-        command=lambda: toolbar_action(
-            {"type": "search_jiras", "jql": jql_search.get()},
-            ui_state,
-            panel_choice,
-            widget_registry,
-            theme_manager,
-            stop_flag,
-            thread_count,
-            run_count,
-            card_retainer,
-            selected_items_for_update,
+        command=lambda: safe_button_action(
+            config_btn,
+            lambda: toolbar_action(
+                {"type": "search_jiras", "jql": jql_search.get()},
+                ui_state,
+                panel_choice,
+                widget_registry,
+                theme_manager,
+                stop_flag,
+                thread_count,
+                run_count,
+                card_retainer,
+                selected_items_for_update,
+            ),
         ),
     )
     jql_search_btn.pack(side="left", padx=10)
@@ -298,7 +306,7 @@ def main():
     )
 
     # DIVIDER
-    create_divider(root, mode["muted_text"])
+    create_divider(root, theme_manager)
 
     # WELCOME LABEL
     welcome_label = tk.Label(
@@ -315,8 +323,19 @@ def main():
     set_combobox_cursors(root)
 
     # SET STARTER PANEL
-    root.after(100, lambda: switch_panel("ticket_panel", ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, selected_items_for_update))
-    
+    root.after(
+        100,
+        lambda: switch_panel(
+            "ticket_panel",
+            ui_state,
+            panel_choice,
+            widget_registry,
+            db_path,
+            theme_manager,
+            card_retainer,
+            selected_items_for_update,
+        ),
+    )
 
     def on_configure(event):
         theme_manager.register(root, "root")

@@ -32,6 +32,12 @@ from jira_manager.custom_panels import switch_panel
 #         return value == 0
 #     return False  # Default: consider other types as non-empty
 
+def safe_button_action(button, action, delay=100):
+    button.config(state="disabled")
+    def run_and_enable():
+        action()
+        button.config(state="normal")
+    button.after(delay, run_and_enable)
 
 def batch_list(lst, batch_size):
     for i in range(0, len(lst), batch_size):
@@ -330,10 +336,11 @@ def get_theme_mode(config_path="app_config.json"):
         return "light"  # Fallback
 
 
-def create_divider(parent, bg_color):
+def create_divider(parent, theme_manager):
     # --- Divider (optional) ---
-    divider = tk.Frame(parent, bg=bg_color, height=2)
+    divider = tk.Frame(parent)
     divider.pack(fill=tk.X, padx=10)
+    theme_manager.register(divider, "divider")
 
 
 # def create_scrollable_frame(parent):
