@@ -642,16 +642,24 @@ class TicketDisplayBuilder(tk.Frame):
             maximum = len(self.tickets)
 
         base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
-        # Create a new frame for tickets
-        new_frame = tk.Frame(base_frame.master)
-        self.theme_manager.register(new_frame, "frame")
+        parent = base_frame.master
+        # Create overlay on parent to mask base_frame
+        overlay = tk.Frame(parent)
+        # Place overlay exactly over base_frame
+        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
+        self.theme_manager.register(overlay, "frame")
+        overlay.lift()
+        parent.update_idletasks()
+        # Only destroy children, do not repack base_frame
+        for child in base_frame.winfo_children():
+            child.destroy()
 
         tickets_to_show = self.tickets[minimum:maximum]
         for ticket in tickets_to_show:
             card = TicketCard(
                 ticket,
                 self.theme_manager,
-                master=new_frame,
+                master=base_frame,
                 selected_items=selected_items,
             )
             if ticket["key"] in selected_items:
@@ -661,13 +669,34 @@ class TicketDisplayBuilder(tk.Frame):
                 )
             card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
 
-        # Remove old frame and show new one
-        base_frame.destroy()
-        self.panel_choice["ticket_panel"].widget_registry["base_frame"] = new_frame
-        new_frame.pack(fill="both", expand=True)
-        new_frame.update_idletasks()
+        # Add 'Return to Top' button at the bottom center
+        def scroll_to_top():
+            canvas = self.widget_registry.get("canvas")
+            canvas.yview_moveto(0)
+
+        btn_frame = tk.Frame(base_frame)
+        btn_frame.pack(side="top", fill="x", pady=10)
+        self.theme_manager.register(btn_frame, "frame")
+        return_top_btn = tk.Button(
+            btn_frame,
+            text="Return to Top",
+            command=scroll_to_top,
+            font=("Segoe UI", 12, "bold"),
+            cursor="hand2",
+        )
+        return_top_btn.pack(side="top", pady=5)
+        self.theme_manager.register(return_top_btn, "base_button")
+
+        base_frame.update_idletasks()
+        # Reposition overlay in case base_frame moved/resized
+        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
+        overlay.lift()
+        # Keep overlay visible a bit longer to mask ticket loading
+        def remove_overlay():
+            overlay.destroy()
+        parent.after(120, remove_overlay)
         print(f"{minimum=}\n{maximum=}")
-        
+            
     # def set_page_contents(self, pg_num: int, selected_items):
     #     maximum = pg_num * 50
     #     minimum = maximum - 50
@@ -693,15 +722,17 @@ class TicketDisplayBuilder(tk.Frame):
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("prev_btn").config(state="disabled")
-        self.widget_registry.get("nxt_btn").config(
-            state="disabled"
-        )  # Pre-disable next_btn
+        self.widget_registry.get("nxt_btn").config(state="disabled")  # Pre-disable next_btn
 
         current_page = int(pg_num.cget("text"))
         new_pg = current_page - 1 if current_page > 1 else 1
 
         self.set_page_contents(new_pg, self.selected_items)
         pg_num.config(text=f"{new_pg}")
+
+        # Scroll to top of ticket bucket
+        canvas = self.widget_registry.get("canvas")
+        canvas.yview_moveto(0)
 
         def enable_buttons():
             # Enable or disable based on new page value
@@ -715,9 +746,7 @@ class TicketDisplayBuilder(tk.Frame):
     def nxt_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("nxt_btn").config(state="disabled")
-        self.widget_registry.get("prev_btn").config(
-            state="disabled"
-        )  # Pre-disable prev_btn
+        self.widget_registry.get("prev_btn").config(state="disabled")  # Pre-disable prev_btn
 
         current_page = int(pg_num.cget("text"))
         last_page = ceil(len(self.tickets) / 50)
@@ -725,6 +754,10 @@ class TicketDisplayBuilder(tk.Frame):
 
         self.set_page_contents(new_pg, self.selected_items)
         pg_num.config(text=f"{new_pg}")
+
+        # Scroll to top of ticket bucket
+        canvas = self.widget_registry.get("canvas")
+        canvas.yview_moveto(0)
 
         def enable_buttons():
             # Enable or disable based on new page value
