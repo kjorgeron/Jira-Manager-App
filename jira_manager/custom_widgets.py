@@ -157,6 +157,10 @@ class TicketCard(tk.Frame):
             descript.pack(anchor="w")
             self.theme_manager.register(descript, "label")
 
+        delete_btn = tk.Button(actions, text="Delete", justify="right", command=self.delete_from_database)
+        delete_btn.pack(side="left", padx=10, pady=10)
+        self.theme_manager.register(delete_btn, "base_button")
+
         update_btn = tk.Button(actions, text="Update", justify="right")
         update_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(update_btn, "base_button")
@@ -197,6 +201,60 @@ class TicketCard(tk.Frame):
             select.config(bg=self.theme_manager.theme["btn_highlight"])
             self.selected_items.remove(self.ticket_key)
             self.widget_registry["select_btn"].config(text="Select")
+
+    def delete_from_database(self, on_delete=None):
+        print(self.ticket_key)
+        # Prevent multiple popups
+        if hasattr(self, '_delete_popup') and self._delete_popup is not None:
+            try:
+                self._delete_popup.destroy()
+            except Exception:
+                pass
+            self._delete_popup = None
+        # Custom popup with no title bar
+        root = self.winfo_toplevel()
+        popup = tk.Toplevel(root)
+        self._delete_popup = popup
+        popup.overrideredirect(True)  # Remove title bar
+        popup.configure(bg=self.theme_manager.theme.get("background", "#fff"))
+        # Center the popup relative to the main window and follow it
+        def center_popup():
+            popup.update_idletasks()
+            w, h = 300, 140
+            main_x = root.winfo_x()
+            main_y = root.winfo_y()
+            main_w = root.winfo_width()
+            main_h = root.winfo_height()
+            x = main_x + (main_w // 2) - (w // 2)
+            y = main_y + (main_h // 2) - (h // 2)
+            popup.geometry(f"{w}x{h}+{x}+{y}")
+        center_popup()
+        root.bind('<Configure>', lambda e: center_popup())
+
+        frame = tk.Frame(popup, bg=self.theme_manager.theme.get("background", "#fff"), padx=20, pady=20)
+        frame.pack(fill="both", expand=True)
+
+        label = tk.Label(frame, text=f"Delete ticket {self.ticket_key}?", font=("Segoe UI", 12), bg=self.theme_manager.theme.get("background", "#fff"))
+        label.pack(pady=(0, 20))
+
+        btn_frame = tk.Frame(frame, bg=self.theme_manager.theme.get("background", "#fff"))
+        btn_frame.pack()
+
+        def cancel():
+            print("Cancelled deletion")
+            popup.destroy()
+
+        def do_delete():
+            print(f"Deleting ticket {self.ticket_key}...")
+            popup.destroy()
+            if on_delete:
+                on_delete(self.ticket_key)
+
+        cancel_btn = tk.Button(btn_frame, text="Cancel", command=cancel, font=("Segoe UI", 11), bg=self.theme_manager.theme.get("btn_highlight", "#ccc"), fg=self.theme_manager.theme.get("foreground", "#000"), padx=12, pady=4, relief="flat", cursor="hand2")
+        cancel_btn.pack(side="left", padx=8)
+
+        delete_btn = tk.Button(btn_frame, text="Delete", command=do_delete, font=("Segoe UI", 11, "bold"), bg=self.theme_manager.theme.get("pending_color", "#e33"), fg="#fff", padx=12, pady=4, relief="flat", cursor="hand2")
+        delete_btn.pack(side="left", padx=8)
     
     def set_bg(self, bg):
         self.configure(bg=bg)
