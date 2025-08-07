@@ -54,7 +54,10 @@ def run_error(panel_choice=None, ui_state=None, widget_registry=None, message=No
         panel_choice["error_panel"].update_message(
            message
         )
-        switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        # Pass card_retainer and selected_items if available
+        card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
+        selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
+        switch_panel("error_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
     else:
         ErrorPopupBuilder(
             master=root,
@@ -90,7 +93,9 @@ def batch_list(lst, batch_size):
 
 def configure_handler(ui_state, panel_choice, widget_registry):
     while True:
-        switch_panel("configure_panel", ui_state, panel_choice, widget_registry)
+        card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
+        selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
+        switch_panel("configure_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
         break
 
 
@@ -102,13 +107,9 @@ def jql_search_handler(
     card_retainer,
     db_path,
     selected_items,
-    ui_state=None,
-    widget_registry=None,
+    ui_state,
+    widget_registry,
 ):
-    print(f"{card_retainer=}")
-    if stop_flag.is_set():
-        print("Thread shutting down.")
-        return
     print("Running thread...")
     try:
         t_type = str(task.get("type"))
@@ -121,6 +122,11 @@ def jql_search_handler(
             headers = task.get("headers")
             proxies = task.get("proxies")
             thread_count = int(task.get("thread_count", 4))
+            # ...existing JQL logic here...
+            # After processing, switch panel
+            print("Batch insert completed.")
+            print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
+            print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
 
             try:
                 issues = fetch_all_issues_threaded(
@@ -164,13 +170,18 @@ def jql_search_handler(
                 print(f"DEBUG: selected_items before switch_panel: {selected_items}")
                 print(f"DEBUG: selected_items types: {[type(x) for x in selected_items]}")
                 switch_panel(
-                    "ticket_panel",ui_state, panel_choice, widget_registry, db_path, theme_manager, card_retainer, selected_items)
+                    "ticket_panel",
+                    ui_state,
+                    panel_choice,
+                    widget_registry,
+                    db_path,
+                    theme_manager,
+                    card_retainer,
+                    selected_items,
+                )
             except requests.exceptions.HTTPError as err:
                 print(err)
                 run_error(panel_choice, ui_state, widget_registry, f"There was an issue with the request to Jira.\nReason = {err}")
-
-        # run_count logic removed; queue system handles task sequencing
-
     except Exception as e:
         print(f"Error in JQL search handler: {e}")
     print("Thread shutting down.")
@@ -637,7 +648,9 @@ def toolbar_action(
             panel_choice["error_panel"].update_message(
                 "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."
             )
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+            card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
+            selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
+            switch_panel("error_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
         else:
             # Sort card_retainer by integer part after dash, DESC
             def ticket_key_int(ticket):

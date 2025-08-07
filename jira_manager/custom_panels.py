@@ -42,7 +42,7 @@ def batch_list(lst, batch_size):
 
 
 def update_ticket_bucket_with_single(
-    ticket, panel_choice, theme_manager, selected_items
+    ticket, panel_choice, theme_manager, selected_items, card_retainer=None
 ):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     card = TicketCard(
@@ -50,6 +50,7 @@ def update_ticket_bucket_with_single(
         theme_manager,
         master=base_frame,
         selected_items=selected_items,
+        card_retainer=card_retainer,
     )
     if ticket["key"] in selected_items:
         card.set_bg(theme_manager.theme["pending_color"])
@@ -61,7 +62,7 @@ def update_ticket_bucket_with_single(
 
 
 def update_ticket_bucket(
-    ticket_bucket_items, panel_choice, theme_manager, selected_items
+    ticket_bucket_items, panel_choice, theme_manager, selected_items, card_retainer=None
 ):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
@@ -73,7 +74,7 @@ def update_ticket_bucket(
         row = index // max_cols
         col = index % max_cols
         update_ticket_bucket_with_single(
-            item, panel_choice, theme_manager, selected_items
+            item, panel_choice, theme_manager, selected_items, card_retainer=card_retainer
         )
 
 
@@ -132,7 +133,7 @@ def switch_panel(
                     "total_tickets"
                 ).config(text=f"{ceil(len(panel_choice["ticket_panel"].tickets) / 50)}")
                 update_ticket_bucket(
-                    show_issues, panel_choice, theme_manager, selected_items
+                    show_issues, panel_choice, theme_manager, selected_items, card_retainer
                 )
                 # Reset page indicator to 1
                 panel_choice["ticket_panel"].widget_registry.get("current_pg").config(text="1")
@@ -778,6 +779,7 @@ class TicketDisplayBuilder(tk.Frame):
                 self.theme_manager,
                 master=base_frame,
                 selected_items=selected_items,
+                card_retainer=self.panel_choice.get("card_retainer") if self.panel_choice and hasattr(self.panel_choice, "get") else None,
             )
             if ticket["key"] in selected_items:
                 card.set_bg(self.theme_manager.theme["pending_color"])

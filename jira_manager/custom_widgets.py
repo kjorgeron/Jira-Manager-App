@@ -1,4 +1,5 @@
 import tkinter as tk
+from jira_manager.sql_manager import run_sql_stmt
 
 class EntryWithPlaceholder(tk.Entry):
     def __init__(
@@ -114,12 +115,14 @@ class EntryWithPlaceholder(tk.Entry):
 
 
 class TicketCard(tk.Frame):
-    def __init__(self, ticket_data, theme_manager, on_click=None, selected_items=None, *args, **kwargs):
+    def __init__(self, ticket_data, theme_manager, on_click=None, selected_items=None, card_retainer=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.widget_registry = {}
         self.selected_items = selected_items
         self.theme_manager = theme_manager
+        self.card_retainer = card_retainer  # Prevent GC of cards
+        self.db_path = "jira_manager/tickets.db"
 
         self.ticket_key = ticket_data["key"]
         self.configure(padx=10, pady=5, bd=1, relief="solid")
@@ -157,7 +160,7 @@ class TicketCard(tk.Frame):
             descript.pack(anchor="w")
             self.theme_manager.register(descript, "label")
 
-        delete_btn = tk.Button(actions, text="Delete", justify="right", command=self.delete_from_database)
+        delete_btn = tk.Button(actions, text="Delete", justify="right", command=lambda: self.delete_from_database(self.delete))
         delete_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(delete_btn, "base_button")
 
@@ -173,6 +176,13 @@ class TicketCard(tk.Frame):
         # Bind click and hover to all non-button children
         # if on_click:
         #     self._bind_all_children(self, lambda event: on_click(self.ticket_key))
+
+    def delete(self, _):
+        run_sql_stmt(self.db_path, "DELETE FROM tickets WHERE key = ?", params=(self.ticket_key,), stmt_type="delete")
+        if self.card_retainer is not None:
+            self.card_retainer[:] = [t for t in self.card_retainer if t.get("key") != self.ticket_key]
+        print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
+        self.destroy()  # Remove the widget from the UI
 
     def _bind_all_children(self, widget, callback):
         # Avoid binding click event to buttons

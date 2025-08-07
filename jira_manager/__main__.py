@@ -179,10 +179,12 @@ def main():
     )
 
     # PANEL CHOICES
+
     panel_choice = {
         "error_panel": error_panel,
         "configure_panel": configure_panel,
         "ticket_panel": ticket_panel,
+        "card_retainer": card_retainer,
     }
 
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
