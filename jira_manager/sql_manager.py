@@ -32,7 +32,7 @@ import sqlite3
 
 
 # def run_sql_stmt(db_path, sql: str = None, table_name: str = None, data: dict = None, stmt_type: str = None, params: tuple = None):
-    
+
 #     print(f"Running sql type {stmt_type}")
 #     items = None
 #     try:
@@ -78,13 +78,14 @@ import sqlite3
 
 #     return items
 
+
 def run_sql_stmt(
     db_path,
     sql: str = None,
     table_name: str = None,
     data: dict = None,
     stmt_type: str = None,
-    params: tuple = None
+    params: tuple = None,
 ):
     print(f"Running sql type {stmt_type}")
     items = None
@@ -111,7 +112,9 @@ def run_sql_stmt(
 
         elif stmt_type in {"update", "delete", "create", "drop", "alter"}:
             if not sql:
-                raise ValueError(f"{stmt_type.upper()} operation requires an SQL query.")
+                raise ValueError(
+                    f"{stmt_type.upper()} operation requires an SQL query."
+                )
             cursor.execute(sql, params or ())
             conn.commit()
 
@@ -125,6 +128,7 @@ def run_sql_stmt(
         print(f"[SQL Error] {e}")
 
     return items
+
 
 def batch_insert_tickets(db_path, tickets):
     try:
@@ -140,6 +144,7 @@ def batch_insert_tickets(db_path, tickets):
         conn.close()
     except sqlite3.OperationalError as e:
         print(f"[SQL Error] {e}")
+
 
 def table_exists(db_path, table_name):
     """
@@ -260,6 +265,7 @@ def add_column_to_table(
     finally:
         conn.close()
 
+
 def add_or_find_key_return_id(db_path: str, key: str) -> int:
 
     select = f"""
@@ -276,7 +282,9 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
         else:
             # ADD MISSING KEY TO DATABASE
             payload = {"key": key}
-            run_sql_stmt(db_path, table_name="tickets", data=payload, stmt_type="insert")
+            run_sql_stmt(
+                db_path, table_name="tickets", data=payload, stmt_type="insert"
+            )
             items = run_sql_stmt(db_path, select, stmt_type="select")
             if len(items) > 0:
                 print(f"Item created successfully!\nRecords = {items}")
@@ -286,24 +294,31 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
                 print(f"Issue adding {key} to database")
                 return 0
 
+
 def add_or_find_field_return_id(db_path: str, ticket_id: int, field: dict) -> int:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
 
             # Check if field exists for given ticket_id and field_key
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id FROM fields
                 WHERE ticket_id = ? AND field_key = ?;
-            """, (ticket_id, field["field_key"]))
-            
+            """,
+                (ticket_id, field["field_key"]),
+            )
+
             result = cursor.fetchone()
             if result:
-                print(f"Field {field['field_key']} already exists.\nRecord ID = {result[0]}")
+                print(
+                    f"Field {field['field_key']} already exists.\nRecord ID = {result[0]}"
+                )
                 return result[0]
 
             # Insert new field
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO fields (
                     ticket_id,
                     field_key,
@@ -314,16 +329,18 @@ def add_or_find_field_return_id(db_path: str, ticket_id: int, field: dict) -> in
                     allowed_values,
                     current_value
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                ticket_id,
-                field["field_key"],
-                field["field_name"],
-                field["field_type"],
-                field["widget_type"],
-                field["is_editable"],
-                field["allowed_values"],
-                field["current_value"]
-            ))
+            """,
+                (
+                    ticket_id,
+                    field["field_key"],
+                    field["field_name"],
+                    field["field_type"],
+                    field["widget_type"],
+                    field["is_editable"],
+                    field["allowed_values"],
+                    field["current_value"],
+                ),
+            )
 
             conn.commit()
             return cursor.lastrowid
@@ -331,4 +348,3 @@ def add_or_find_field_return_id(db_path: str, ticket_id: int, field: dict) -> in
     except Exception as e:
         print(f"[SQL Error] {e}")
         return 0
-    

@@ -1,6 +1,7 @@
 import tkinter as tk
 from jira_manager.sql_manager import run_sql_stmt
 
+
 class EntryWithPlaceholder(tk.Entry):
     def __init__(
         self,
@@ -11,7 +12,7 @@ class EntryWithPlaceholder(tk.Entry):
         color="grey",  # Placeholder color
         width=25,
         *args,
-        **kwargs
+        **kwargs,
     ):
         self.placeholder = placeholder
         self.real_show = show
@@ -115,7 +116,16 @@ class EntryWithPlaceholder(tk.Entry):
 
 
 class TicketCard(tk.Frame):
-    def __init__(self, ticket_data, theme_manager, on_click=None, selected_items=None, card_retainer=None, *args, **kwargs):
+    def __init__(
+        self,
+        ticket_data,
+        theme_manager,
+        on_click=None,
+        selected_items=None,
+        card_retainer=None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.widget_registry = {}
@@ -141,10 +151,7 @@ class TicketCard(tk.Frame):
         self.theme_manager.register(actions, "frame")
 
         title = tk.Label(
-            info,
-            text=self.ticket_key,
-            font=("Segoe UI", 12, "bold"),
-            justify="left"
+            info, text=self.ticket_key, font=("Segoe UI", 12, "bold"), justify="left"
         )
         title.pack(anchor="w")
         self.theme_manager.register(title, "label")
@@ -155,12 +162,17 @@ class TicketCard(tk.Frame):
                 text=ticket_data["fields"]["description"],
                 font=("Segoe UI", 10),
                 wraplength=400,
-                justify="left"
+                justify="left",
             )
             descript.pack(anchor="w")
             self.theme_manager.register(descript, "label")
 
-        delete_btn = tk.Button(actions, text="Delete", justify="right", command=lambda: self.delete_from_database(self.delete))
+        delete_btn = tk.Button(
+            actions,
+            text="Delete",
+            justify="right",
+            command=lambda: self.delete_from_database(self.delete),
+        )
         delete_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(delete_btn, "base_button")
 
@@ -168,7 +180,9 @@ class TicketCard(tk.Frame):
         update_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(update_btn, "base_button")
 
-        select_btn = tk.Button(actions, text="Select", justify="right", command=self.select_for_update)
+        select_btn = tk.Button(
+            actions, text="Select", justify="right", command=self.select_for_update
+        )
         select_btn.pack(side="right", padx=10, pady=10)
         self.theme_manager.register(select_btn, "flashy_button")
         self.widget_registry["select_btn"] = select_btn
@@ -178,9 +192,16 @@ class TicketCard(tk.Frame):
         #     self._bind_all_children(self, lambda event: on_click(self.ticket_key))
 
     def delete(self, _):
-        run_sql_stmt(self.db_path, "DELETE FROM tickets WHERE key = ?", params=(self.ticket_key,), stmt_type="delete")
+        run_sql_stmt(
+            self.db_path,
+            "DELETE FROM tickets WHERE key = ?",
+            params=(self.ticket_key,),
+            stmt_type="delete",
+        )
         if self.card_retainer is not None:
-            self.card_retainer[:] = [t for t in self.card_retainer if t.get("key") != self.ticket_key]
+            self.card_retainer[:] = [
+                t for t in self.card_retainer if t.get("key") != self.ticket_key
+            ]
         print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
         self.destroy()  # Remove the widget from the UI
 
@@ -195,7 +216,7 @@ class TicketCard(tk.Frame):
 
         for child in widget.winfo_children():
             self._bind_all_children(child, callback)
-    
+
     def select_for_update(self):
         select = self.widget_registry["select_btn"]
         old_bg = self.theme_manager.theme["background"]
@@ -215,7 +236,7 @@ class TicketCard(tk.Frame):
     def delete_from_database(self, on_delete=None):
         print(self.ticket_key)
         # Prevent multiple popups
-        if hasattr(self, '_delete_popup') and self._delete_popup is not None:
+        if hasattr(self, "_delete_popup") and self._delete_popup is not None:
             try:
                 self._delete_popup.destroy()
             except Exception:
@@ -228,6 +249,7 @@ class TicketCard(tk.Frame):
         popup.overrideredirect(True)  # Remove title bar
         # popup.configure(bg=self.theme_manager.theme.get("background", "#fff"))
         self.theme_manager.register(popup, "frame")
+
         # Center the popup relative to the main window and follow it
         def center_popup():
             if not popup.winfo_exists():
@@ -247,14 +269,19 @@ class TicketCard(tk.Frame):
                 popup.focus_force()
             except Exception:
                 pass
+
         center_popup()
-        root.bind('<Configure>', lambda e: center_popup())
+        root.bind("<Configure>", lambda e: center_popup())
 
         frame = tk.Frame(popup, padx=20, pady=20)
         self.theme_manager.register(frame, "frame")
         frame.pack(fill="both", expand=True)
 
-        label = tk.Label(frame, text=f"Delete ticket {self.ticket_key}?", font=("Trebuchet MS", 14, "bold"))
+        label = tk.Label(
+            frame,
+            text=f"Delete ticket {self.ticket_key}?",
+            font=("Trebuchet MS", 14, "bold"),
+        )
         self.theme_manager.register(label, "label")
         label.pack(pady=(0, 20))
 
@@ -263,7 +290,7 @@ class TicketCard(tk.Frame):
         btn_frame.pack()
 
         def cleanup_popup():
-            root.unbind('<Configure>')
+            root.unbind("<Configure>")
             try:
                 self._delete_popup = None
             except Exception:
@@ -281,16 +308,33 @@ class TicketCard(tk.Frame):
             if on_delete:
                 on_delete(self.ticket_key)
 
-        cancel_btn = tk.Button(btn_frame, text="Cancel", command=cancel, padx=12, pady=4, relief="flat", cursor="hand2")
+        cancel_btn = tk.Button(
+            btn_frame,
+            text="Cancel",
+            command=cancel,
+            padx=12,
+            pady=4,
+            relief="flat",
+            cursor="hand2",
+        )
         self.theme_manager.register(cancel_btn, "base_button")
         cancel_btn.pack(side="left", padx=8)
 
-        delete_btn = tk.Button(btn_frame, text="Delete", command=do_delete, padx=12, pady=4, relief="flat", cursor="hand2")
+        delete_btn = tk.Button(
+            btn_frame,
+            text="Delete",
+            command=do_delete,
+            padx=12,
+            pady=4,
+            relief="flat",
+            cursor="hand2",
+        )
         self.theme_manager.register(delete_btn, "flashy_button")
         delete_btn.pack(side="left", padx=8)
-    
+
     def set_bg(self, bg):
         self.configure(bg=bg)
+
 
 # class TicketCard(tk.Frame):
 #     def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):
@@ -348,4 +392,3 @@ class TicketCard(tk.Frame):
 #         widget.bind("<Button-1>", callback)
 #         for child in widget.winfo_children():
 #             self._bind_all_children(child, callback)
-

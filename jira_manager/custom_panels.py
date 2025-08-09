@@ -74,7 +74,11 @@ def update_ticket_bucket(
         row = index // max_cols
         col = index % max_cols
         update_ticket_bucket_with_single(
-            item, panel_choice, theme_manager, selected_items, card_retainer=card_retainer
+            item,
+            panel_choice,
+            theme_manager,
+            selected_items,
+            card_retainer=card_retainer,
         )
 
 
@@ -103,7 +107,11 @@ def switch_panel(
         next_panel.pack(fill="x", padx=100, pady=10)
 
     # Handle configure button flicker: only enable/disable, never pack/forget
-    configure_btn = widget_registry.get("configure_btn") if widget_registry.get("configure_btn") else None
+    configure_btn = (
+        widget_registry.get("configure_btn")
+        if widget_registry.get("configure_btn")
+        else None
+    )
     if panel_key == "configure_panel":
         if welcome_label.winfo_ismapped():
             welcome_label.pack_forget()
@@ -127,16 +135,22 @@ def switch_panel(
                     show = {"key": issue[1]}
                     if show not in panel_choice["ticket_panel"].tickets:
                         panel_choice["ticket_panel"].tickets.append(show)
-                    if i < 50:
+                    if i < 50 and show not in show_issues:
                         show_issues.append(show)
                 panel_choice["ticket_panel"].widget_registry.get(
                     "total_tickets"
                 ).config(text=f"{ceil(len(panel_choice["ticket_panel"].tickets) / 50)}")
                 update_ticket_bucket(
-                    show_issues, panel_choice, theme_manager, selected_items, card_retainer
+                    show_issues,
+                    panel_choice,
+                    theme_manager,
+                    selected_items,
+                    card_retainer,
                 )
                 # Reset page indicator to 1
-                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(text="1")
+                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(
+                    text="1"
+                )
                 # If you have a method to set page contents, call it for page 1
                 if hasattr(panel_choice["ticket_panel"], "set_page_contents"):
                     panel_choice["ticket_panel"].set_page_contents(1, selected_items)
@@ -626,6 +640,7 @@ class ErrorMessageBuilder(tk.Frame):
 
         return border_frame
 
+
 class ErrorPopupBuilder(tk.Toplevel):
     def __init__(self, master=None, theme_manager=None, message="Do I See This?"):
         super().__init__(master)
@@ -635,7 +650,7 @@ class ErrorPopupBuilder(tk.Toplevel):
         self.title("Error")
         self.resizable(False, False)
         self.transient(master)  # Keep popup on top of parent
-        self.grab_set()         # Make it modal
+        self.grab_set()  # Make it modal
 
         # 🧭 Center the popup on the screen
         self.update_idletasks()
@@ -657,7 +672,9 @@ class ErrorPopupBuilder(tk.Toplevel):
             if isinstance(self.error_label, tk.Text):
                 self.error_label.config(state="normal")
                 self.error_label.delete("1.0", "end")
-                self.error_label.insert("1.0", f"⚠️ Error Occurred:\n\n{self.message}", "margin")
+                self.error_label.insert(
+                    "1.0", f"⚠️ Error Occurred:\n\n{self.message}", "margin"
+                )
                 self.error_label.config(state="disabled")
             else:
                 self.error_label.destroy()
@@ -666,7 +683,7 @@ class ErrorPopupBuilder(tk.Toplevel):
         else:
             self.error_frame = self.build_error_message()
             self.error_frame.pack(fill="both", expand=True)
-            
+
     def build_error_message(self):
         border_frame = tk.Frame(self, padx=3, pady=3)
         self.theme_manager.register(border_frame, "error_border_frame")
@@ -724,6 +741,7 @@ class ErrorPopupBuilder(tk.Toplevel):
 
         return border_frame
 
+
 class TicketDisplayBuilder(tk.Frame):
     def __init__(
         self,
@@ -748,8 +766,10 @@ class TicketDisplayBuilder(tk.Frame):
         # Always re-bind mousewheel when ticket panel is shown
         canvas = self.widget_registry.get("canvas")
         if canvas:
+
             def _on_mousewheel(event):
                 canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
             canvas.bind("<MouseWheel>", _on_mousewheel)
 
     def set_page_contents(self, pg_num: int, selected_items):
@@ -764,7 +784,12 @@ class TicketDisplayBuilder(tk.Frame):
         # Create overlay on parent to mask base_frame
         overlay = tk.Frame(parent)
         # Place overlay exactly over base_frame
-        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
+        overlay.place(
+            x=base_frame.winfo_x(),
+            y=base_frame.winfo_y(),
+            width=base_frame.winfo_width(),
+            height=base_frame.winfo_height(),
+        )
         self.theme_manager.register(overlay, "frame")
         overlay.lift()
         parent.update_idletasks()
@@ -779,7 +804,11 @@ class TicketDisplayBuilder(tk.Frame):
                 self.theme_manager,
                 master=base_frame,
                 selected_items=selected_items,
-                card_retainer=self.panel_choice.get("card_retainer") if self.panel_choice and hasattr(self.panel_choice, "get") else None,
+                card_retainer=(
+                    self.panel_choice.get("card_retainer")
+                    if self.panel_choice and hasattr(self.panel_choice, "get")
+                    else None
+                ),
             )
             if ticket["key"] in selected_items:
                 card.set_bg(self.theme_manager.theme["pending_color"])
@@ -808,14 +837,21 @@ class TicketDisplayBuilder(tk.Frame):
 
         base_frame.update_idletasks()
         # Reposition overlay in case base_frame moved/resized
-        overlay.place(x=base_frame.winfo_x(), y=base_frame.winfo_y(), width=base_frame.winfo_width(), height=base_frame.winfo_height())
+        overlay.place(
+            x=base_frame.winfo_x(),
+            y=base_frame.winfo_y(),
+            width=base_frame.winfo_width(),
+            height=base_frame.winfo_height(),
+        )
         overlay.lift()
+
         # Keep overlay visible a bit longer to mask ticket loading
         def remove_overlay():
             overlay.destroy()
+
         parent.after(120, remove_overlay)
         print(f"{minimum=}\n{maximum=}")
-            
+
     # def set_page_contents(self, pg_num: int, selected_items):
     #     maximum = pg_num * 50
     #     minimum = maximum - 50
@@ -841,7 +877,9 @@ class TicketDisplayBuilder(tk.Frame):
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("prev_btn").config(state="disabled")
-        self.widget_registry.get("nxt_btn").config(state="disabled")  # Pre-disable next_btn
+        self.widget_registry.get("nxt_btn").config(
+            state="disabled"
+        )  # Pre-disable next_btn
 
         current_page = int(pg_num.cget("text"))
         new_pg = current_page - 1 if current_page > 1 else 1
@@ -865,7 +903,9 @@ class TicketDisplayBuilder(tk.Frame):
     def nxt_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("nxt_btn").config(state="disabled")
-        self.widget_registry.get("prev_btn").config(state="disabled")  # Pre-disable prev_btn
+        self.widget_registry.get("prev_btn").config(
+            state="disabled"
+        )  # Pre-disable prev_btn
 
         current_page = int(pg_num.cget("text"))
         last_page = ceil(len(self.tickets) / 50)
@@ -924,6 +964,7 @@ class TicketDisplayBuilder(tk.Frame):
 
         # Dropdown-style page jump
         from jira_manager.custom_widgets import EntryWithPlaceholder
+
         page_jump_frame = tk.Frame(tool_bar)
         self.theme_manager.register(page_jump_frame, "frame")
         page_jump_frame.pack_forget()  # Hidden by default
@@ -957,13 +998,18 @@ class TicketDisplayBuilder(tk.Frame):
                         self.widget_registry["prev_btn"].config(state="disabled")
                         self.widget_registry["nxt_btn"].config(state="normal")
 
-                
                 else:
                     page_jump_entry.reset_to_placeholder()
             except ValueError:
                 page_jump_entry.reset_to_placeholder()
 
-        go_btn = tk.Button(page_jump_frame, text="Go", command=jump_to_page, font=("Segoe UI", 11), cursor="hand2")
+        go_btn = tk.Button(
+            page_jump_frame,
+            text="Go",
+            command=jump_to_page,
+            font=("Segoe UI", 11),
+            cursor="hand2",
+        )
         go_btn.pack(side="left", padx=(0, 5))
         self.theme_manager.register(go_btn, "base_button")
 
@@ -974,7 +1020,14 @@ class TicketDisplayBuilder(tk.Frame):
                 page_jump_frame.pack(side="left", padx=(5, 10))
                 page_jump_entry.reset_to_placeholder()
 
-        dropdown_btn = tk.Button(tool_bar, text="\u25B6", command=toggle_page_jump, font=("Segoe UI", 13), cursor="hand2", width=2)
+        dropdown_btn = tk.Button(
+            tool_bar,
+            text="\u25b6",
+            command=toggle_page_jump,
+            font=("Segoe UI", 13),
+            cursor="hand2",
+            width=2,
+        )
         dropdown_btn.pack(side="left", padx=(20, 0))
         self.theme_manager.register(dropdown_btn, "base_button")
 

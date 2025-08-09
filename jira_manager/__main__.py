@@ -16,7 +16,7 @@ from jira_manager.custom_panels import (
     ConfigurationFormBuilder,
     TicketDisplayBuilder,
     switch_panel,
-    ErrorMessageBuilder
+    ErrorMessageBuilder,
 )
 from jira_manager.sql_manager import run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
@@ -78,7 +78,7 @@ def enter_key_clear_focus_run_btn_event(
         thread_count,
         card_retainer,
         selected_items,
-        root
+        root,
     )
     root.focus_set()
 
@@ -132,6 +132,7 @@ def main():
     stop_flag = Event()
     # JQL queue and worker state
     from queue import Queue
+
     JQL_TASK_QUEUE = Queue()
     JQL_WORKER_RUNNING = False
     thread_count = 2  # Default value, adjust as needed
@@ -234,7 +235,7 @@ def main():
                 JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
-                root
+                root,
             ),
             panel_choice=panel_choice,
         ),
@@ -259,7 +260,7 @@ def main():
                 JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
-                root
+                root,
             ),
             panel_choice=panel_choice,
         ),
@@ -283,7 +284,7 @@ def main():
                 JQL_WORKER_RUNNING,
                 card_retainer,
                 selected_items_for_update,
-                root
+                root,
             ),
             panel_choice=panel_choice,
         ),
@@ -334,12 +335,13 @@ def main():
     set_button_cursors(root)
     set_combobox_cursors(root)
 
-
     # SET STARTER PANEL
     ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
     if not ticket_bucket:
-            panel_choice["error_panel"].update_message("No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets.")
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry)
+        panel_choice["error_panel"].update_message(
+            "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."
+        )
+        switch_panel("error_panel", ui_state, panel_choice, widget_registry)
     else:
         root.after(
             100,

@@ -3,9 +3,11 @@ import json
 
 CONFIG_FILENAME = "app_config.json"
 
+
 def get_config_path():
     # Gets absolute path to config in the project's root directory
     return os.path.join(os.path.dirname(__file__), CONFIG_FILENAME)
+
 
 def save_data(payload: dict):
     print(payload)
@@ -16,6 +18,7 @@ def save_data(payload: dict):
         print(f"✅ Config saved to {path}")
     except Exception as e:
         print(f"❌ Failed to save config: {e}")
+
 
 def load_data() -> dict:
     path = get_config_path()
@@ -39,7 +42,7 @@ def load_data() -> dict:
             "password": "",
             "auth_type": "Basic Auth",
             "proxy_option": "No",
-            "theme": "Dark"
+            "theme": "Dark",
         }
         save_data(payload)
 

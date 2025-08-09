@@ -1,4 +1,3 @@
-
 import tkinter as tk
 import json
 import requests
@@ -12,16 +11,32 @@ from jira_manager.sql_manager import (
     run_sql_stmt,
     add_or_find_key_return_id,
     add_or_find_field_return_id,
-    batch_insert_tickets
+    batch_insert_tickets,
 )
 from requests.exceptions import RequestException
 from queue import Queue, Empty
 from threading import Thread, Lock
-from jira_manager.custom_panels import switch_panel, ErrorMessageBuilder, ErrorPopupBuilder
+from jira_manager.custom_panels import (
+    switch_panel,
+    ErrorMessageBuilder,
+    ErrorPopupBuilder,
+)
 
-def jql_worker(panel_choice, theme_manager, card_retainer, db_path, selected_items, ui_state, widget_registry, stop_flag, jql_task_queue, worker_state=None):
+
+def jql_worker(
+    panel_choice,
+    theme_manager,
+    card_retainer,
+    db_path,
+    selected_items,
+    ui_state,
+    widget_registry,
+    stop_flag,
+    jql_task_queue,
+    worker_state=None,
+):
     if worker_state is not None:
-        worker_state['running'] = True
+        worker_state["running"] = True
     try:
         while not stop_flag.is_set():
             try:
@@ -38,7 +53,7 @@ def jql_worker(panel_choice, theme_manager, card_retainer, db_path, selected_ite
                     db_path,
                     selected_items,
                     ui_state,
-                    widget_registry
+                    widget_registry,
                 )
             except Exception as e:
                 print(f"Error in JQL worker: {e}")
@@ -46,18 +61,41 @@ def jql_worker(panel_choice, theme_manager, card_retainer, db_path, selected_ite
                 jql_task_queue.task_done()
     finally:
         if worker_state is not None:
-            worker_state['running'] = False
+            worker_state["running"] = False
         print("JQL worker thread finished.")
 
-def run_error(panel_choice=None, ui_state=None, widget_registry=None, message=None, theme_manager=None, root=None):
+
+def run_error(
+    panel_choice=None,
+    ui_state=None,
+    widget_registry=None,
+    message=None,
+    theme_manager=None,
+    root=None,
+):
     if panel_choice:
-        panel_choice["error_panel"].update_message(
-           message
-        )
+        panel_choice["error_panel"].update_message(message)
         # Pass card_retainer and selected_items if available
-        card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
-        selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
-        switch_panel("error_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
+        card_retainer = (
+            panel_choice.get("card_retainer")
+            if panel_choice and hasattr(panel_choice, "get")
+            else None
+        )
+        selected_items = (
+            panel_choice.get("selected_items")
+            if panel_choice and hasattr(panel_choice, "get")
+            else None
+        )
+        switch_panel(
+            "error_panel",
+            ui_state,
+            panel_choice,
+            widget_registry,
+            None,
+            None,
+            card_retainer,
+            selected_items,
+        )
     else:
         ErrorPopupBuilder(
             master=root,
@@ -65,6 +103,7 @@ def run_error(panel_choice=None, ui_state=None, widget_registry=None, message=No
             message=message,
         )
     return
+
 
 def safe_button_action(button, action, delay=100, panel_choice=None):
 
@@ -81,7 +120,6 @@ def safe_button_action(button, action, delay=100, panel_choice=None):
         button.after(delay, run_and_enable)
     else:
         action()
-    
 
 
 def batch_list(lst, batch_size):
@@ -89,13 +127,28 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
-
-
 def configure_handler(ui_state, panel_choice, widget_registry):
     while True:
-        card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
-        selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
-        switch_panel("configure_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
+        card_retainer = (
+            panel_choice.get("card_retainer")
+            if panel_choice and hasattr(panel_choice, "get")
+            else None
+        )
+        selected_items = (
+            panel_choice.get("selected_items")
+            if panel_choice and hasattr(panel_choice, "get")
+            else None
+        )
+        switch_panel(
+            "configure_panel",
+            ui_state,
+            panel_choice,
+            widget_registry,
+            None,
+            None,
+            card_retainer,
+            selected_items,
+        )
         break
 
 
@@ -121,12 +174,14 @@ def jql_search_handler(
             payload = task.get("payload")
             headers = task.get("headers")
             proxies = task.get("proxies")
-            thread_count = int(task.get("thread_count", 4))
+            thread_count = int(task.get("thread_count", 2))
             # ...existing JQL logic here...
             # After processing, switch panel
             print("Batch insert completed.")
             print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-            print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
+            print(
+                f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
+            )
 
             try:
                 issues = fetch_all_issues_threaded(
@@ -141,7 +196,9 @@ def jql_search_handler(
                     print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
                     key_val = str(key_val_raw)
                     check = {"key": key_val}
-                    print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}")
+                    print(
+                        f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}"
+                    )
                     if check in card_retainer:
                         print("HERE!!! " + str(key_val))
                     else:
@@ -150,11 +207,13 @@ def jql_search_handler(
 
                 threads = []
                 for batch in batch_list(new_issues, thread_count):
+
                     def safe_batch_insert(db_path, batch):
                         try:
                             batch_insert_tickets(db_path, batch)
                         except Exception as e:
                             print(f"Error in batch_insert_tickets: {e}")
+
                     thread = Thread(
                         target=safe_batch_insert,
                         args=(db_path, batch),
@@ -166,9 +225,13 @@ def jql_search_handler(
                     thread.join()
                 print("Batch insert completed.")
                 print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-                print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
+                print(
+                    f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
+                )
                 print(f"DEBUG: selected_items before switch_panel: {selected_items}")
-                print(f"DEBUG: selected_items types: {[type(x) for x in selected_items]}")
+                print(
+                    f"DEBUG: selected_items types: {[type(x) for x in selected_items]}"
+                )
                 switch_panel(
                     "ticket_panel",
                     ui_state,
@@ -179,9 +242,22 @@ def jql_search_handler(
                     card_retainer,
                     selected_items,
                 )
+            except requests.exceptions.ConnectionError:
+                print("You appear to be offline or unable to connect to the server.")
+                run_error(
+                    panel_choice,
+                    ui_state,
+                    widget_registry,
+                    "You appear to be offline or unable to connect to the server.",
+                )
             except requests.exceptions.HTTPError as err:
                 print(err)
-                run_error(panel_choice, ui_state, widget_registry, f"There was an issue with the request to Jira.\nReason = {err}")
+                run_error(
+                    panel_choice,
+                    ui_state,
+                    widget_registry,
+                    f"There was an issue with the request to Jira.\nReason = {err}",
+                )
     except Exception as e:
         print(f"Error in JQL search handler: {e}")
     print("Thread shutting down.")
@@ -211,7 +287,6 @@ def update_ticket_bucket(
     base_frame.update_idletasks()
     canvas.update_idletasks()
     canvas.configure(scrollregion=canvas.bbox("all"))
-
 
 
 def update_ticket_bucket_with_single(
@@ -484,7 +559,12 @@ def configure_project_credentials(
         #     theme_manager=theme_manager,
         #     message="Missing Jira server, please provide information in the configuration panel.",
         # )
-        run_error(panel_choice, ui_state, widget_registry, "Missing Jira server, please provide information in the configuration panel.")
+        run_error(
+            panel_choice,
+            ui_state,
+            widget_registry,
+            "Missing Jira server, please provide information in the configuration panel.",
+        )
         return
 
     if config_data.get("auth_type") == "Basic Auth":
@@ -499,7 +579,12 @@ def configure_project_credentials(
             #     theme_manager=theme_manager,
             #     message="Missing Username or Password, please provide information in the configuration panel.",
             # )
-            run_error(panel_choice, ui_state, widget_registry, "Missing Username or Password, please provide information in the configuration panel.")
+            run_error(
+                panel_choice,
+                ui_state,
+                widget_registry,
+                "Missing Username or Password, please provide information in the configuration panel.",
+            )
             return
         else:
             try:
@@ -514,7 +599,12 @@ def configure_project_credentials(
                 #     theme_manager=theme_manager,
                 #     message=f"Failed to build headers using provided username/password.\nReason = {e}",
                 # )
-                run_error(panel_choice, ui_state, widget_registry, f"Failed to build headers using provided username/password.\nReason = {e}")
+                run_error(
+                    panel_choice,
+                    ui_state,
+                    widget_registry,
+                    f"Failed to build headers using provided username/password.\nReason = {e}",
+                )
                 return
     elif config_data.get("auth_type") == "Token Auth":
         if (
@@ -526,7 +616,12 @@ def configure_project_credentials(
             #     theme_manager=theme_manager,
             #     message="Missing Bearer Token, please provide information in the configuration panel.",
             # )
-            run_error(panel_choice, ui_state, widget_registry, "Missing Bearer Token, please provide information in the configuration panel.")
+            run_error(
+                panel_choice,
+                ui_state,
+                widget_registry,
+                "Missing Bearer Token, please provide information in the configuration panel.",
+            )
             return
         else:
             try:
@@ -541,7 +636,12 @@ def configure_project_credentials(
                 #     theme_manager=theme_manager,
                 #     message=f"Failed to build headers using provided Bearer Token.\nReason = {e}",
                 # )
-                run_error(panel_choice, ui_state, widget_registry, f"Failed to build headers using provided Bearer Token.\nReason = {e}")
+                run_error(
+                    panel_choice,
+                    ui_state,
+                    widget_registry,
+                    f"Failed to build headers using provided Bearer Token.\nReason = {e}",
+                )
                 return
 
     if config_data.get("proxy_option").lower() == "yes":
@@ -574,7 +674,6 @@ def toolbar_action(
     selected_items,
     root=None,
 ):
-    from threading import Thread
     db_path = "jira_manager/tickets.db"
     config_data = load_data()
     headers, proxies = configure_project_credentials(
@@ -593,11 +692,17 @@ def toolbar_action(
 
     # Ensure card_retainer is a list of dicts with 'key' as str
     if not isinstance(card_retainer, list):
-        print(f"WARNING: card_retainer was type {type(card_retainer)}, resetting to empty list.")
+        print(
+            f"WARNING: card_retainer was type {type(card_retainer)}, resetting to empty list."
+        )
         card_retainer = []
     else:
         # If card_retainer contains non-dict items, filter out
-        card_retainer = [x for x in card_retainer if isinstance(x, dict) and isinstance(x.get('key', ''), str)]
+        card_retainer = [
+            x
+            for x in card_retainer
+            if isinstance(x, dict) and isinstance(x.get("key", ""), str)
+        ]
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
@@ -624,12 +729,29 @@ def toolbar_action(
             if not worker_state["running"]:
                 worker_thread = Thread(
                     target=jql_worker,
-                    args=(panel_choice, theme_manager, card_retainer, db_path, selected_items, ui_state, widget_registry, stop_flag, jql_task_queue, worker_state),
-                    daemon=True
+                    args=(
+                        panel_choice,
+                        theme_manager,
+                        card_retainer,
+                        db_path,
+                        selected_items,
+                        ui_state,
+                        widget_registry,
+                        stop_flag,
+                        jql_task_queue,
+                        worker_state,
+                    ),
+                    daemon=True,
                 )
                 worker_thread.start()
+        except requests.exceptions.ConnectionError:
+            print("You appear to be offline or unable to connect to the server.")
         except Exception as e:
-            run_error(theme_manager=theme_manager, root=root, message=f"There was an error queueing the JQL request.\nReason = {e}.")
+            run_error(
+                theme_manager=theme_manager,
+                root=root,
+                message=f"There was an error queueing the JQL request.\nReason = {e}.",
+            )
             return
 
     # LOGIC FOR CONFIGURE PANEL
@@ -640,7 +762,6 @@ def toolbar_action(
         )
         thread.start()
 
-
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":
         tickets = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
@@ -648,9 +769,26 @@ def toolbar_action(
             panel_choice["error_panel"].update_message(
                 "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."
             )
-            card_retainer = panel_choice.get("card_retainer") if panel_choice and hasattr(panel_choice, "get") else None
-            selected_items = panel_choice.get("selected_items") if panel_choice and hasattr(panel_choice, "get") else None
-            switch_panel("error_panel", ui_state, panel_choice, widget_registry, None, None, card_retainer, selected_items)
+            card_retainer = (
+                panel_choice.get("card_retainer")
+                if panel_choice and hasattr(panel_choice, "get")
+                else None
+            )
+            selected_items = (
+                panel_choice.get("selected_items")
+                if panel_choice and hasattr(panel_choice, "get")
+                else None
+            )
+            switch_panel(
+                "error_panel",
+                ui_state,
+                panel_choice,
+                widget_registry,
+                None,
+                None,
+                card_retainer,
+                selected_items,
+            )
         else:
             # Sort card_retainer by integer part after dash, DESC
             def ticket_key_int(ticket):
@@ -659,6 +797,7 @@ def toolbar_action(
                     return int(key.split("-")[-1])
                 except Exception:
                     return 0
+
             card_retainer.sort(key=ticket_key_int, reverse=True)
             switch_panel(
                 "ticket_panel",
