@@ -3,7 +3,7 @@ import json
 import requests
 import base64
 from jira import JIRAError
-from jira_manager.custom_widgets import TicketCard
+from jira_manager.custom_widgets import TicketCard, TicketsExistPopup
 from pprint import pprint
 from PIL import Image, ImageTk
 from jira_manager.file_manager import load_data
@@ -184,6 +184,8 @@ def jql_search_handler(
             )
 
             try:
+                added_issues = []
+                existing_issues = []
                 issues = fetch_all_issues_threaded(
                     config_data, payload, headers, proxies, thread_count
                 )
@@ -200,48 +202,59 @@ def jql_search_handler(
                         f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}"
                     )
                     if check in card_retainer:
+                        existing_issues.append(key_val)
                         print("HERE!!! " + str(key_val))
                     else:
+                        added_issues.append(key_val)
                         card_retainer.append({"key": key_val})
                         new_issues.append(issue)
 
-                threads = []
-                for batch in batch_list(new_issues, thread_count):
-
-                    def safe_batch_insert(db_path, batch):
-                        try:
-                            batch_insert_tickets(db_path, batch)
-                        except Exception as e:
-                            print(f"Error in batch_insert_tickets: {e}")
-
-                    thread = Thread(
-                        target=safe_batch_insert,
-                        args=(db_path, batch),
-                        daemon=True,
-                    )
-                    threads.append(thread)
-                    threads[-1].start()
-                for thread in threads:
-                    thread.join()
-                print("Batch insert completed.")
-                print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-                print(
-                    f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
-                )
-                print(f"DEBUG: selected_items before switch_panel: {selected_items}")
-                print(
-                    f"DEBUG: selected_items types: {[type(x) for x in selected_items]}"
-                )
-                switch_panel(
-                    "ticket_panel",
-                    ui_state,
-                    panel_choice,
-                    widget_registry,
-                    db_path,
+                # Always show the popup if there are any existing or added tickets
+                TicketsExistPopup(
+                    widget_registry.get("jql_query").winfo_toplevel(),
+                    existing_issues,
+                    added_issues,
                     theme_manager,
-                    card_retainer,
-                    selected_items,
                 )
+
+                if new_issues:
+                    # Only reload ticket panel if new tickets were added
+                    threads = []
+                    for batch in batch_list(new_issues, thread_count):
+                        def safe_batch_insert(db_path, batch):
+                            try:
+                                batch_insert_tickets(db_path, batch)
+                            except Exception as e:
+                                print(f"Error in batch_insert_tickets: {e}")
+                        thread = Thread(
+                            target=safe_batch_insert,
+                            args=(db_path, batch),
+                            daemon=True,
+                        )
+                        threads.append(thread)
+                        threads[-1].start()
+                    for thread in threads:
+                        thread.join()
+                    print("Batch insert completed.")
+                    print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
+                    print(
+                        f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
+                    )
+                    print(f"DEBUG: selected_items before switch_panel: {selected_items}")
+                    print(
+                        f"DEBUG: selected_items types: {[type(x) for x in selected_items]}"
+                    )
+                    switch_panel(
+                        "ticket_panel",
+                        ui_state,
+                        panel_choice,
+                        widget_registry,
+                        db_path,
+                        theme_manager,
+                        card_retainer,
+                        selected_items,
+                    )
+                # If no new tickets, do NOT reload ticket panel
             except requests.exceptions.ConnectionError:
                 print("You appear to be offline or unable to connect to the server.")
                 run_error(

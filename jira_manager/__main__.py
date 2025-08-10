@@ -67,6 +67,8 @@ def enter_key_clear_focus_run_btn_event(
     run_count,
     card_retainer,
     selected_items,
+    jql_task_queue,
+    jql_worker_running
 ):
     toolbar_action(
         payload,
@@ -75,7 +77,9 @@ def enter_key_clear_focus_run_btn_event(
         widget_registry,
         theme_manager,
         stop_flag,
-        thread_count,
+        jql_task_queue,
+        jql_worker_running,
+        # thread_count,
         card_retainer,
         selected_items,
         root,
@@ -268,24 +272,29 @@ def main():
     ticket_btn.pack(side="left", padx=10)
     theme_manager.register(ticket_btn, "base_button")
 
+
+    def jql_search_handler(event=None):
+        toolbar_action(
+            {"type": "search_jiras", "jql": jql_search.get_user_input()},
+            ui_state,
+            panel_choice,
+            widget_registry,
+            theme_manager,
+            stop_flag,
+            JQL_TASK_QUEUE,
+            JQL_WORKER_RUNNING,
+            card_retainer,
+            selected_items_for_update,
+            root,
+        )
+        root.focus_set()
+
     jql_search_btn = tk.Button(
         toolbar,
         text="Search Jira",
         command=lambda: safe_button_action(
             None,
-            lambda: toolbar_action(
-                {"type": "search_jiras", "jql": jql_search.get()},
-                ui_state,
-                panel_choice,
-                widget_registry,
-                theme_manager,
-                stop_flag,
-                JQL_TASK_QUEUE,
-                JQL_WORKER_RUNNING,
-                card_retainer,
-                selected_items_for_update,
-                root,
-            ),
+            jql_search_handler,
             panel_choice=panel_choice,
         ),
     )
@@ -301,22 +310,7 @@ def main():
     jql_search.pack(side="left", padx=10)
     theme_manager.register(jql_search, "placeholder_entry")
     widget_registry["jql_query"] = jql_search
-    jql_search.bind(
-        "<Return>",
-        lambda event: enter_key_clear_focus_run_btn_event(
-            root,
-            {"type": "search_jiras", "jql": jql_search.get()},
-            ui_state,
-            panel_choice,
-            widget_registry,
-            theme_manager,
-            stop_flag,
-            thread_count,
-            card_retainer,
-            selected_items_for_update,
-            root,
-        ),
-    )
+    jql_search.bind("<Return>", jql_search_handler)
 
     # DIVIDER
     create_divider(root, theme_manager)

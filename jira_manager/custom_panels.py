@@ -118,6 +118,13 @@ def switch_panel(
         if configure_btn:
             configure_btn.config(state="disabled")
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+        # Set focus to ticket panel canvas for instant mouse wheel scrolling
+        try:
+            canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
+            if canvas:
+                canvas.focus_set()
+        except Exception:
+            pass
     else:
         if configure_btn:
             configure_btn.config(state="normal")
@@ -1034,10 +1041,21 @@ class TicketDisplayBuilder(tk.Frame):
         canvas = tk.Canvas(self)
         canvas.pack(fill="both", expand=True, side="left")
         self.theme_manager.register(canvas, "frame")
-        # Scrollbar is created but not packed, so it's hidden
-        hidden_scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=hidden_scrollbar.set)
+        # Always show the scrollbar for reliable scrolling
+        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+        canvas.configure(yscrollcommand=scrollbar.set)
         self.widget_registry["canvas"] = canvas
+        # Simple, direct mouse wheel binding
+        def on_mousewheel(event):
+            if event.num == 4 or event.delta > 0:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5 or event.delta < 0:
+                canvas.yview_scroll(1, "units")
+            return "break"
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        canvas.bind("<Button-4>", on_mousewheel)
+        canvas.bind("<Button-5>", on_mousewheel)
 
         base_frame = tk.Frame(canvas)
         self.widget_registry["base_frame"] = base_frame
