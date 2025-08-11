@@ -1,3 +1,41 @@
+def create_receipts_table(db_path):
+    from jira_manager.sql import receipts_table
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(receipts_table)
+        conn.commit()
+
+def insert_receipt(db_path, existing_tickets, added_tickets):
+    import datetime, json
+    create_receipts_table(db_path)
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO receipts (created_at, existing_tickets, added_tickets) VALUES (?, ?, ?)",
+            (
+                datetime.datetime.now().isoformat(),
+                json.dumps(existing_tickets),
+                json.dumps(added_tickets)
+            )
+        )
+        conn.commit()
+
+def fetch_all_receipts(db_path):
+    create_receipts_table(db_path)
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT receipt_id, created_at, existing_tickets, added_tickets FROM receipts ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+    import json
+    return [
+        {
+            "receipt_id": row[0],
+            "created_at": row[1],
+            "existing_tickets": json.loads(row[2]),
+            "added_tickets": json.loads(row[3])
+        }
+        for row in rows
+    ]
 import sqlite3
 
 # def insert_fields_into_db(db_path, ticket_id, field_rows):

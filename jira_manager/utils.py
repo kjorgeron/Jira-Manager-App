@@ -3,7 +3,7 @@ import json
 import requests
 import base64
 from jira import JIRAError
-from jira_manager.custom_widgets import TicketCard, TicketsExistPopup
+from jira_manager.custom_widgets import TicketCard, WorkReceiptsPanel
 from pprint import pprint
 from PIL import Image, ImageTk
 from jira_manager.file_manager import load_data
@@ -209,13 +209,40 @@ def jql_search_handler(
                         card_retainer.append({"key": key_val})
                         new_issues.append(issue)
 
-                # Always show the popup if there are any existing or added tickets
-                TicketsExistPopup(
-                    widget_registry.get("jql_query").winfo_toplevel(),
-                    existing_issues,
-                    added_issues,
-                    theme_manager,
-                )
+
+                # Create the receipt in the database
+                import os
+                from jira_manager.sql_manager import insert_receipt
+                db_path = os.path.join(os.path.dirname(__file__), "tickets.db")
+                insert_receipt(db_path, existing_issues, added_issues)
+                parent = widget_registry.get("jql_query").winfo_toplevel()
+
+                # Show a simple popup to inform the user
+                def show_receipt_popup():
+                    popup = tk.Toplevel(widget_registry.get("jql_query").winfo_toplevel())
+                    popup.title("Receipt Created")
+                    popup.geometry("300x120")
+                    label = tk.Label(popup, text="A work receipt has been created.", font=("Trebuchet MS", 12))
+                    label.pack(pady=20)
+                    ok_btn = tk.Button(popup, text="OK", command=popup.destroy, font=("Segoe UI", 11, "bold"))
+                    ok_btn.pack(pady=10)
+                    popup.transient(widget_registry.get("jql_query").winfo_toplevel())
+                    popup.grab_set()
+                    popup.lift()
+                show_receipt_popup()
+
+                # Add a button to the ticket panel to view receipts
+                ticket_panel = parent.panel_choice.get("ticket_panel") if hasattr(parent, "panel_choice") else None
+                if ticket_panel and not hasattr(ticket_panel, "_receipts_btn_added"):
+                    def show_receipts_panel():
+                        for child in parent.winfo_children():
+                            child.pack_forget()
+                        from jira_manager.custom_widgets import WorkReceiptsPanel
+                        receipts_panel = WorkReceiptsPanel(parent, theme_manager=theme_manager)
+                        receipts_panel.pack(fill="both", expand=True)
+                    receipts_btn = tk.Button(ticket_panel, text="View Receipts", command=show_receipts_panel, font=("Trebuchet MS", 11, "bold"))
+                    receipts_btn.pack(side="top", pady=8)
+                    ticket_panel._receipts_btn_added = True
 
                 if new_issues:
                     # Only reload ticket panel if new tickets were added

@@ -1,3 +1,4 @@
+        # ...existing code...
 import functools
 import tkinter as tk
 from getpass import getuser
@@ -182,6 +183,9 @@ def main():
     ticket_panel = setup_ticket_panel(
         root, theme_manager, card_retainer, selected_items_for_update
     )
+    from jira_manager.custom_widgets import WorkReceiptsPanel
+    receipts_panel = WorkReceiptsPanel(root, theme_manager=theme_manager)
+    theme_manager.register(receipts_panel, "frame")
 
     # PANEL CHOICES
 
@@ -189,6 +193,7 @@ def main():
         "error_panel": error_panel,
         "configure_panel": configure_panel,
         "ticket_panel": ticket_panel,
+        "receipts_panel": receipts_panel,
         "card_retainer": card_retainer,
     }
 
@@ -271,6 +276,28 @@ def main():
     )
     ticket_btn.pack(side="left", padx=10)
     theme_manager.register(ticket_btn, "base_button")
+
+    # Add 'View Receipts' navigation button to toolbar
+    from jira_manager.custom_widgets import WorkReceiptsPanel
+    # Add WorkReceiptsPanel to panel_choice
+    panel_choice["receipts_panel"] = None
+
+    def show_receipts_panel():
+        from jira_manager.custom_widgets import WorkReceiptsPanel
+        # Always re-create to refresh data
+        if panel_choice["receipts_panel"]:
+            panel_choice["receipts_panel"].destroy()
+        panel_choice["receipts_panel"] = WorkReceiptsPanel(root, theme_manager=theme_manager)
+        switch_panel("receipts_panel", ui_state, panel_choice, widget_registry)
+
+    receipts_btn = tk.Button(
+        toolbar,
+        text="View Receipts",
+        command=show_receipts_panel,
+        font=("Trebuchet MS", 11, "bold")
+    )
+    receipts_btn.pack(side="left", padx=10)
+    theme_manager.register(receipts_btn, "base_button")
 
 
     def jql_search_handler(event=None):

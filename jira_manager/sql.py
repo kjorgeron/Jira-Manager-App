@@ -1,3 +1,10 @@
+receipts_table = """CREATE TABLE IF NOT EXISTS receipts (
+    receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    existing_tickets TEXT,
+    added_tickets TEXT
+);
+"""
 tickets_table = """CREATE TABLE IF NOT EXISTS tickets (
     ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT NOT NULL UNIQUE,

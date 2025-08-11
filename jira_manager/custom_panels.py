@@ -106,6 +106,14 @@ def switch_panel(
             welcome_label.pack_forget()
         next_panel.pack(fill="x", padx=100, pady=10)
 
+    # Handle receipts_panel: change welcome label and show panel
+    elif panel_key == "receipts_panel":
+        if welcome_label:
+            welcome_label.config(text="Receipt Log")
+            if not welcome_label.winfo_ismapped():
+                welcome_label.pack(pady=10)
+        next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+
     # Handle configure button flicker: only enable/disable, never pack/forget
     configure_btn = (
         widget_registry.get("configure_btn")
@@ -123,13 +131,15 @@ def switch_panel(
             canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
             if canvas:
                 canvas.focus_set()
-        except Exception:
-            pass
+                print(f"[DEBUG] Focused canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}")
+        except Exception as e:
+            print(f"[DEBUG] Canvas focus error: {e}")
     else:
         if configure_btn:
             configure_btn.config(state="normal")
 
     if panel_key == "ticket_panel":
+    # ...existing code...
         if db_path:
             try:
                 issues = run_sql_stmt(
@@ -1048,6 +1058,10 @@ class TicketDisplayBuilder(tk.Frame):
         self.widget_registry["canvas"] = canvas
         # Simple, direct mouse wheel binding
         def on_mousewheel(event):
+            print(f"[DEBUG] on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}")
+            if canvas != canvas.focus_displayof():
+                canvas.focus_set()
+                print(f"[DEBUG] Focus set to canvas: {canvas}")
             if event.num == 4 or event.delta > 0:
                 canvas.yview_scroll(-1, "units")
             elif event.num == 5 or event.delta < 0:
@@ -1075,6 +1089,10 @@ class TicketDisplayBuilder(tk.Frame):
 
         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
+            print(f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}")
+            if canvas != canvas.focus_displayof():
+                canvas.focus_set()
+                print(f"[DEBUG] Focus set to canvas: {canvas}")
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)

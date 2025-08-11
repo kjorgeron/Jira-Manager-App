@@ -1,4 +1,61 @@
 import tkinter as tk
+class WorkReceiptsPanel(tk.Frame):
+    def __init__(self, master, existing_ticket_keys=None, added_ticket_keys=None, theme_manager=None):
+        super().__init__(master)
+        self.theme_manager = theme_manager
+        self.theme_manager.register(self, "frame")
+
+        from jira_manager.sql_manager import fetch_all_receipts, insert_receipt
+        import os
+        db_path = os.path.join(os.path.dirname(__file__), "tickets.db")
+
+        # If new receipt is provided, insert it
+        if existing_ticket_keys or added_ticket_keys:
+            insert_receipt(db_path, existing_ticket_keys or [], added_ticket_keys or [])
+
+        # Panel dimensions can be set by parent layout
+        frame = tk.Frame(self, padx=20, pady=20)
+        self.theme_manager.register(frame, "frame")
+        frame.pack(fill="both", expand=True)
+
+        # Title
+        title_label = tk.Label(frame, text="Work Receipts", font=("Trebuchet MS", 15, "bold"))
+        self.theme_manager.register(title_label, "label")
+        title_label.pack(pady=(0, 10))
+
+        # Scrollable receipts list
+        receipts_canvas = tk.Canvas(frame, borderwidth=0, height=300)
+        self.theme_manager.register(receipts_canvas, "frame")
+        receipts_canvas.pack(side="left", fill="both", expand=True)
+        receipts_scrollbar = tk.Scrollbar(frame, orient="vertical", command=receipts_canvas.yview)
+        receipts_scrollbar.pack(side="right", fill="y")
+        receipts_canvas.configure(yscrollcommand=receipts_scrollbar.set)
+        receipts_inner = tk.Frame(receipts_canvas)
+        self.theme_manager.register(receipts_inner, "frame")
+        receipts_canvas.create_window((0, 0), window=receipts_inner, anchor="nw")
+        def on_receipts_configure(event):
+            receipts_canvas.configure(scrollregion=receipts_canvas.bbox("all"))
+        receipts_inner.bind("<Configure>", on_receipts_configure)
+
+        # Load and display all receipts
+        receipts = fetch_all_receipts(db_path)
+        for receipt in receipts:
+            receipt_frame = tk.Frame(receipts_inner, bd=1, relief="groove", padx=8, pady=8)
+            self.theme_manager.register(receipt_frame, "frame")
+            receipt_frame.pack(fill="x", pady=6)
+            tk.Label(receipt_frame, text=f"Receipt #{receipt['receipt_id']} - {receipt['created_at'][:19]}", font=("Trebuchet MS", 11, "bold")).pack(anchor="w")
+            tk.Label(receipt_frame, text=f"Existing Tickets: {', '.join(receipt['existing_tickets'])}", font=("Segoe UI", 10)).pack(anchor="w", pady=(2,0))
+            tk.Label(receipt_frame, text=f"Added Tickets: {', '.join(receipt['added_tickets'])}", font=("Segoe UI", 10)).pack(anchor="w", pady=(2,0))
+
+        def on_receipts_mousewheel(event):
+            if receipts_canvas != receipts_canvas.focus_displayof():
+                receipts_canvas.focus_set()
+            receipts_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            return "break"
+        receipts_canvas.bind("<MouseWheel>", on_receipts_mousewheel)
+        receipts_canvas.bind("<Button-4>", on_receipts_mousewheel)
+        receipts_canvas.bind("<Button-5>", on_receipts_mousewheel)
+import tkinter as tk
 from jira_manager.sql_manager import run_sql_stmt
 
 
@@ -433,6 +490,10 @@ class TicketsExistPopup(tk.Toplevel):
                 self.theme_manager.register(ticket_label, "label")
             # Simple, direct mouse wheel binding
             def on_left_mousewheel(event):
+                print(f"[DEBUG] on_left_mousewheel: left_canvas={self.left_canvas}, has focus={self.left_canvas == self.left_canvas.focus_displayof()}")
+                if self.left_canvas != self.left_canvas.focus_displayof():
+                    self.left_canvas.focus_set()
+                    print(f"[DEBUG] Focus set to left_canvas: {self.left_canvas}")
                 if event.num == 4 or event.delta > 0:
                     self.left_canvas.yview_scroll(-1, "units")
                 elif event.num == 5 or event.delta < 0:
@@ -473,6 +534,10 @@ class TicketsExistPopup(tk.Toplevel):
                 self.theme_manager.register(ticket_label, "label")
             # Simple, direct mouse wheel binding
             def on_right_mousewheel(event):
+                print(f"[DEBUG] on_right_mousewheel: right_canvas={self.right_canvas}, has focus={self.right_canvas == self.right_canvas.focus_displayof()}")
+                if self.right_canvas != self.right_canvas.focus_displayof():
+                    self.right_canvas.focus_set()
+                    print(f"[DEBUG] Focus set to right_canvas: {self.right_canvas}")
                 if event.num == 4 or event.delta > 0:
                     self.right_canvas.yview_scroll(-1, "units")
                 elif event.num == 5 or event.delta < 0:
@@ -485,8 +550,10 @@ class TicketsExistPopup(tk.Toplevel):
         # On popup open, set focus to first visible canvas for instant mouse wheel scrolling
         if show_left and self.left_canvas:
             self.left_canvas.focus_set()
+            print(f"[DEBUG] Popup focused left_canvas: {self.left_canvas}, has focus: {self.left_canvas == self.left_canvas.focus_displayof()}")
         elif show_right and self.right_canvas:
             self.right_canvas.focus_set()
+            print(f"[DEBUG] Popup focused right_canvas: {self.right_canvas}, has focus: {self.right_canvas == self.right_canvas.focus_displayof()}")
 
         btn_frame = tk.Frame(frame)
         self.theme_manager.register(btn_frame, "frame")
@@ -517,8 +584,13 @@ class TicketsExistPopup(tk.Toplevel):
                     canvas = ticket_panel.widget_registry.get('canvas')
                     if canvas:
                         canvas.focus_set()
-            except Exception:
-                pass
+                        print(f"[DEBUG] Restored focus to ticket_panel canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}")
+                    else:
+                        print("[DEBUG] No canvas found in ticket_panel.widget_registry")
+                else:
+                    print("[DEBUG] No ticket_panel found in root or master.panel_choice")
+            except Exception as e:
+                print(f"[DEBUG] Error restoring focus to ticket_panel canvas: {e}")
 
         ok_btn = tk.Button(
             btn_frame,
@@ -893,9 +965,9 @@ class TicketsExistPopup(tk.Toplevel):
 
         # Ensure canvases get focus when mouse enters, so mouse wheel events are handled only by popup
         if show_left:
-            left_canvas.bind("<Enter>", lambda e: left_canvas.focus_set())
+            left_canvas.bind("<Enter>", lambda e: (left_canvas.focus_set(), print(f"[DEBUG] <Enter> left_canvas: {left_canvas}, has focus: {left_canvas == left_canvas.focus_displayof()}")))
         if show_right:
-            right_canvas.bind("<Enter>", lambda e: right_canvas.focus_set())
+            right_canvas.bind("<Enter>", lambda e: (right_canvas.focus_set(), print(f"[DEBUG] <Enter> right_canvas: {right_canvas}, has focus: {right_canvas == right_canvas.focus_displayof()}")))
 
         # Restore mouse wheel events and focus on root when popup is closed
         def restore_root_mousewheel():
