@@ -43,9 +43,15 @@ class WorkReceiptsPanel(tk.Frame):
             receipt_frame = tk.Frame(receipts_inner, bd=1, relief="groove", padx=8, pady=8)
             self.theme_manager.register(receipt_frame, "frame")
             receipt_frame.pack(fill="x", pady=6)
-            tk.Label(receipt_frame, text=f"Receipt #{receipt['receipt_id']} - {receipt['created_at'][:19]}", font=("Trebuchet MS", 11, "bold")).pack(anchor="w")
-            tk.Label(receipt_frame, text=f"Existing Tickets: {', '.join(receipt['existing_tickets'])}", font=("Segoe UI", 10)).pack(anchor="w", pady=(2,0))
-            tk.Label(receipt_frame, text=f"Added Tickets: {', '.join(receipt['added_tickets'])}", font=("Segoe UI", 10)).pack(anchor="w", pady=(2,0))
+            title = tk.Label(receipt_frame, text=f"Receipt #{receipt['receipt_id']} - {receipt['created_at'][:19]}", font=("Trebuchet MS", 14, "bold"))
+            self.theme_manager.register(title, "label")
+            title.pack(anchor="w")
+            existing = tk.Label(receipt_frame, text=f"Existing Tickets: {', '.join(receipt['existing_tickets'])}", font=("Trebuchet MS", 12))
+            self.theme_manager.register(existing, "label")
+            existing.pack(anchor="w", pady=(2,0))
+            added = tk.Label(receipt_frame, text=f"Added Tickets: {', '.join(receipt['added_tickets'])}", font=("Trebuchet MS", 12))
+            self.theme_manager.register(added, "label")
+            added.pack(anchor="w", pady=(2,0))
 
         def on_receipts_mousewheel(event):
             if receipts_canvas != receipts_canvas.focus_displayof():
