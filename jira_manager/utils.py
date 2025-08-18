@@ -208,6 +208,9 @@ def jql_search_handler(
                         added_issues.append(key_val)
                         card_retainer.append({"key": key_val})
                         new_issues.append(issue)
+                        # Ensure ticket is inserted into the database
+                        from jira_manager.sql_manager import add_or_find_key_return_id
+                        add_or_find_key_return_id(db_path, key_val)
 
 
                 # Create the receipt in the database
@@ -226,48 +229,43 @@ def jql_search_handler(
                     popup.transient(master)
                     popup.grab_set()
                     theme_manager.register(popup, "frame")
-                    border_color = getattr(theme_manager.theme, "primary_color", theme_manager.theme.get("primary_color", "#0078d7"))
-                    border_frame = tk.Frame(popup, bg=border_color, bd=1, relief="solid")
-                    border_frame.pack(fill="both", expand=True)
-                    frame = tk.Frame(border_frame, padx=20, pady=20)
+                    frame = tk.Frame(popup, padx=20, pady=20)
                     theme_manager.register(frame, "frame")
                     frame.pack(fill="both", expand=True, padx=1, pady=1)
 
-                    frame.update_idletasks()
-                    w = border_frame.winfo_reqwidth() + 2
-                    h = border_frame.winfo_reqheight() + 2
-                    master.update_idletasks()
-                    main_x = master.winfo_x()
-                    main_y = master.winfo_y()
-                    main_w = master.winfo_width()
-                    main_h = master.winfo_height()
-                    x = main_x + (main_w // 2) - (w // 2)
-                    y = main_y + (main_h // 2) - (h // 2)
-                    popup.geometry(f"{w}x{h}+{x}+{y}")
+                    def center_popup():
+                        frame.update_idletasks()
+                        w = frame.winfo_reqwidth() + 40
+                        h = frame.winfo_reqheight() + 40
+                        master.update_idletasks()
+                        main_x = master.winfo_x()
+                        main_y = master.winfo_y()
+                        main_w = master.winfo_width()
+                        main_h = master.winfo_height()
+                        x = main_x + (main_w // 2) - (w // 2)
+                        y = main_y + (main_h // 2) - (h // 2)
+                        popup.geometry(f"{w}x{h}+{x}+{y}")
+                        popup.lift()
+                        popup.update_idletasks()
+                        try:
+                            popup.focus_force()
+                            popup.focus_set()
+                        except Exception:
+                            pass
+
                     label = tk.Label(frame, text="A work receipt has been created.", font=("Trebuchet MS", 14, "bold"))
                     theme_manager.register(label, "label")
                     label.pack(pady=20)
-                    close_btn = tk.Button(frame, text="Close", command=popup.destroy, font=("Segoe UI", 11, "bold"), cursor="hand2")
+                    def close_popup():
+                        master.unbind("<Configure>")
+                        popup.destroy()
+
+                    close_btn = tk.Button(frame, text="Close", command=close_popup, font=("Segoe UI", 11, "bold"), cursor="hand2")
                     theme_manager.register(close_btn, "base_button")
                     close_btn.pack(pady=10)
-                    frame.update_idletasks()
-                    w = frame.winfo_reqwidth() + 40
-                    h = frame.winfo_reqheight() + 40
-                    master.update_idletasks()
-                    main_x = master.winfo_x()
-                    main_y = master.winfo_y()
-                    main_w = master.winfo_width()
-                    main_h = master.winfo_height()
-                    x = main_x + (main_w // 2) - (w // 2)
-                    y = main_y + (main_h // 2) - (h // 2)
-                    popup.geometry(f"{w}x{h}+{x}+{y}")
-                    popup.lift()
-                    popup.update_idletasks()
-                    try:
-                        popup.focus_force()
-                        popup.focus_set()
-                    except Exception:
-                        pass
+
+                    center_popup()
+                    master.bind("<Configure>", lambda e: center_popup())
                 show_receipt_popup()
 
                 # Add a button to the ticket panel to view receipts

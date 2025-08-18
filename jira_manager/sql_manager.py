@@ -319,12 +319,14 @@ def add_or_find_key_return_id(db_path: str, key: str) -> int:
             return ticket_id
         else:
             # ADD MISSING KEY TO DATABASE
-            payload = {"key": key}
             run_sql_stmt(
-                db_path, table_name="tickets", data=payload, stmt_type="insert"
+                db_path,
+                sql="INSERT INTO tickets (key) VALUES (?)",
+                stmt_type="insert",
+                params=(key,)
             )
             items = run_sql_stmt(db_path, select, stmt_type="select")
-            if len(items) > 0:
+            if items and len(items) > 0:
                 print(f"Item created successfully!\nRecords = {items}")
                 ticket_id, key, needs_update = items[0]
                 return ticket_id
