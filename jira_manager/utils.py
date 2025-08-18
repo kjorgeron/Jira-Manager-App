@@ -219,16 +219,55 @@ def jql_search_handler(
 
                 # Show a simple popup to inform the user
                 def show_receipt_popup():
-                    popup = tk.Toplevel(widget_registry.get("jql_query").winfo_toplevel())
-                    popup.title("Receipt Created")
-                    popup.geometry("300x120")
-                    label = tk.Label(popup, text="A work receipt has been created.", font=("Trebuchet MS", 12))
-                    label.pack(pady=20)
-                    ok_btn = tk.Button(popup, text="OK", command=popup.destroy, font=("Segoe UI", 11, "bold"))
-                    ok_btn.pack(pady=10)
-                    popup.transient(widget_registry.get("jql_query").winfo_toplevel())
+                    master = widget_registry.get("jql_query").winfo_toplevel()
+                    popup = tk.Toplevel(master)
+                    popup.overrideredirect(True)  # Remove title bar
+                    popup.resizable(False, False)
+                    popup.transient(master)
                     popup.grab_set()
+                    theme_manager.register(popup, "frame")
+                    border_color = getattr(theme_manager.theme, "primary_color", theme_manager.theme.get("primary_color", "#0078d7"))
+                    border_frame = tk.Frame(popup, bg=border_color, bd=1, relief="solid")
+                    border_frame.pack(fill="both", expand=True)
+                    frame = tk.Frame(border_frame, padx=20, pady=20)
+                    theme_manager.register(frame, "frame")
+                    frame.pack(fill="both", expand=True, padx=1, pady=1)
+
+                    frame.update_idletasks()
+                    w = border_frame.winfo_reqwidth() + 2
+                    h = border_frame.winfo_reqheight() + 2
+                    master.update_idletasks()
+                    main_x = master.winfo_x()
+                    main_y = master.winfo_y()
+                    main_w = master.winfo_width()
+                    main_h = master.winfo_height()
+                    x = main_x + (main_w // 2) - (w // 2)
+                    y = main_y + (main_h // 2) - (h // 2)
+                    popup.geometry(f"{w}x{h}+{x}+{y}")
+                    label = tk.Label(frame, text="A work receipt has been created.", font=("Trebuchet MS", 14, "bold"))
+                    theme_manager.register(label, "label")
+                    label.pack(pady=20)
+                    close_btn = tk.Button(frame, text="Close", command=popup.destroy, font=("Segoe UI", 11, "bold"), cursor="hand2")
+                    theme_manager.register(close_btn, "base_button")
+                    close_btn.pack(pady=10)
+                    frame.update_idletasks()
+                    w = frame.winfo_reqwidth() + 40
+                    h = frame.winfo_reqheight() + 40
+                    master.update_idletasks()
+                    main_x = master.winfo_x()
+                    main_y = master.winfo_y()
+                    main_w = master.winfo_width()
+                    main_h = master.winfo_height()
+                    x = main_x + (main_w // 2) - (w // 2)
+                    y = main_y + (main_h // 2) - (h // 2)
+                    popup.geometry(f"{w}x{h}+{x}+{y}")
                     popup.lift()
+                    popup.update_idletasks()
+                    try:
+                        popup.focus_force()
+                        popup.focus_set()
+                    except Exception:
+                        pass
                 show_receipt_popup()
 
                 # Add a button to the ticket panel to view receipts
@@ -244,43 +283,17 @@ def jql_search_handler(
                     receipts_btn.pack(side="top", pady=8)
                     ticket_panel._receipts_btn_added = True
 
-                if new_issues:
-                    # Only reload ticket panel if new tickets were added
-                    threads = []
-                    for batch in batch_list(new_issues, thread_count):
-                        def safe_batch_insert(db_path, batch):
-                            try:
-                                batch_insert_tickets(db_path, batch)
-                            except Exception as e:
-                                print(f"Error in batch_insert_tickets: {e}")
-                        thread = Thread(
-                            target=safe_batch_insert,
-                            args=(db_path, batch),
-                            daemon=True,
-                        )
-                        threads.append(thread)
-                        threads[-1].start()
-                    for thread in threads:
-                        thread.join()
-                    print("Batch insert completed.")
-                    print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-                    print(
-                        f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
-                    )
-                    print(f"DEBUG: selected_items before switch_panel: {selected_items}")
-                    print(
-                        f"DEBUG: selected_items types: {[type(x) for x in selected_items]}"
-                    )
-                    switch_panel(
-                        "ticket_panel",
-                        ui_state,
-                        panel_choice,
-                        widget_registry,
-                        db_path,
-                        theme_manager,
-                        card_retainer,
-                        selected_items,
-                    )
+                # Always redirect to ticket_panel after showing receipt popup
+                switch_panel(
+                    "ticket_panel",
+                    ui_state,
+                    panel_choice,
+                    widget_registry,
+                    db_path,
+                    theme_manager,
+                    card_retainer,
+                    selected_items,
+                )
                 # If no new tickets, do NOT reload ticket panel
             except requests.exceptions.ConnectionError:
                 print("You appear to be offline or unable to connect to the server.")
