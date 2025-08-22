@@ -789,18 +789,36 @@ class TicketDisplayBuilder(tk.Frame):
 
             canvas.bind("<MouseWheel>", _on_mousewheel)
 
-    def set_page_contents(self, pg_num: int, selected_items):
-        maximum = pg_num * 50
-        minimum = maximum - 50
 
-        if maximum > len(self.tickets):
-            maximum = len(self.tickets)
+
+    def set_page_contents(self, pg_num: int, selected_items):
+        # Always recalculate total tickets and pages after deletions
+        total_tickets = len(self.tickets)
+        tickets_per_page = 50
+        last_page = max(1, ceil(total_tickets / tickets_per_page))
+
+        # Clamp page number to valid range
+        pg_num = max(1, min(pg_num, last_page))
+
+        # If the current page is now empty (after deletions), move to previous page if possible
+        minimum = (pg_num - 1) * tickets_per_page
+        maximum = min(pg_num * tickets_per_page, total_tickets)
+        # If there are no tickets to show and we're not on the first page, move to previous page
+        while minimum >= total_tickets and pg_num > 1:
+            pg_num -= 1
+            minimum = (pg_num - 1) * tickets_per_page
+            maximum = min(pg_num * tickets_per_page, total_tickets)
+
+        # Update page indicator and total page count
+        if "current_pg" in self.widget_registry:
+            self.widget_registry["current_pg"].config(text=str(pg_num))
+        if "total_tickets" in self.widget_registry:
+            total_pages = max(1, ceil(total_tickets / tickets_per_page))
+            self.widget_registry["total_tickets"].config(text=str(total_pages))
 
         base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
         parent = base_frame.master
-        # Create overlay on parent to mask base_frame
         overlay = tk.Frame(parent)
-        # Place overlay exactly over base_frame
         overlay.place(
             x=base_frame.winfo_x(),
             y=base_frame.winfo_y(),
@@ -810,10 +828,10 @@ class TicketDisplayBuilder(tk.Frame):
         self.theme_manager.register(overlay, "frame")
         overlay.lift()
         parent.update_idletasks()
-        # Only destroy children, do not repack base_frame
         for child in base_frame.winfo_children():
             child.destroy()
 
+        # Slice tickets for the current page only
         tickets_to_show = self.tickets[minimum:maximum]
         for ticket in tickets_to_show:
             card = TicketCard(
@@ -834,26 +852,43 @@ class TicketDisplayBuilder(tk.Frame):
                 )
             card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
 
-        # Add 'Return to Top' button at the bottom center
         def scroll_to_top():
             canvas = self.widget_registry.get("canvas")
             canvas.yview_moveto(0)
 
+        # Always recreate the button frame and destroy any previous button
         btn_frame = tk.Frame(base_frame)
         btn_frame.pack(side="top", fill="x", pady=10)
         self.theme_manager.register(btn_frame, "frame")
-        return_top_btn = tk.Button(
-            btn_frame,
-            text="Return to Top",
-            command=scroll_to_top,
-            font=("Segoe UI", 12, "bold"),
-            cursor="hand2",
-        )
-        return_top_btn.pack(side="top", pady=5)
-        self.theme_manager.register(return_top_btn, "base_button")
+        # Remove any previous button if present
+        if hasattr(self, "return_top_btn") and self.return_top_btn:
+            try:
+                self.return_top_btn.destroy()
+            except Exception:
+                pass
+            self.return_top_btn = None
+        # Show 'Return to Top' only if the vertical scrollbar is visible (content overflows)
+        canvas = self.widget_registry.get("canvas")
+        base_frame.update_idletasks()
+        needs_scroll = False
+        if canvas is not None:
+            scrollregion = canvas.bbox("all")
+            if scrollregion:
+                visible_height = canvas.winfo_height()
+                content_height = scrollregion[3] - scrollregion[1]
+                needs_scroll = content_height > visible_height
+        if needs_scroll:
+            self.return_top_btn = tk.Button(
+                btn_frame,
+                text="Return to Top",
+                command=scroll_to_top,
+                font=("Segoe UI", 12, "bold"),
+                cursor="hand2",
+            )
+            self.return_top_btn.pack(side="top", pady=5)
+            self.theme_manager.register(self.return_top_btn, "base_button")
 
         base_frame.update_idletasks()
-        # Reposition overlay in case base_frame moved/resized
         overlay.place(
             x=base_frame.winfo_x(),
             y=base_frame.winfo_y(),
@@ -862,7 +897,6 @@ class TicketDisplayBuilder(tk.Frame):
         )
         overlay.lift()
 
-        # Keep overlay visible a bit longer to mask ticket loading
         def remove_overlay():
             overlay.destroy()
 
@@ -978,6 +1012,8 @@ class TicketDisplayBuilder(tk.Frame):
         nxt_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(nxt_btn, "base_button")
         self.widget_registry["nxt_btn"] = nxt_btn
+
+
 
         # Dropdown-style page jump
         from jira_manager.custom_widgets import EntryWithPlaceholder

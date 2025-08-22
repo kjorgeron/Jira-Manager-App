@@ -209,8 +209,8 @@ def jql_search_handler(
                         card_retainer.append({"key": key_val})
                         new_issues.append(issue)
                         # Ensure ticket is inserted into the database
-                        from jira_manager.sql_manager import add_or_find_key_return_id
-                        add_or_find_key_return_id(db_path, key_val)
+                        created_ticket_id = add_or_find_key_return_id(db_path, key_val)
+                        print(f"{created_ticket_id=}")
 
 
                 # Create the receipt in the database
