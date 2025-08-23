@@ -196,7 +196,7 @@ def main():
         "receipts_panel": receipts_panel,
         "card_retainer": card_retainer,
     }
-
+    ticket_panel.set_panel_choice(panel_choice)
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
     panel_choice["configure_panel"].set_choices_for_selected_item_retention(
         panel_choice,

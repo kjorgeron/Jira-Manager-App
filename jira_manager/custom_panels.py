@@ -12,38 +12,10 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
-# def ticket_click_event(ticket_key):
-#     print(f"Clicked {ticket_key}")
-
-
-# def update_ticket_bucket_with_single(
-#     ticket, panel_choice, theme_manager, selected_items
-# ):
-
-#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-
-#     card = TicketCard(
-#         ticket,
-#         theme_manager,
-#         master=base_frame,
-#         # on_click=ticket_click_event,
-#         selected_items=selected_items,
-#     )
-#     if ticket["key"] in selected_items:
-#         card.set_bg(theme_manager.theme["pending_color"])
-#         card.widget_registry.get("select_btn").config(
-#             text="Unselect", bg=theme_manager.theme["pending_color"]
-#         )
-#     children = base_frame.winfo_children()
-#     if children and children[0].winfo_ismapped():
-#         card.pack(side="top", fill="x", padx=5, pady=3, before=children[0], expand=True)
-#     else:
-#         card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
-
-
 def update_ticket_bucket_with_single(
     ticket, panel_choice, theme_manager, selected_items, card_retainer=None
 ):
+    # print(f"{panel_choice=}")  # Debug print commented out
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     card = TicketCard(
         ticket,
@@ -52,6 +24,7 @@ def update_ticket_bucket_with_single(
         selected_items=selected_items,
         card_retainer=card_retainer,
     )
+    card.update_panel_choice(panel_choice=panel_choice)
     if ticket["key"] in selected_items:
         card.set_bg(theme_manager.theme["pending_color"])
         card.widget_registry.get("select_btn").config(
@@ -131,7 +104,9 @@ def switch_panel(
             canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
             if canvas:
                 canvas.focus_set()
-                print(f"[DEBUG] Focused canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}")
+                print(
+                    f"[DEBUG] Focused canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}"
+                )
         except Exception as e:
             print(f"[DEBUG] Canvas focus error: {e}")
     else:
@@ -139,7 +114,7 @@ def switch_panel(
             configure_btn.config(state="normal")
 
     if panel_key == "ticket_panel":
-    # ...existing code...
+        # ...existing code...
         if db_path:
             try:
                 issues = run_sql_stmt(
@@ -789,8 +764,6 @@ class TicketDisplayBuilder(tk.Frame):
 
             canvas.bind("<MouseWheel>", _on_mousewheel)
 
-
-
     def set_page_contents(self, pg_num: int, selected_items):
         # Always recalculate total tickets and pages after deletions
         total_tickets = len(self.tickets)
@@ -845,6 +818,7 @@ class TicketDisplayBuilder(tk.Frame):
                     else None
                 ),
             )
+            card.update_panel_choice(panel_choice=self.panel_choice)
             if ticket["key"] in selected_items:
                 card.set_bg(self.theme_manager.theme["pending_color"])
                 card.widget_registry.get("select_btn").config(
@@ -903,28 +877,6 @@ class TicketDisplayBuilder(tk.Frame):
         parent.after(120, remove_overlay)
         print(f"{minimum=}\n{maximum=}")
 
-    # def set_page_contents(self, pg_num: int, selected_items):
-    #     maximum = pg_num * 50
-    #     minimum = maximum - 50
-
-    #     if maximum > len(self.tickets):
-    #         maximum = len(self.tickets)
-
-    #     base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
-    #     children = base_frame.winfo_children()
-    #     for child in children:
-    #         child.pack_forget()
-    #         child.destroy()
-    #     base_frame.update_idletasks()
-
-    #     update_ticket_bucket(
-    #         self.tickets[minimum:maximum],
-    #         self.panel_choice,
-    #         self.theme_manager,
-    #         selected_items,
-    #     )
-    #     print(f"{minimum=}\n{maximum=}")
-
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")
         self.widget_registry.get("prev_btn").config(state="disabled")
@@ -982,6 +934,7 @@ class TicketDisplayBuilder(tk.Frame):
         max_pg_count = ceil(len((self.tickets)) / 50)
         tool_bar = tk.Frame(self)
         tool_bar.pack(fill="x", padx=10, pady=10)
+        self.widget_registry["tool_bar"] = tool_bar
         self.theme_manager.register(tool_bar, "frame")
 
         prev_btn = tk.Button(tool_bar, text="←", command=self.prev_action)
@@ -1012,8 +965,6 @@ class TicketDisplayBuilder(tk.Frame):
         nxt_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(nxt_btn, "base_button")
         self.widget_registry["nxt_btn"] = nxt_btn
-
-
 
         # Dropdown-style page jump
         from jira_manager.custom_widgets import EntryWithPlaceholder
@@ -1092,9 +1043,12 @@ class TicketDisplayBuilder(tk.Frame):
         scrollbar.pack(side="right", fill="y")
         canvas.configure(yscrollcommand=scrollbar.set)
         self.widget_registry["canvas"] = canvas
+
         # Simple, direct mouse wheel binding
         def on_mousewheel(event):
-            print(f"[DEBUG] on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}")
+            print(
+                f"[DEBUG] on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}"
+            )
             if canvas != canvas.focus_displayof():
                 canvas.focus_set()
                 print(f"[DEBUG] Focus set to canvas: {canvas}")
@@ -1103,6 +1057,7 @@ class TicketDisplayBuilder(tk.Frame):
             elif event.num == 5 or event.delta < 0:
                 canvas.yview_scroll(1, "units")
             return "break"
+
         canvas.bind("<MouseWheel>", on_mousewheel)
         canvas.bind("<Button-4>", on_mousewheel)
         canvas.bind("<Button-5>", on_mousewheel)
@@ -1125,7 +1080,9 @@ class TicketDisplayBuilder(tk.Frame):
 
         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
-            print(f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}")
+            print(
+                f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}"
+            )
             if canvas != canvas.focus_displayof():
                 canvas.focus_set()
                 print(f"[DEBUG] Focus set to canvas: {canvas}")
