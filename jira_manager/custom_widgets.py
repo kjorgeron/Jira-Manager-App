@@ -273,33 +273,39 @@ class TicketCard(tk.Frame):
         # Create or get the dynamic button frame
         if not hasattr(tool_bar, "dynamic_btn_frame") or not tool_bar.dynamic_btn_frame.winfo_exists():
             dynamic_btn_frame = tk.Frame(tool_bar)
-            dynamic_btn_frame.pack(side="left", padx=40)  # Controls space from nav buttons
             self.theme_manager.register(dynamic_btn_frame, "frame")
             tool_bar.dynamic_btn_frame = dynamic_btn_frame
         else:
             dynamic_btn_frame = tool_bar.dynamic_btn_frame
+
         # Remove any existing buttons in the frame
         for child in dynamic_btn_frame.winfo_children():
             child.destroy()
+        print(f"[DEBUG] selected_items before button logic: {self.selected_items}")
         if len(self.selected_items) > 0:
+            # Always pack the frame when showing buttons
+            dynamic_btn_frame.pack(side="left", padx=40)
             # Update Selected button
             update_button = tk.Button(
                 dynamic_btn_frame,
                 text="Update Selected",
+                command=lambda:print("Update Selected")
             )
-            update_button.pack(side="left", padx=0)  # No space between buttons
+            update_button.pack(side="left", padx=5)  # No space between buttons
             self.theme_manager.register(update_button, "base_button")
             self.widget_registry["update_btn"] = update_button
             # Delete Selected button
             delete_button = tk.Button(
                 dynamic_btn_frame,
                 text="Delete Selected",
+                command=lambda:print("Delete Selected")
             )
-            delete_button.pack(side="left", padx=0)  # No space between buttons
+            delete_button.pack(side="left", padx=5)  # No space between buttons
             self.theme_manager.register(delete_button, "flashy_button")
             self.widget_registry["delete_btn"] = delete_button
         else:
             # Hide the frame if no buttons
+            print(f"[DEBUG] Hiding dynamic_btn_frame, selected_items: {self.selected_items}")
             dynamic_btn_frame.pack_forget()
 
     def select_for_update(self):
@@ -378,36 +384,37 @@ class TicketCard(tk.Frame):
             return
         
         # Setup of dynamic update and delete buttons for selected tickets
-        tool_bar = self.panel_choice["ticket_panel"].widget_registry.get("tool_bar")
-        if len(self.selected_items) > 0:
-            # Update Selected button
-            if not hasattr(tool_bar, "update_btn") or not tool_bar.update_btn.winfo_exists():
-                update_button = tk.Button(
-                    tool_bar,
-                    text="Update Selected",
-                )
-                update_button.pack(side="left", padx=40)  # Increased space to 40
-                self.theme_manager.register(update_button, "base_button")
-                self.widget_registry["update_btn"] = update_button
-                tool_bar.update_btn = update_button
-            # Delete Selected button
-            if not hasattr(tool_bar, "delete_btn") or not tool_bar.delete_btn.winfo_exists():
-                delete_button = tk.Button(
-                    tool_bar,
-                    text="Delete Selected",
-                )
-                delete_button.pack(side="left", padx=10)
-                self.theme_manager.register(delete_button, "base_button")
-                self.widget_registry["delete_btn"] = delete_button
-                tool_bar.delete_btn = delete_button
-        else:
-            # Remove the buttons if they exist
-            if hasattr(tool_bar, "update_btn") and tool_bar.update_btn.winfo_exists():
-                tool_bar.update_btn.destroy()
-                del tool_bar.update_btn
-            if hasattr(tool_bar, "delete_btn") and tool_bar.delete_btn.winfo_exists():
-                tool_bar.delete_btn.destroy()
-                del tool_bar.delete_btn
+        self.update_toolbar_buttons()
+        # tool_bar = self.panel_choice["ticket_panel"].widget_registry.get("tool_bar")
+        # if len(self.selected_items) > 0:
+        #     # Update Selected button
+        #     if not hasattr(tool_bar, "update_btn") or not tool_bar.update_btn.winfo_exists():
+        #         update_button = tk.Button(
+        #             tool_bar,
+        #             text="Update Selected",
+        #         )
+        #         update_button.pack(side="left", padx=40)  # Increased space to 40
+        #         self.theme_manager.register(update_button, "base_button")
+        #         self.widget_registry["update_btn"] = update_button
+        #         tool_bar.update_btn = update_button
+        #     # Delete Selected button
+        #     if not hasattr(tool_bar, "delete_btn") or not tool_bar.delete_btn.winfo_exists():
+        #         delete_button = tk.Button(
+        #             tool_bar,
+        #             text="Delete Selected",
+        #         )
+        #         delete_button.pack(side="left", padx=10)
+        #         self.theme_manager.register(delete_button, "base_button")
+        #         self.widget_registry["delete_btn"] = delete_button
+        #         tool_bar.delete_btn = delete_button
+        # else:
+        #     # Remove the buttons if they exist
+        #     if hasattr(tool_bar, "update_btn") and tool_bar.update_btn.winfo_exists():
+        #         tool_bar.update_btn.destroy()
+        #         del tool_bar.update_btn
+        #     if hasattr(tool_bar, "delete_btn") and tool_bar.delete_btn.winfo_exists():
+        #         tool_bar.delete_btn.destroy()
+        #         del tool_bar.delete_btn
 
     def delete_from_database(self, on_delete=None):
         print(self.ticket_key)
@@ -811,7 +818,7 @@ class TicketCard(tk.Frame):
 #             self.theme_manager.register(right_inner, "frame")
 #             right_canvas.create_window((0, 0), window=right_inner, anchor="nw")
 #             def on_right_configure(event):
-#                 right_canvas.configure(scrollregion=right_canvas.bbox("all"))
+#                 self.right_canvas.configure(scrollregion=self.right_canvas.bbox("all"))
 #             right_inner.bind("<Configure>", on_right_configure)
 #             for key in added_ticket_keys:
 #                 ticket_label = tk.Label(right_inner, text=key, anchor="w", font=("Segoe UI", 11))
@@ -955,6 +962,8 @@ class TicketCard(tk.Frame):
 #                             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 #                             return "break"
 #                         canvas.bind("<MouseWheel>", ticket_panel_mousewheel)
+#                         canvas.bind("<Button-4>", ticket_panel_mousewheel)
+#                         canvas.bind("<Button-5>", ticket_panel_mousewheel)
 #             except Exception:
 #                 pass
 
