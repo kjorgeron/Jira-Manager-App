@@ -1,12 +1,21 @@
 import tkinter as tk
+
+
 class WorkReceiptsPanel(tk.Frame):
-    def __init__(self, master, existing_ticket_keys=None, added_ticket_keys=None, theme_manager=None):
+    def __init__(
+        self,
+        master,
+        existing_ticket_keys=None,
+        added_ticket_keys=None,
+        theme_manager=None,
+    ):
         super().__init__(master)
         self.theme_manager = theme_manager
         self.theme_manager.register(self, "frame")
 
         from jira_manager.sql_manager import fetch_all_receipts, insert_receipt
         import os
+
         db_path = os.path.join(os.path.dirname(__file__), "tickets.db")
 
         # If new receipt is provided, insert it
@@ -19,7 +28,9 @@ class WorkReceiptsPanel(tk.Frame):
         frame.pack(fill="both", expand=True)
 
         # Title
-        title_label = tk.Label(frame, text="Work Receipts", font=("Trebuchet MS", 15, "bold"))
+        title_label = tk.Label(
+            frame, text="Work Receipts", font=("Trebuchet MS", 15, "bold")
+        )
         self.theme_manager.register(title_label, "label")
         title_label.pack(pady=(0, 10))
 
@@ -27,40 +38,61 @@ class WorkReceiptsPanel(tk.Frame):
         receipts_canvas = tk.Canvas(frame, borderwidth=0, height=300)
         self.theme_manager.register(receipts_canvas, "frame")
         receipts_canvas.pack(side="left", fill="both", expand=True)
-        receipts_scrollbar = tk.Scrollbar(frame, orient="vertical", command=receipts_canvas.yview)
+        receipts_scrollbar = tk.Scrollbar(
+            frame, orient="vertical", command=receipts_canvas.yview
+        )
         receipts_scrollbar.pack(side="right", fill="y")
         receipts_canvas.configure(yscrollcommand=receipts_scrollbar.set)
         receipts_inner = tk.Frame(receipts_canvas)
         self.theme_manager.register(receipts_inner, "frame")
         receipts_canvas.create_window((0, 0), window=receipts_inner, anchor="nw")
+
         def on_receipts_configure(event):
             receipts_canvas.configure(scrollregion=receipts_canvas.bbox("all"))
+
         receipts_inner.bind("<Configure>", on_receipts_configure)
 
         # Load and display all receipts
         receipts = fetch_all_receipts(db_path)
         for receipt in receipts:
-            receipt_frame = tk.Frame(receipts_inner, bd=1, relief="groove", padx=8, pady=8)
+            receipt_frame = tk.Frame(
+                receipts_inner, bd=1, relief="groove", padx=8, pady=8
+            )
             self.theme_manager.register(receipt_frame, "frame")
             receipt_frame.pack(fill="x", pady=6)
-            title = tk.Label(receipt_frame, text=f"Receipt #{receipt['receipt_id']} - {receipt['created_at'][:19]}", font=("Trebuchet MS", 14, "bold"))
+            title = tk.Label(
+                receipt_frame,
+                text=f"Receipt #{receipt['receipt_id']} - {receipt['created_at'][:19]}",
+                font=("Trebuchet MS", 14, "bold"),
+            )
             self.theme_manager.register(title, "label")
             title.pack(anchor="w")
-            existing = tk.Label(receipt_frame, text=f"Existing Tickets: {', '.join(receipt['existing_tickets'])}", font=("Trebuchet MS", 12))
+            existing = tk.Label(
+                receipt_frame,
+                text=f"Existing Tickets: {', '.join(receipt['existing_tickets'])}",
+                font=("Trebuchet MS", 12),
+            )
             self.theme_manager.register(existing, "label")
-            existing.pack(anchor="w", pady=(2,0))
-            added = tk.Label(receipt_frame, text=f"Added Tickets: {', '.join(receipt['added_tickets'])}", font=("Trebuchet MS", 12))
+            existing.pack(anchor="w", pady=(2, 0))
+            added = tk.Label(
+                receipt_frame,
+                text=f"Added Tickets: {', '.join(receipt['added_tickets'])}",
+                font=("Trebuchet MS", 12),
+            )
             self.theme_manager.register(added, "label")
-            added.pack(anchor="w", pady=(2,0))
+            added.pack(anchor="w", pady=(2, 0))
 
         def on_receipts_mousewheel(event):
             if receipts_canvas != receipts_canvas.focus_displayof():
                 receipts_canvas.focus_set()
             receipts_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
             return "break"
+
         receipts_canvas.bind("<MouseWheel>", on_receipts_mousewheel)
         receipts_canvas.bind("<Button-4>", on_receipts_mousewheel)
         receipts_canvas.bind("<Button-5>", on_receipts_mousewheel)
+
+
 import tkinter as tk
 from jira_manager.sql_manager import run_sql_stmt
 
@@ -200,11 +232,17 @@ class TicketCard(tk.Frame):
         self.panel_choice = panel_choice
         # Debug: print panel_choice and check for ticket_panel
         if self.panel_choice is None:
-            print(f"[DEBUG] TicketCard.__init__: panel_choice is None for ticket {ticket_data.get('key')}")
+            print(
+                f"[DEBUG] TicketCard.__init__: panel_choice is None for ticket {ticket_data.get('key')}"
+            )
         elif "ticket_panel" not in self.panel_choice:
-            print(f"[DEBUG] TicketCard.__init__: panel_choice missing 'ticket_panel' for ticket {ticket_data.get('key')}")
+            print(
+                f"[DEBUG] TicketCard.__init__: panel_choice missing 'ticket_panel' for ticket {ticket_data.get('key')}"
+            )
         else:
-            print(f"[DEBUG] TicketCard.__init__: panel_choice OK for ticket {ticket_data.get('key')}")
+            print(
+                f"[DEBUG] TicketCard.__init__: panel_choice OK for ticket {ticket_data.get('key')}"
+            )
 
         self.ticket_key = ticket_data["key"]
         self.configure(padx=10, pady=5, bd=1, relief="solid")
@@ -278,7 +316,10 @@ class TicketCard(tk.Frame):
         if not tool_bar:
             return
         # Create or get the dynamic button frame
-        if not hasattr(tool_bar, "dynamic_btn_frame") or not tool_bar.dynamic_btn_frame.winfo_exists():
+        if (
+            not hasattr(tool_bar, "dynamic_btn_frame")
+            or not tool_bar.dynamic_btn_frame.winfo_exists()
+        ):
             dynamic_btn_frame = tk.Frame(tool_bar)
             self.theme_manager.register(dynamic_btn_frame, "frame")
             tool_bar.dynamic_btn_frame = dynamic_btn_frame
@@ -296,7 +337,7 @@ class TicketCard(tk.Frame):
             update_button = tk.Button(
                 dynamic_btn_frame,
                 text="Update Selected",
-                command=lambda:print("Update Selected")
+                command=lambda: print("Update Selected"),
             )
             update_button.pack(side="left", padx=5)  # No space between buttons
             self.theme_manager.register(update_button, "base_button")
@@ -305,14 +346,16 @@ class TicketCard(tk.Frame):
             delete_button = tk.Button(
                 dynamic_btn_frame,
                 text="Delete Selected",
-                command=lambda: self.delete_all_selected_tickets()
+                command=lambda: self.delete_all_selected_tickets(),
             )
             delete_button.pack(side="left", padx=5)  # No space between buttons
             self.theme_manager.register(delete_button, "flashy_button")
             self.widget_registry["delete_btn"] = delete_button
         else:
             # Hide the frame if no buttons
-            print(f"[DEBUG] Hiding dynamic_btn_frame, selected_items: {self.selected_items}")
+            print(
+                f"[DEBUG] Hiding dynamic_btn_frame, selected_items: {self.selected_items}"
+            )
             dynamic_btn_frame.pack_forget()
 
     def select_for_update(self):
@@ -384,12 +427,16 @@ class TicketCard(tk.Frame):
 
         # Defensive check for panel_choice and ticket_panel
         if self.panel_choice is None:
-            print(f"[ERROR] select_for_update: self.panel_choice is None for ticket {self.ticket_key}")
+            print(
+                f"[ERROR] select_for_update: self.panel_choice is None for ticket {self.ticket_key}"
+            )
             return
         if "ticket_panel" not in self.panel_choice:
-            print(f"[ERROR] select_for_update: 'ticket_panel' missing in panel_choice for ticket {self.ticket_key}")
+            print(
+                f"[ERROR] select_for_update: 'ticket_panel' missing in panel_choice for ticket {self.ticket_key}"
+            )
             return
-        
+
         # Setup of dynamic update and delete buttons for selected tickets
         self.update_toolbar_buttons()
 
@@ -496,31 +543,142 @@ class TicketCard(tk.Frame):
         self.configure(bg=bg)
 
     def delete_all_selected_tickets(self):
-        # Delete all selected tickets from database and remove their UI
-        for key in list(self.selected_items):
-            print(f"{key=} to be deleted")
+        # Themed, centered confirmation popup before deleting all selected tickets
+        root = self.winfo_toplevel()
+        popup = tk.Toplevel(root)
+        popup.overrideredirect(True)
+        popup.transient(root)
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        # Center popup and follow main window resize
+        # def center_popup():
+        #     if not popup.winfo_exists():
+        #         return
+        #     popup.update_idletasks()
+        #     w, h = 370, 170
+        #     main_x = root.winfo_x()
+        #     main_y = root.winfo_y()
+        #     main_w = root.winfo_width()
+        #     main_h = root.winfo_height()
+        #     x = main_x + (main_w // 2) - (w // 2)
+        #     y = main_y + (main_h // 2) - (h // 2)
+        #     popup.geometry(f"{w}x{h}+{x}+{y}")
+        #     popup.lift()
+        #     try:
+        #         popup.focus_force()
+        #     except Exception:
+        #         pass
+        popup.withdraw()  # Hide initially
+
+        def center_popup():
+            if not popup.winfo_exists():
+                return
+            popup.update_idletasks()
+            w, h = 370, 170
+            main_x = root.winfo_x()
+            main_y = root.winfo_y()
+            main_w = root.winfo_width()
+            main_h = root.winfo_height()
+            x = main_x + (main_w // 2) - (w // 2)
+            y = main_y + (main_h // 2) - (h // 2)
+            popup.geometry(f"{w}x{h}+{x}+{y}")
+            popup.deiconify()  # Show after centering
+            popup.lift()
             try:
-                run_sql_stmt(
-                    self.db_path,
-                    "DELETE FROM tickets WHERE key = ?",
-                    params=(key,),
-                    stmt_type="delete",
-                )
+                popup.focus_force()
             except Exception:
-                print(f"Error deleting ticket {key} from delete_all_selected_tickets")
-            self.selected_items.remove(key)
-            for card_info in self.card_retainer:
-                if card_info.get("key") == key:
-                    print(f"{card_info=} from delete_all_selected_tickets")
+                pass
 
-                    try:
-                        card_info["widget"].destroy()
-                    except Exception:
-                        print(f"Error destroying widget for {key} from delete_all_selected_tickets")
+        popup.after(150, center_popup)
+        popup.after(300, center_popup)
+        root.bind("<Configure>", lambda e: center_popup())
 
-                    try:
-                        del card_info
-                    except Exception:
-                        print(f"Error deleting card_info for {key} from delete_all_selected_tickets")
+        # Force center popup
+        # popup.after(50, center_popup)
+        # popup.after(150, center_popup)
+        # popup.after(300, center_popup)
 
-        self.update_toolbar_buttons()
+        frame = tk.Frame(popup, padx=20, pady=20)
+        self.theme_manager.register(frame, "frame")
+        frame.pack(fill="both", expand=True)
+        label = tk.Label(
+            frame,
+            text=f"Are you sure you want to delete {len(self.selected_items)} selected ticket(s)?",
+            font=("Trebuchet MS", 13, "bold"),
+            wraplength=300,
+        )
+        self.theme_manager.register(label, "label")
+        label.pack(pady=(0, 20))
+        btn_frame = tk.Frame(frame)
+        self.theme_manager.register(btn_frame, "frame")
+        btn_frame.pack()
+
+        def cleanup_popup():
+            root.unbind("<Configure>")
+            try:
+                self._delete_popup = None
+            except Exception:
+                pass
+
+        def do_delete():
+            cleanup_popup()
+            popup.destroy()
+            for key in list(self.selected_items):
+                try:
+                    run_sql_stmt(
+                        self.db_path,
+                        "DELETE FROM tickets WHERE key = ?",
+                        params=(key,),
+                        stmt_type="delete",
+                    )
+                except Exception:
+                    print(
+                        f"Error deleting ticket {key} from delete_all_selected_tickets"
+                    )
+                self.selected_items.remove(key)
+                for card_info in self.card_retainer:
+                    if card_info.get("key") == key:
+                        print(f"{card_info=} from delete_all_selected_tickets")
+
+                        try:
+                            card_info["widget"].destroy()
+                        except Exception:
+                            print(
+                                f"Error destroying widget for {key} from delete_all_selected_tickets"
+                            )
+
+                        try:
+                            del card_info
+                        except Exception:
+                            print(
+                                f"Error deleting card_info for {key} from delete_all_selected_tickets"
+                            )
+            self.update_toolbar_buttons()
+
+        def cancel():
+            cleanup_popup()
+            popup.destroy()
+
+        cancel_btn = tk.Button(
+            btn_frame,
+            text="Cancel",
+            command=cancel,
+            padx=12,
+            pady=4,
+            relief="flat",
+            cursor="hand2",
+        )
+        self.theme_manager.register(cancel_btn, "base_button")
+        cancel_btn.pack(side="left", padx=8)
+        delete_btn = tk.Button(
+            btn_frame,
+            text="Delete",
+            command=do_delete,
+            padx=12,
+            pady=4,
+            relief="flat",
+            cursor="hand2",
+        )
+        self.theme_manager.register(delete_btn, "flashy_button")
+        delete_btn.pack(side="left", padx=8)
