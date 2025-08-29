@@ -24,6 +24,7 @@ def update_ticket_bucket_with_single(
         selected_items=selected_items,
         card_retainer=card_retainer,
     )
+    print(f"{ticket=} from update_ticket_bucket_with_single")
     card.update_panel_choice(panel_choice=panel_choice)
     if ticket["key"] in selected_items:
         card.set_bg(theme_manager.theme["pending_color"])
@@ -39,7 +40,7 @@ def update_ticket_bucket(
 ):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
-
+    print(f"{ticket_bucket_items=}")
     # Make columns expandable
     for col in range(max_cols):
         base_frame.columnconfigure(col, weight=1)
@@ -749,6 +750,7 @@ class TicketDisplayBuilder(tk.Frame):
         self.tickets = tickets
         self.panel_choice = None
         self.selected_items = selected_items
+        
 
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
@@ -769,6 +771,8 @@ class TicketDisplayBuilder(tk.Frame):
         total_tickets = len(self.tickets)
         tickets_per_page = 50
         last_page = max(1, ceil(total_tickets / tickets_per_page))
+        if self.panel_choice != None:
+            card_retainer = self.panel_choice.get("card_retainer")
 
         # Clamp page number to valid range
         pg_num = max(1, min(pg_num, last_page))
@@ -803,7 +807,6 @@ class TicketDisplayBuilder(tk.Frame):
         parent.update_idletasks()
         for child in base_frame.winfo_children():
             child.destroy()
-
         # Slice tickets for the current page only
         tickets_to_show = self.tickets[minimum:maximum]
         for ticket in tickets_to_show:
@@ -818,13 +821,26 @@ class TicketDisplayBuilder(tk.Frame):
                     else None
                 ),
             )
+            print(f"{ticket=} from set_page_contents")
+            
             card.update_panel_choice(panel_choice=self.panel_choice)
             if ticket["key"] in selected_items:
                 card.set_bg(self.theme_manager.theme["pending_color"])
                 card.widget_registry.get("select_btn").config(
                     text="Unselect", bg=self.theme_manager.theme["pending_color"]
                 )
+
+
             card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+            if card_retainer is not None:
+                found = False
+                for item in card_retainer:
+                    if item.get("key") == ticket["key"]:
+                        item["widget"] = card
+                        found = True
+                        break
+                if not found:
+                    card_retainer.append({"key": ticket["key"], "widget": card})
 
         def scroll_to_top():
             canvas = self.widget_registry.get("canvas")

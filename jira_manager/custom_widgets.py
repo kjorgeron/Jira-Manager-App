@@ -259,6 +259,13 @@ class TicketCard(tk.Frame):
         self.theme_manager.register(select_btn, "flashy_button")
         self.widget_registry["select_btn"] = select_btn
 
+    def update_card_retainer(self):
+        for saved_card_info in self.card_retainer:
+            if saved_card_info["key"] == self.ticket_key:
+                if saved_card_info["widget"] is None:
+                    saved_card_info["widget"] = self
+                break
+
     def update_panel_choice(self, panel_choice):
         self.panel_choice = panel_choice
 
@@ -298,7 +305,7 @@ class TicketCard(tk.Frame):
             delete_button = tk.Button(
                 dynamic_btn_frame,
                 text="Delete Selected",
-                command=lambda:print("Delete Selected")
+                command=lambda: self.delete_all_selected_tickets()
             )
             delete_button.pack(side="left", padx=5)  # No space between buttons
             self.theme_manager.register(delete_button, "flashy_button")
@@ -385,36 +392,6 @@ class TicketCard(tk.Frame):
         
         # Setup of dynamic update and delete buttons for selected tickets
         self.update_toolbar_buttons()
-        # tool_bar = self.panel_choice["ticket_panel"].widget_registry.get("tool_bar")
-        # if len(self.selected_items) > 0:
-        #     # Update Selected button
-        #     if not hasattr(tool_bar, "update_btn") or not tool_bar.update_btn.winfo_exists():
-        #         update_button = tk.Button(
-        #             tool_bar,
-        #             text="Update Selected",
-        #         )
-        #         update_button.pack(side="left", padx=40)  # Increased space to 40
-        #         self.theme_manager.register(update_button, "base_button")
-        #         self.widget_registry["update_btn"] = update_button
-        #         tool_bar.update_btn = update_button
-        #     # Delete Selected button
-        #     if not hasattr(tool_bar, "delete_btn") or not tool_bar.delete_btn.winfo_exists():
-        #         delete_button = tk.Button(
-        #             tool_bar,
-        #             text="Delete Selected",
-        #         )
-        #         delete_button.pack(side="left", padx=10)
-        #         self.theme_manager.register(delete_button, "base_button")
-        #         self.widget_registry["delete_btn"] = delete_button
-        #         tool_bar.delete_btn = delete_button
-        # else:
-        #     # Remove the buttons if they exist
-        #     if hasattr(tool_bar, "update_btn") and tool_bar.update_btn.winfo_exists():
-        #         tool_bar.update_btn.destroy()
-        #         del tool_bar.update_btn
-        #     if hasattr(tool_bar, "delete_btn") and tool_bar.delete_btn.winfo_exists():
-        #         tool_bar.delete_btn.destroy()
-        #         del tool_bar.delete_btn
 
     def delete_from_database(self, on_delete=None):
         print(self.ticket_key)
@@ -518,525 +495,32 @@ class TicketCard(tk.Frame):
     def set_bg(self, bg):
         self.configure(bg=bg)
 
+    def delete_all_selected_tickets(self):
+        # Delete all selected tickets from database and remove their UI
+        for key in list(self.selected_items):
+            print(f"{key=} to be deleted")
+            try:
+                run_sql_stmt(
+                    self.db_path,
+                    "DELETE FROM tickets WHERE key = ?",
+                    params=(key,),
+                    stmt_type="delete",
+                )
+            except Exception:
+                print(f"Error deleting ticket {key} from delete_all_selected_tickets")
+            self.selected_items.remove(key)
+            for card_info in self.card_retainer:
+                if card_info.get("key") == key:
+                    print(f"{card_info=} from delete_all_selected_tickets")
 
+                    try:
+                        card_info["widget"].destroy()
+                    except Exception:
+                        print(f"Error destroying widget for {key} from delete_all_selected_tickets")
 
-# class TicketsExistPopup(tk.Toplevel):
-#     def __init__(self, master, existing_ticket_keys, added_ticket_keys, theme_manager):
-#         super().__init__(master)
-#         self.withdraw()  # Hide initially to prevent flicker
-#         self.overrideredirect(True)  # Remove title bar
-#         self.resizable(False, False)
-#         self.transient(master)
-#         self.grab_set()
-#         self.theme_manager = theme_manager
-#         self.theme_manager.register(self, "frame")
+                    try:
+                        del card_info
+                    except Exception:
+                        print(f"Error deleting card_info for {key} from delete_all_selected_tickets")
 
-#         # Set geometry before packing widgets
-#         w, h = 500, 350
-#         main_x = master.winfo_x()
-#         main_y = master.winfo_y()
-#         main_w = master.winfo_width()
-#         main_h = master.winfo_height()
-#         x = main_x + (main_w // 2) - (w // 2)
-#         y = main_y + (main_h // 2) - (h // 2)
-#         self.geometry(f"{w}x{h}+{x}+{y}")
-
-#         frame = tk.Frame(self, padx=20, pady=20)
-#         self.theme_manager.register(frame, "frame")
-#         frame.pack(fill="both", expand=True)
-
-#         # Split frame for left/right ticket lists
-#         split_frame = tk.Frame(frame)
-#         self.theme_manager.register(split_frame, "frame")
-#         split_frame.pack(fill="both", expand=True)
-
-#         show_left = bool(existing_ticket_keys)
-#         show_right = bool(added_ticket_keys)
-
-#     def __init__(self, master, existing_ticket_keys, added_ticket_keys, theme_manager):
-#         super().__init__(master)
-#         self.withdraw()  # Hide initially to prevent flicker
-#         self.overrideredirect(True)  # Remove title bar
-#         self.resizable(False, False)
-#         self.transient(master)
-#         self.grab_set()
-#         self.theme_manager = theme_manager
-#         self.theme_manager.register(self, "frame")
-
-#         # Set geometry before packing widgets
-#         w, h = 500, 350
-#         main_x = master.winfo_x()
-#         main_y = master.winfo_y()
-#         main_w = master.winfo_width()
-#         main_h = master.winfo_height()
-#         x = main_x + (main_w // 2) - (w // 2)
-#         y = main_y + (main_h // 2) - (h // 2)
-#         self.geometry(f"{w}x{h}+{x}+{y}")
-
-#         frame = tk.Frame(self, padx=20, pady=20)
-#         self.theme_manager.register(frame, "frame")
-#         frame.pack(fill="both", expand=True)
-
-#         # Split frame for left/right ticket lists
-#         split_frame = tk.Frame(frame)
-#         self.theme_manager.register(split_frame, "frame")
-#         split_frame.pack(fill="both", expand=True)
-
-#         show_left = bool(existing_ticket_keys)
-#         show_right = bool(added_ticket_keys)
-
-#         self.left_canvas = None
-#         self.right_canvas = None
-#         # Track which canvas is currently focused
-#         self._focused_canvas = None
-
-#         # Left side: Existing tickets
-#         if show_left:
-#             left_frame = tk.Frame(split_frame)
-#             self.theme_manager.register(left_frame, "frame")
-#             left_frame.pack(side="left", fill="both", expand=True)
-#             left_label = tk.Label(left_frame, text="Already Existing Tickets", font=("Trebuchet MS", 13, "bold"))
-#             self.theme_manager.register(left_label, "label")
-#             left_label.pack(pady=(0, 8))
-#             self.left_canvas = tk.Canvas(left_frame, borderwidth=0, width=200, height=200)
-#             self.theme_manager.register(self.left_canvas, "frame")
-#             self.left_canvas.pack(side="left", fill="both", expand=True)
-#             left_scrollbar = tk.Scrollbar(left_frame, orient="vertical", command=self.left_canvas.yview)
-#             left_scrollbar.pack(side="right", fill="y")  # Always visible
-#             self.left_canvas.configure(yscrollcommand=left_scrollbar.set)
-#             left_inner = tk.Frame(self.left_canvas)
-#             self.theme_manager.register(left_inner, "frame")
-#             self.left_canvas.create_window((0, 0), window=left_inner, anchor="nw")
-#             def on_left_configure(event):
-#                 self.left_canvas.configure(scrollregion=self.left_canvas.bbox("all"))
-#             left_inner.bind("<Configure>", on_left_configure)
-#             for key in existing_ticket_keys:
-#                 ticket_label = tk.Label(left_inner, text=key, anchor="w", font=("Segoe UI", 11))
-#                 ticket_label.pack(fill="x", padx=5, pady=2)
-#                 self.theme_manager.register(ticket_label, "label")
-#             # Simple, direct mouse wheel binding
-#             def on_left_mousewheel(event):
-#                 print(f"[DEBUG] on_left_mousewheel: left_canvas={self.left_canvas}, has focus={self.left_canvas == self.left_canvas.focus_displayof()}")
-#                 if self.left_canvas != self.left_canvas.focus_displayof():
-#                     self.left_canvas.focus_set()
-#                     print(f"[DEBUG] Focus set to left_canvas: {self.left_canvas}")
-#                 if event.num == 4 or event.delta > 0:
-#                     self.left_canvas.yview_scroll(-1, "units")
-#                 elif event.num == 5 or event.delta < 0:
-#                     self.left_canvas.yview_scroll(1, "units")
-#                 return "break"
-#             self.left_canvas.bind("<MouseWheel>", on_left_mousewheel)
-#             self.left_canvas.bind("<Button-4>", on_left_mousewheel)
-#             self.left_canvas.bind("<Button-5>", on_left_mousewheel)
-
-#         # Vertical separator if both sides are shown
-#         if show_left and show_right:
-#             sep = tk.Frame(split_frame, width=2, bg="#888")
-#             sep.pack(side="left", fill="y", padx=8, pady=8)
-
-#         # Right side: Added tickets
-#         if show_right:
-#             right_frame = tk.Frame(split_frame)
-#             self.theme_manager.register(right_frame, "frame")
-#             right_frame.pack(side="left", fill="both", expand=True)
-#             right_label = tk.Label(right_frame, text="Newly Added Tickets", font=("Trebuchet MS", 13, "bold"))
-#             self.theme_manager.register(right_label, "label")
-#             right_label.pack(pady=(0, 8))
-#             self.right_canvas = tk.Canvas(right_frame, borderwidth=0, width=200, height=200)
-#             self.theme_manager.register(self.right_canvas, "frame")
-#             self.right_canvas.pack(side="left", fill="both", expand=True)
-#             right_scrollbar = tk.Scrollbar(right_frame, orient="vertical", command=self.right_canvas.yview)
-#             right_scrollbar.pack(side="right", fill="y")  # Always visible
-#             self.right_canvas.configure(yscrollcommand=right_scrollbar.set)
-#             right_inner = tk.Frame(self.right_canvas)
-#             self.theme_manager.register(right_inner, "frame")
-#             self.right_canvas.create_window((0, 0), window=right_inner, anchor="nw")
-#             def on_right_configure(event):
-#                 self.right_canvas.configure(scrollregion=self.right_canvas.bbox("all"))
-#             right_inner.bind("<Configure>", on_right_configure)
-#             for key in added_ticket_keys:
-#                 ticket_label = tk.Label(right_inner, text=key, anchor="w", font=("Segoe UI", 11))
-#                 ticket_label.pack(fill="x", padx=5, pady=2)
-#                 self.theme_manager.register(ticket_label, "label")
-#             # Simple, direct mouse wheel binding
-#             def on_right_mousewheel(event):
-#                 print(f"[DEBUG] on_right_mousewheel: right_canvas={self.right_canvas}, has focus={self.right_canvas == self.right_canvas.focus_displayof()}")
-#                 if self.right_canvas != self.right_canvas.focus_displayof():
-#                     self.right_canvas.focus_set()
-#                     print(f"[DEBUG] Focus set to right_canvas: {self.right_canvas}")
-#                 if event.num == 4 or event.delta > 0:
-#                     self.right_canvas.yview_scroll(-1, "units")
-#                 elif event.num == 5 or event.delta < 0:
-#                     self.right_canvas.yview_scroll(1, "units")
-#                 return "break"
-#             self.right_canvas.bind("<MouseWheel>", on_right_mousewheel)
-#             self.right_canvas.bind("<Button-4>", on_right_mousewheel)
-#             self.right_canvas.bind("<Button-5>", on_right_mousewheel)
-
-#         # On popup open, set focus to first visible canvas for instant mouse wheel scrolling
-#         if show_left and self.left_canvas:
-#             self.left_canvas.focus_set()
-#             print(f"[DEBUG] Popup focused left_canvas: {self.left_canvas}, has focus: {self.left_canvas == self.left_canvas.focus_displayof()}")
-#         elif show_right and self.right_canvas:
-#             self.right_canvas.focus_set()
-#             print(f"[DEBUG] Popup focused right_canvas: {self.right_canvas}, has focus: {self.right_canvas == self.right_canvas.focus_displayof()}")
-
-#         btn_frame = tk.Frame(frame)
-#         self.theme_manager.register(btn_frame, "frame")
-#         btn_frame.pack(pady=10)
-
-#         def cleanup_popup():
-#             master.unbind("<Configure>")
-#             # Unbind mouse wheel events from canvases if present
-#             if show_left and self.left_canvas:
-#                 try:
-#                     unbind_left_mousewheel()
-#                 except Exception:
-#                     pass
-#             if show_right and self.right_canvas:
-#                 try:
-#                     unbind_right_mousewheel()
-#                 except Exception:
-#                     pass
-#             # Restore ticket panel canvas focus for instant mouse wheel scrolling
-#             try:
-#                 root = master.winfo_toplevel()
-#                 ticket_panel = None
-#                 if hasattr(root, 'panel_choice'):
-#                     ticket_panel = root.panel_choice.get('ticket_panel')
-#                 if not ticket_panel and hasattr(master, 'panel_choice'):
-#                     ticket_panel = master.panel_choice.get('ticket_panel')
-#                 if ticket_panel:
-#                     canvas = ticket_panel.widget_registry.get('canvas')
-#                     if canvas:
-#                         canvas.focus_set()
-#                         print(f"[DEBUG] Restored focus to ticket_panel canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}")
-#                     else:
-#                         print("[DEBUG] No canvas found in ticket_panel.widget_registry")
-#                 else:
-#                     print("[DEBUG] No ticket_panel found in root or master.panel_choice")
-#             except Exception as e:
-#                 print(f"[DEBUG] Error restoring focus to ticket_panel canvas: {e}")
-
-#         ok_btn = tk.Button(
-#             btn_frame,
-#             text="OK",
-#             command=lambda: (cleanup_popup(), self.destroy()),
-#             padx=12,
-#             pady=4,
-#             relief="flat",
-#             cursor="hand2",
-#             font=("Segoe UI", 12, "bold"),
-#         )
-#         self.theme_manager.register(ok_btn, "base_button")
-#         ok_btn.pack()
-
-#         self.update_idletasks()
-#         self.deiconify()  # Show after geometry and widgets are set
-#         self.lift()
-#         try:
-#             self.focus_force()
-#             self.focus_set()
-#         except Exception:
-#             pass
-#         master.bind("<Configure>", lambda e: self._center_on_configure(w, h, master))
-
-#         # Left side: Existing tickets
-#         if show_left:
-#             left_frame = tk.Frame(split_frame)
-#             self.theme_manager.register(left_frame, "frame")
-#             left_frame.pack(side="left", fill="both", expand=True)
-#             left_label = tk.Label(left_frame, text="Already Existing Tickets", font=("Trebuchet MS", 13, "bold"))
-#             self.theme_manager.register(left_label, "label")
-#             left_label.pack(pady=(0, 8))
-#             left_canvas = tk.Canvas(left_frame, borderwidth=0, width=200, height=200)
-#             self.theme_manager.register(left_canvas, "frame")
-#             left_canvas.pack(side="left", fill="both", expand=True)
-#             left_scrollbar = tk.Scrollbar(left_frame, orient="vertical", command=left_canvas.yview)
-#             left_scrollbar.pack(side="right", fill="y")
-#             left_canvas.configure(yscrollcommand=left_scrollbar.set)
-#             left_inner = tk.Frame(left_canvas)
-#             self.theme_manager.register(left_inner, "frame")
-#             left_canvas.create_window((0, 0), window=left_inner, anchor="nw")
-#             def on_left_configure(event):
-#                 left_canvas.configure(scrollregion=left_canvas.bbox("all"))
-#             left_inner.bind("<Configure>", on_left_configure)
-#             for key in existing_ticket_keys:
-#                 ticket_label = tk.Label(left_inner, text=key, anchor="w", font=("Segoe UI", 11))
-#                 ticket_label.pack(fill="x", padx=5, pady=2)
-#                 self.theme_manager.register(ticket_label, "label")
-#             # Mouse wheel scrolling for left_canvas (cross-platform)
-#             def on_left_mousewheel(event):
-#                 if event.num == 4 or event.delta > 0:
-#                     left_canvas.yview_scroll(-1, "units")
-#                 elif event.num == 5 or event.delta < 0:
-#                     left_canvas.yview_scroll(1, "units")
-#                 return "break"
-#             def bind_left_mousewheel():
-#                 left_canvas.bind("<MouseWheel>", on_left_mousewheel)
-#                 left_canvas.bind("<Button-4>", on_left_mousewheel)
-#                 left_canvas.bind("<Button-5>", on_left_mousewheel)
-#                 left_inner.bind("<MouseWheel>", on_left_mousewheel)
-#                 left_inner.bind("<Button-4>", on_left_mousewheel)
-#                 left_inner.bind("<Button-5>", on_left_mousewheel)
-#             def unbind_left_mousewheel():
-#                 left_canvas.unbind("<MouseWheel>")
-#                 left_canvas.unbind("<Button-4>")
-#                 left_canvas.unbind("<Button-5>")
-#                 left_inner.unbind("<MouseWheel>")
-#                 left_inner.unbind("<Button-4>")
-#                 left_inner.unbind("<Button-5>")
-#             def focus_left_canvas(event=None):
-#                 left_canvas.focus_set()
-#                 bind_left_mousewheel()
-#                 self._focused_canvas = left_canvas
-#             left_canvas.bind("<Enter>", focus_left_canvas)
-#             left_canvas.bind("<Leave>", lambda e: unbind_left_mousewheel())
-#             left_inner.bind("<Enter>", focus_left_canvas)
-#             left_inner.bind("<Leave>", lambda e: unbind_left_mousewheel())
-
-#         # Vertical separator if both sides are shown
-#         if show_left and show_right:
-#             sep = tk.Frame(split_frame, width=2, bg="#888")
-#             sep.pack(side="left", fill="y", padx=8, pady=8)
-
-#         # Right side: Added tickets
-#         if show_right:
-#             right_frame = tk.Frame(split_frame)
-#             self.theme_manager.register(right_frame, "frame")
-#             right_frame.pack(side="left", fill="both", expand=True)
-#             right_label = tk.Label(right_frame, text="Newly Added Tickets", font=("Trebuchet MS", 13, "bold"))
-#             self.theme_manager.register(right_label, "label")
-#             right_label.pack(pady=(0, 8))
-#             right_canvas = tk.Canvas(right_frame, borderwidth=0, width=200, height=200)
-#             self.theme_manager.register(right_canvas, "frame")
-#             right_canvas.pack(side="left", fill="both", expand=True)
-#             right_scrollbar = tk.Scrollbar(right_frame, orient="vertical", command=self.right_canvas.yview)
-#             right_scrollbar.pack(side="right", fill="y")
-#             right_canvas.configure(yscrollcommand=right_scrollbar.set)
-#             right_inner = tk.Frame(self.right_canvas)
-#             self.theme_manager.register(right_inner, "frame")
-#             right_canvas.create_window((0, 0), window=right_inner, anchor="nw")
-#             def on_right_configure(event):
-#                 self.right_canvas.configure(scrollregion=self.right_canvas.bbox("all"))
-#             right_inner.bind("<Configure>", on_right_configure)
-#             for key in added_ticket_keys:
-#                 ticket_label = tk.Label(right_inner, text=key, anchor="w", font=("Segoe UI", 11))
-#                 ticket_label.pack(fill="x", padx=5, pady=2)
-#                 self.theme_manager.register(ticket_label, "label")
-#             # Mouse wheel scrolling for right_canvas (cross-platform)
-#             def on_right_mousewheel(event):
-#                 if event.num == 4 or event.delta > 0:
-#                     right_canvas.yview_scroll(-1, "units")
-#                 elif event.num == 5 or event.delta < 0:
-#                     right_canvas.yview_scroll(1, "units")
-#                 return "break"
-#             def bind_right_mousewheel():
-#                 right_canvas.bind("<MouseWheel>", on_right_mousewheel)
-#                 right_canvas.bind("<Button-4>", on_right_mousewheel)
-#                 right_canvas.bind("<Button-5>", on_right_mousewheel)
-#                 right_inner.bind("<MouseWheel>", on_right_mousewheel)
-#                 right_inner.bind("<Button-4>", on_right_mousewheel)
-#                 right_inner.bind("<Button-5>", on_right_mousewheel)
-#             def unbind_right_mousewheel():
-#                 right_canvas.unbind("<MouseWheel>")
-#                 right_canvas.unbind("<Button-4>")
-#                 right_canvas.unbind("<Button-5>")
-#                 right_inner.unbind("<MouseWheel>")
-#                 right_inner.unbind("<Button-4>")
-#                 right_inner.unbind("<Button-5>")
-#             def focus_right_canvas(event=None):
-#                 right_canvas.focus_set()
-#                 bind_right_mousewheel()
-#                 self._focused_canvas = right_canvas
-#             right_canvas.bind("<Enter>", focus_right_canvas)
-#             right_canvas.bind("<Leave>", lambda e: unbind_right_mousewheel())
-#             right_inner.bind("<Enter>", focus_right_canvas)
-#             right_inner.bind("<Leave>", lambda e: unbind_right_mousewheel())
-
-#         # On popup open, set focus to first visible canvas and bind mouse wheel
-#         if show_left and left_canvas:
-#             left_canvas.focus_set()
-#             bind_left_mousewheel()
-#             self._focused_canvas = left_canvas
-#         elif show_right and right_canvas:
-#             right_canvas.focus_set()
-#             bind_right_mousewheel()
-#             self._focused_canvas = right_canvas
-
-#         btn_frame = tk.Frame(frame)
-#         self.theme_manager.register(btn_frame, "frame")
-#         btn_frame.pack(pady=10)
-
-#         def cleanup_popup():
-#             master.unbind("<Configure>")
-#             # Unbind mouse wheel events from canvases if present
-#             if show_left and left_canvas:
-#                 try:
-#                     unbind_left_mousewheel()
-#                 except Exception:
-#                     pass
-#             if show_right and right_canvas:
-#                 try:
-#                     unbind_right_mousewheel()
-#                 except Exception:
-#                     pass
-#             # Restore ticket panel canvas focus and mouse wheel binding
-#             try:
-#                 root = master.winfo_toplevel()
-#                 ticket_panel = None
-#                 if hasattr(root, 'panel_choice'):
-#                     ticket_panel = root.panel_choice.get('ticket_panel')
-#                 if not ticket_panel and hasattr(master, 'panel_choice'):
-#                     ticket_panel = master.panel_choice.get('ticket_panel')
-#                 if ticket_panel:
-#                     canvas = ticket_panel.widget_registry.get('canvas')
-#                     if canvas:
-#                         canvas.focus_set()
-#                         # Rebind mouse wheel events for ticket panel canvas
-#                         def _on_mousewheel(event):
-#                             if event.num == 4 or event.delta > 0:
-#                                 canvas.yview_scroll(-1, "units")
-#                             elif event.num == 5 or event.delta < 0:
-#                                 canvas.yview_scroll(1, "units")
-#                         canvas.bind("<MouseWheel>", _on_mousewheel)
-#                         canvas.bind("<Button-4>", _on_mousewheel)
-#                         canvas.bind("<Button-5>", _on_mousewheel)
-#             except Exception:
-#                 pass
-
-#         ok_btn = tk.Button(
-#             btn_frame,
-#             text="OK",
-#             command=lambda: (cleanup_popup(), self.destroy()),
-#             padx=12,
-#             pady=4,
-#             relief="flat",
-#             cursor="hand2",
-#             font=("Segoe UI", 12, "bold"),
-#         )
-#         self.theme_manager.register(ok_btn, "base_button")
-#         ok_btn.pack()
-
-#         self.update_idletasks()
-#         self.deiconify()  # Show after geometry and widgets are set
-#         self.lift()
-#         try:
-#             self.focus_force()
-#             self.focus_set()
-#         except Exception:
-#             pass
-#         master.bind("<Configure>", lambda e: self._center_on_configure(w, h, master))
-
-#         # Temporarily unbind mouse wheel events from root while popup is visible
-#         root = master.winfo_toplevel()
-#         root_mousewheel_binding = root.bind_class("Toplevel", "<MouseWheel>")
-#         root.unbind_all("<MouseWheel>")
-
-#         # Ensure canvases get focus when mouse enters, so mouse wheel events are handled only by popup
-#         if show_left:
-#             left_canvas.bind("<Enter>", lambda e: (left_canvas.focus_set(), print(f"[DEBUG] <Enter> left_canvas: {left_canvas}, has focus: {left_canvas == left_canvas.focus_displayof()}")))
-#         if show_right:
-#             right_canvas.bind("<Enter>", lambda e: (right_canvas.focus_set(), print(f"[DEBUG] <Enter> right_canvas: {right_canvas}, has focus: {right_canvas == right_canvas.focus_displayof()}")))
-
-#         # Restore mouse wheel events and focus on root when popup is closed
-#         def restore_root_mousewheel():
-#             # Unbind the popup's global mouse wheel handler
-#             self.unbind_all("<MouseWheel>")
-#             # Restore root focus
-#             try:
-#                 root.focus_force()
-#             except Exception:
-#                 pass
-#             # Restore mouse wheel for ticket panel canvas if present
-#             try:
-#                 ticket_panel = None
-#                 if hasattr(root, 'panel_choice'):
-#                     ticket_panel = root.panel_choice.get('ticket_panel')
-#                 if not ticket_panel and hasattr(master, 'panel_choice'):
-#                     ticket_panel = master.panel_choice.get('ticket_panel')
-#                 if ticket_panel:
-#                     canvas = ticket_panel.widget_registry.get('canvas')
-#                     if canvas:
-#                         def ticket_panel_mousewheel(event):
-#                             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-#                             return "break"
-#                         canvas.bind("<MouseWheel>", ticket_panel_mousewheel)
-#                         canvas.bind("<Button-4>", ticket_panel_mousewheel)
-#                         canvas.bind("<Button-5>", ticket_panel_mousewheel)
-#             except Exception:
-#                 pass
-
-#         def cleanup_popup():
-#             master.unbind("<Configure>")
-#             restore_root_mousewheel()
-
-#     def _center_on_configure(self, w, h, master):
-#         if not self.winfo_exists():
-#             return
-#         main_x = master.winfo_x()
-#         main_y = master.winfo_y()
-#         main_w = master.winfo_width()
-#         main_h = master.winfo_height()
-#         x = main_x + (main_w // 2) - (w // 2)
-#         y = main_y + (main_h // 2) - (h // 2)
-#         self.geometry(f"{w}x{h}+{x}+{y}")
-#         self.lift()
-
-
-# class TicketCard(tk.Frame):
-#     def __init__(self, ticket_data, theme_manager, on_click=None, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#         self.ticket_key = ticket_data["key"]
-#         self.configure(padx=10, pady=5, bd=1, relief="solid")
-#         theme_manager.register(self, "frame")
-
-#         base = tk.Frame(self)
-#         base.pack(fill="x")
-#         theme_manager.register(base, "frame")
-
-#         info = tk.Frame(base)
-#         info.pack(side="left", fill="y")
-#         theme_manager.register(info, "frame")
-
-#         actions = tk.Frame(base)
-#         actions.pack(side="right", fill="y")
-#         theme_manager.register(actions, "frame")
-
-#         title = tk.Label(
-#             info,
-#             text=self.ticket_key,
-#             font=("Segoe UI", 12, "bold"),
-#             justify="left"
-#         )
-#         title.pack(anchor="w")
-#         theme_manager.register(title, "label")
-
-#         if len(ticket_data) > 2:
-#             descript = tk.Label(
-#                 info,
-#                 text=ticket_data["fields"]["description"],
-#                 font=("Segoe UI", 10),
-#                 wraplength=400,
-#                 justify="left"
-#             )
-#             descript.pack(anchor="w")
-#             theme_manager.register(descript, "label")
-
-#         update_btn = tk.Button(actions, text="Update", justify="right")
-#         update_btn.pack(side="left", padx=10, pady=10)
-#         theme_manager.register(update_btn, "base_button")
-
-#         select_btn = tk.Button(actions, text="Select", justify="right")
-#         select_btn.pack(side="right", padx=10, pady=10)
-#         theme_manager.register(select_btn, "flashy_button")
-
-#         # Bind click event to all children if callback provided
-#         if on_click:
-#             self._bind_all_children(self, lambda event: on_click(self.ticket_key))
-
-#     def _bind_all_children(self, widget, callback):
-#         widget.bind("<Button-1>", callback)
-#         for child in widget.winfo_children():
-#             self._bind_all_children(child, callback)
+        self.update_toolbar_buttons()

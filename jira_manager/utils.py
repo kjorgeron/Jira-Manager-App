@@ -206,7 +206,7 @@ def jql_search_handler(
                         print("HERE!!! " + str(key_val))
                     else:
                         added_issues.append(key_val)
-                        card_retainer.append({"key": key_val})
+                        card_retainer.append({"key": key_val, "widget" : None})
                         new_issues.append(issue)
                         # Ensure ticket is inserted into the database
                         created_ticket_id = add_or_find_key_return_id(db_path, key_val)
@@ -346,6 +346,7 @@ def update_ticket_bucket_with_single(
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
 
     card = TicketCard(ticket, theme_manager, master=base_frame)
+    card.update_card_retainer()
     if ticket["key"] in selected_items:
         card.set_bg(theme_manager.theme["pending_color"])
         card.widget_registry.get("select_btn").config(
