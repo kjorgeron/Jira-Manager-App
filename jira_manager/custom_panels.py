@@ -842,41 +842,8 @@ class TicketDisplayBuilder(tk.Frame):
                 if not found:
                     card_retainer.append({"key": ticket["key"], "widget": card})
 
-        def scroll_to_top():
-            canvas = self.widget_registry.get("canvas")
-            canvas.yview_moveto(0)
-
-        # Always recreate the button frame and destroy any previous button
-        btn_frame = tk.Frame(base_frame)
-        btn_frame.pack(side="top", fill="x", pady=10)
-        self.theme_manager.register(btn_frame, "frame")
-        # Remove any previous button if present
-        if hasattr(self, "return_top_btn") and self.return_top_btn:
-            try:
-                self.return_top_btn.destroy()
-            except Exception:
-                pass
-            self.return_top_btn = None
-        # Show 'Return to Top' only if the vertical scrollbar is visible (content overflows)
-        canvas = self.widget_registry.get("canvas")
-        base_frame.update_idletasks()
-        needs_scroll = False
-        if canvas is not None:
-            scrollregion = canvas.bbox("all")
-            if scrollregion:
-                visible_height = canvas.winfo_height()
-                content_height = scrollregion[3] - scrollregion[1]
-                needs_scroll = content_height > visible_height
-        if needs_scroll:
-            self.return_top_btn = tk.Button(
-                btn_frame,
-                text="Return to Top",
-                command=scroll_to_top,
-                font=("Segoe UI", 12, "bold"),
-                cursor="hand2",
-            )
-            self.return_top_btn.pack(side="top", pady=5)
-            self.theme_manager.register(self.return_top_btn, "base_button")
+        # Initial call after building ticket board
+        self.update_return_top_btn()
 
         base_frame.update_idletasks()
         overlay.place(
@@ -891,7 +858,64 @@ class TicketDisplayBuilder(tk.Frame):
             overlay.destroy()
 
         parent.after(120, remove_overlay)
+        self.update_return_top_btn()
         print(f"{minimum=}\n{maximum=}")
+
+    def scroll_to_top(self):
+        canvas = self.widget_registry.get("canvas")
+        canvas.yview_moveto(0)
+
+    def update_return_top_btn(self):
+        # Get current page and ticket range
+        tickets_per_page = 50
+        total_tickets = len(self.tickets) if self.tickets else 0
+        pg_num = 1
+        if "current_pg" in self.widget_registry:
+            try:
+                pg_num = int(self.widget_registry["current_pg"].cget("text"))
+            except Exception:
+                pg_num = 1
+        minimum = (pg_num - 1) * tickets_per_page
+        maximum = min(pg_num * tickets_per_page, total_tickets)
+        ticket_count = maximum - minimum
+        base_frame = self.widget_registry.get("base_frame")
+        if not base_frame:
+            return
+        # Remove any previous button and frame
+        if hasattr(self, "return_top_btn") and self.return_top_btn:
+            try:
+                self.return_top_btn.destroy()
+            except Exception:
+                pass
+            self.return_top_btn = None
+        # Remove any previous button frame (if you store a reference, e.g. self.return_top_btn_frame)
+        for child in base_frame.winfo_children():
+            if isinstance(child, tk.Frame) and getattr(child, "_is_return_top_btn_frame", False):
+                child.destroy()
+        # Show 'Return to Top' only if the vertical scrollbar is visible (content overflows) and ticket count >= 25
+        canvas = self.widget_registry.get("canvas")
+        base_frame.update_idletasks()
+        needs_scroll = False
+        if canvas is not None:
+            scrollregion = canvas.bbox("all")
+            if scrollregion:
+                visible_height = canvas.winfo_height()
+                content_height = scrollregion[3] - scrollregion[1]
+                needs_scroll = content_height > visible_height
+        if needs_scroll and ticket_count >= 25:
+            btn_frame = tk.Frame(base_frame)
+            btn_frame._is_return_top_btn_frame = True  # Mark for future cleanup
+            btn_frame.pack(side="top", fill="x", pady=10)
+            self.theme_manager.register(btn_frame, "frame")
+            self.return_top_btn = tk.Button(
+                btn_frame,
+                text="Return to Top",
+                command=self.scroll_to_top,
+                font=("Segoe UI", 12, "bold"),
+                cursor="hand2",
+            )
+            self.return_top_btn.pack(side="top", pady=5)
+            self.theme_manager.register(self.return_top_btn, "base_button")
 
     def prev_action(self):
         pg_num = self.widget_registry.get("current_pg")

@@ -396,6 +396,8 @@ class TicketCard(tk.Frame):
             ]
         print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
         self.destroy()  # Remove the widget from the UI
+        self.panel_choice["ticket_panel"].update_return_top_btn()
+
 
     def _bind_all_children(self, widget, callback):
         # Avoid binding click event to buttons
@@ -655,6 +657,7 @@ class TicketCard(tk.Frame):
                                 f"Error deleting card_info for {key} from delete_all_selected_tickets"
                             )
             self.update_toolbar_buttons()
+            self.panel_choice["ticket_panel"].update_return_top_btn()
 
         def cancel():
             cleanup_popup()
