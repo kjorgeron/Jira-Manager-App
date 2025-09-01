@@ -999,6 +999,9 @@ class TicketDisplayBuilder(tk.Frame):
         page_jump_entry.pack(side="left", padx=(5, 5))
         self.theme_manager.register(page_jump_entry, "placeholder_entry")
 
+        # Bind Enter key to trigger page jump
+        page_jump_entry.bind("<Return>", lambda event: jump_to_page())
+
         def jump_to_page():
             try:
                 value = page_jump_entry.get()
