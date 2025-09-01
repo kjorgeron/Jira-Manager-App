@@ -160,7 +160,12 @@ class EntryWithPlaceholder(tk.Entry):
     def reset_to_placeholder(self):
         self._placeholder_active = False
         self.delete(0, tk.END)
-        self._set_placeholder()
+        self._placeholder_active = True
+        self.config(show="")
+        self.insert(0, self.placeholder)
+        self.config(fg=self.placeholder_color)
+        if self.placeholder_font:
+            self.config(font=self.placeholder_font)
 
     def is_placeholder_active(self):
         return self._placeholder_active
@@ -396,7 +401,25 @@ class TicketCard(tk.Frame):
             ]
         print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
         self.destroy()  # Remove the widget from the UI
-        self.panel_choice["ticket_panel"].update_return_top_btn()
+        # Robust refresh: reload tickets, sync card_retainer, and update UI
+        if self.panel_choice and "ticket_panel" in self.panel_choice:
+            ticket_panel = self.panel_choice["ticket_panel"]
+            db_path = self.db_path
+            issues = run_sql_stmt(
+                db_path,
+                "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC;",
+                stmt_type="select",
+            )
+            ticket_panel.tickets = [{"key": issue[1]} for issue in issues]
+            valid_keys = set([t["key"] for t in ticket_panel.tickets])
+            card_retainer = self.panel_choice.get("card_retainer")
+            if card_retainer is not None:
+                card_retainer[:] = [t for t in card_retainer if t.get("key") in valid_keys]
+            if "current_pg" in ticket_panel.widget_registry:
+                pg_num = int(ticket_panel.widget_registry["current_pg"].cget("text"))
+            else:
+                pg_num = 1
+            ticket_panel.set_page_contents(pg_num, self.selected_items)
 
 
     def _bind_all_children(self, widget, callback):
@@ -657,7 +680,25 @@ class TicketCard(tk.Frame):
                                 f"Error deleting card_info for {key} from delete_all_selected_tickets"
                             )
             self.update_toolbar_buttons()
-            self.panel_choice["ticket_panel"].update_return_top_btn()
+            # Robust refresh: reload tickets, sync card_retainer, and update UI
+            if self.panel_choice and "ticket_panel" in self.panel_choice:
+                ticket_panel = self.panel_choice["ticket_panel"]
+                db_path = self.db_path
+                issues = run_sql_stmt(
+                    db_path,
+                    "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC;",
+                    stmt_type="select",
+                )
+                ticket_panel.tickets = [{"key": issue[1]} for issue in issues]
+                valid_keys = set([t["key"] for t in ticket_panel.tickets])
+                card_retainer = self.panel_choice.get("card_retainer")
+                if card_retainer is not None:
+                    card_retainer[:] = [t for t in card_retainer if t.get("key") in valid_keys]
+                if "current_pg" in ticket_panel.widget_registry:
+                    pg_num = int(ticket_panel.widget_registry["current_pg"].cget("text"))
+                else:
+                    pg_num = 1
+                ticket_panel.set_page_contents(pg_num, self.selected_items)
 
         def cancel():
             cleanup_popup()

@@ -777,14 +777,39 @@ class TicketDisplayBuilder(tk.Frame):
         # Clamp page number to valid range
         pg_num = max(1, min(pg_num, last_page))
 
-        # If the current page is now empty (after deletions), move to previous page if possible
+        # Calculate ticket range for this page
         minimum = (pg_num - 1) * tickets_per_page
         maximum = min(pg_num * tickets_per_page, total_tickets)
-        # If there are no tickets to show and we're not on the first page, move to previous page
-        while minimum >= total_tickets and pg_num > 1:
-            pg_num -= 1
-            minimum = (pg_num - 1) * tickets_per_page
-            maximum = min(pg_num * tickets_per_page, total_tickets)
+
+        # If the current page is now empty (after deletions), move to previous page if possible
+        if minimum >= total_tickets:
+            if pg_num > 1:
+                pg_num -= 1
+                minimum = (pg_num - 1) * tickets_per_page
+                maximum = min(pg_num * tickets_per_page, total_tickets)
+            else:
+                minimum = 0
+                maximum = 0
+        # Update page indicator and total page count
+        if "current_pg" in self.widget_registry:
+            self.widget_registry["current_pg"].config(text=str(pg_num))
+        if "total_tickets" in self.widget_registry:
+            total_pages = max(1, ceil(total_tickets / tickets_per_page))
+            self.widget_registry["total_tickets"].config(text=str(total_pages))
+        # If there are no tickets to show, remove Return to Top button and frame
+        if maximum - minimum == 0:
+            base_frame = self.widget_registry.get("base_frame")
+            if base_frame:
+                # Remove button and frame
+                if hasattr(self, "return_top_btn") and self.return_top_btn:
+                    try:
+                        self.return_top_btn.destroy()
+                    except Exception:
+                        pass
+                    self.return_top_btn = None
+                for child in base_frame.winfo_children():
+                    if isinstance(child, tk.Frame) and getattr(child, "_is_return_top_btn_frame", False):
+                        child.destroy()
 
         # Update page indicator and total page count
         if "current_pg" in self.widget_registry:
@@ -1047,8 +1072,10 @@ class TicketDisplayBuilder(tk.Frame):
 
                 else:
                     page_jump_entry.reset_to_placeholder()
+                    go_btn.focus_set()
             except ValueError:
                 page_jump_entry.reset_to_placeholder()
+                go_btn.focus_set()
 
         go_btn = tk.Button(
             page_jump_frame,
