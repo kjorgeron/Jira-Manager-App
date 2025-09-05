@@ -43,6 +43,7 @@ def load_data() -> dict:
             "auth_type": "Basic Auth",
             "proxy_option": "No",
             "theme": "Dark",
+            "thread_count": "safe_mode",
         }
         save_data(payload)
 

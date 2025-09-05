@@ -1,4 +1,4 @@
-        # ...existing code...
+# ...existing code...
 import functools
 import tkinter as tk
 from getpass import getuser
@@ -24,6 +24,8 @@ from jira_manager.sql import tickets_table, fields_table
 from multiprocessing import Queue
 from threading import Event
 from jira_manager.custom_widgets import TicketCard
+from os import cpu_count
+from jira_manager.file_manager import load_data
 
 
 def _set_cursor(event, widget, cursor):
@@ -69,7 +71,8 @@ def enter_key_clear_focus_run_btn_event(
     card_retainer,
     selected_items,
     jql_task_queue,
-    jql_worker_running
+    jql_worker_running,
+    db_path
 ):
     toolbar_action(
         payload,
@@ -84,6 +87,8 @@ def enter_key_clear_focus_run_btn_event(
         card_retainer,
         selected_items,
         root,
+        thread_count,
+        db_path
     )
     root.focus_set()
 
@@ -135,12 +140,25 @@ def main():
     selected_items_for_update = []
     card_retainer = []
     stop_flag = Event()
+    
     # JQL queue and worker state
-    from queue import Queue
-
     JQL_TASK_QUEUE = Queue()
     JQL_WORKER_RUNNING = False
-    thread_count = 2  # Default value, adjust as needed
+    cpu_total = cpu_count() or 4
+    # Load thread_count from config
+    config = load_data()
+    config_thread_count = config.get("thread_count", "safe_mode")
+    if config_thread_count == "safe_mode":
+        thread_count = min(8, max(2, cpu_total - 3))
+    else:
+        try:
+            thread_count = int(config_thread_count) - 3
+        except Exception:
+            thread_count = min(8, max(2, cpu_total - 3))
+    # These are to be used for thread counts in worker threads
+    internal_thread_allotment = thread_count // 2
+    external_thread_allotment = thread_count - internal_thread_allotment
+    print(f"Internal Thread Allotment: {internal_thread_allotment}, External Thread Allotment: {external_thread_allotment}\nTotal Thread Count: {thread_count}, cpu_count: {cpu_total}")
     root.protocol("WM_DELETE_WINDOW", lambda: on_close(stop_flag, root))
 
     def clear_focus(event):
@@ -195,6 +213,7 @@ def main():
         "ticket_panel": ticket_panel,
         "receipts_panel": receipts_panel,
         "card_retainer": card_retainer,
+        "root": root,
     }
     ticket_panel.set_panel_choice(panel_choice)
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
@@ -245,6 +264,8 @@ def main():
                 card_retainer,
                 selected_items_for_update,
                 root,
+                internal_thread_allotment,
+                db_path,
             ),
             panel_choice=panel_choice,
         ),
@@ -270,6 +291,8 @@ def main():
                 card_retainer,
                 selected_items_for_update,
                 root,
+                internal_thread_allotment,
+                db_path,
             ),
             panel_choice=panel_choice,
         ),
@@ -313,6 +336,8 @@ def main():
             card_retainer,
             selected_items_for_update,
             root,
+            internal_thread_allotment,
+            db_path,
         )
         root.focus_set()
 

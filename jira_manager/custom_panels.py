@@ -5,6 +5,9 @@ from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
 from math import ceil
+import sys
+import os
+import subprocess
 
 
 def batch_list(lst, batch_size):
@@ -24,7 +27,7 @@ def update_ticket_bucket_with_single(
         selected_items=selected_items,
         card_retainer=card_retainer,
     )
-    print(f"{ticket=} from update_ticket_bucket_with_single")
+    # print(f"{ticket=} from update_ticket_bucket_with_single")
     card.update_panel_choice(panel_choice=panel_choice)
     if ticket["key"] in selected_items:
         card.set_bg(theme_manager.theme["pending_color"])
@@ -40,7 +43,7 @@ def update_ticket_bucket(
 ):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
     max_cols = 5
-    print(f"{ticket_bucket_items=}")
+    # print(f"{ticket_bucket_items=}")
     # Make columns expandable
     for col in range(max_cols):
         base_frame.columnconfigure(col, weight=1)
@@ -250,9 +253,7 @@ class ConfigurationFormBuilder(tk.Frame):
                 return value
             return ""
 
-        def on_save(
-            theme_manager: ThemeManager,
-        ):  # THIS ROOT PASS NEEDS TO BE REMOVED / UPDATE FUNC TO FIT NEW CLASS IN THEMES.PY
+        def on_save(theme_manager: ThemeManager):
             # Handles clearing of unused data for login
             if selected_auth.get() == "Basic Auth":
                 token_input.delete(0, tk.END)
@@ -268,6 +269,9 @@ class ConfigurationFormBuilder(tk.Frame):
                 http_input.delete(0, tk.END)
                 https_input.delete(0, tk.END)
 
+            # Get previous thread count from config
+            prev_thread_count = self.config.get("thread_count", "safe_mode")
+
             payload = {
                 "server": get_clean_value(jira_server_input),
                 "http_proxy": http_input.get(),
@@ -279,12 +283,72 @@ class ConfigurationFormBuilder(tk.Frame):
                 "proxy_option": proxy_option.get(),
                 "theme": theme_option.get(),
             }
+            tc_display = thread_count_option.get()
+            tc_value = display_to_value.get(tc_display, tc_display)
+            payload["thread_count"] = tc_value
 
             # SAVE PAYLOAD DATA
             save_data(payload)
 
+            # If thread count changed, prompt for restart
+            if str(tc_value) != str(prev_thread_count):
+                def do_restart():
+                    # Relaunch the app with the same command line
+                    if getattr(sys, 'frozen', False):
+                        exe = sys.executable
+                        args = sys.argv
+                    else:
+                        exe = sys.executable
+                        # Reconstruct the command to use -m if run as a module
+                        if sys.argv[0].endswith("__main__.py"):
+                            args = [exe, "-m", "jira_manager"]
+                        else:
+                            args = [exe] + sys.argv
+                    # On Windows, bring the new app window to the foreground
+                    if sys.platform == "win32":
+                        import ctypes
+                        SW_SHOW = 5
+                        # Start the new process
+                        proc = subprocess.Popen(args, cwd=os.getcwd())
+                        # Wait a moment for the window to appear
+                        import time
+                        time.sleep(0.5)
+                        # Try to bring the new window to the foreground
+                        ctypes.windll.user32.SetForegroundWindow(proc._handle)
+                        ctypes.windll.user32.ShowWindow(proc._handle, SW_SHOW)
+                    else:
+                        subprocess.Popen(args, cwd=os.getcwd())
+                    os._exit(0)
+                root = self.panel_choice.get("root")
+                popup = tk.Toplevel(root)
+                popup.overrideredirect(1)
+                # Center the popup over the root window
+                w = 350
+                h = 250
+                x = root.winfo_rootx() + (root.winfo_width() // 2) - (w // 2)
+                y = root.winfo_rooty() + (root.winfo_height() // 2) - (h // 2)
+                popup.geometry(f"{w}x{h}+{x}+{y}")
+                popup.transient(root)
+                popup.grab_set()
+                popup.lift()
+                popup.focus_force()
+                # Apply theme to popup
+                self.theme_manager.register(popup, "frame")
+                label = tk.Label(popup, text="CHANGE FROM SAFE MODE AT YOUR OWN RISK!\nThread count changed. Please restart the app for changes to take effect.", wraplength=320, font=("Trebuchet MS", 11))
+                label.pack(pady=20)
+                self.theme_manager.register(label, "label")
+                btn_frame = tk.Frame(popup)
+                btn_frame.pack(pady=10)
+                self.theme_manager.register(btn_frame, "frame")
+                restart_btn = tk.Button(btn_frame, text="Restart Now", command=do_restart, font=("Trebuchet MS", 11, "bold"))
+                restart_btn.pack(side="left", padx=10)
+                self.theme_manager.register(restart_btn, "flashy_button")
+                later_btn = tk.Button(btn_frame, text="Later", command=popup.destroy, font=("Trebuchet MS", 11))
+                later_btn.pack(side="left", padx=10)
+                self.theme_manager.register(later_btn, "base_button")
+                return  # Don't update theme or switch panel until restart
+
             # NEED TO CALL UPDATE THEME HERE
-            """ERROR FROM HERE... TAKES AWHILE OF TOOL USE TO SEE SMALL UI ERROR"""
             try:
                 new_theme = payload["theme"]
                 print(f"{new_theme=}")
@@ -297,7 +361,6 @@ class ConfigurationFormBuilder(tk.Frame):
                 print(mode)
                 theme_manager.update_theme(new_theme=mode)
 
-                # MAYBE CAN FIX UI ISSUE WITH SELECT ITEMS HERE... SWITCH TO TICKET PANEL TO LOAD IN TICKETS... THEN PULL THEM AND DO CHECKS FOR SELECTED TICKETS
                 switch_panel(
                     "ticket_panel",
                     self.ui_state,
@@ -421,6 +484,37 @@ class ConfigurationFormBuilder(tk.Frame):
         )
         theme.grid(row=1, column=1, sticky="ew", pady=2)
         self.theme_manager.register(theme, "combobox")
+
+        # Thread Count Selector (Row 1, Column 2/3)
+        thread_count_label = tk.Label(
+            selector_row,
+            text="Thread Count:",
+            font=self.font_style,
+        )
+        thread_count_label.grid(row=1, column=2, sticky="w", padx=(0, 5), pady=2)
+        self.theme_manager.register(thread_count_label, "label")
+
+        thread_count_values = ["Safe Mode", 8, 12, 16, 20, 24, 28, 32]
+        display_to_value = {"Safe Mode": "safe_mode"}
+        for v in thread_count_values[1:]:
+            display_to_value[str(v)] = str(v)
+
+        current_thread_count = self.config.get("thread_count", "safe_mode")
+        if current_thread_count == "safe_mode":
+            display_value = "Safe Mode"
+        else:
+            display_value = str(current_thread_count)
+        thread_count_option = tk.StringVar(value=display_value)
+
+        thread_count = ttk.Combobox(
+            selector_row,
+            textvariable=thread_count_option,
+            values=[str(v) for v in thread_count_values],
+            state="readonly",
+            style="Custom.TCombobox",
+        )
+        thread_count.grid(row=1, column=3, sticky="ew", pady=2)
+        self.theme_manager.register(thread_count, "combobox")
 
         # SEPERATOR IN FORM
         ttk.Separator(form_frame, orient="horizontal").pack(fill="x", pady=10)
@@ -1151,7 +1245,7 @@ class TicketDisplayBuilder(tk.Frame):
         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
             print(
-                f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}"
+                f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas.focus_displayof()}"
             )
             if canvas != canvas.focus_displayof():
                 canvas.focus_set()

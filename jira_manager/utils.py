@@ -540,7 +540,7 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
 
 
 def fetch_all_issues_threaded(
-    config_data, payload, headers, proxies, thread_count=4, return_queue: Queue = None
+    config_data, payload, headers, proxies, thread_count=1, return_queue: Queue = None
 ):
     base_url = f"{config_data.get('server')}rest/api/2/search"
     jql = payload["jql"]
@@ -725,8 +725,9 @@ def toolbar_action(
     card_retainer,
     selected_items,
     root=None,
+    thread_count=1,
+    db_path="jira_manager/tickets.db",
 ):
-    db_path = "jira_manager/tickets.db"
     config_data = load_data()
     headers, proxies = configure_project_credentials(
         config_data, panel_choice, ui_state, widget_registry, root, theme_manager
@@ -771,7 +772,7 @@ def toolbar_action(
                 "payload": payload,
                 "headers": headers,
                 "proxies": proxies,
-                "thread_count": 4,  # Default to 4 threads for ticket fetching
+                "thread_count": thread_count,  # Default to 1 thread for ticket fetching
             }
             jql_task_queue.put(task)
             # Clear the JQL entry after search

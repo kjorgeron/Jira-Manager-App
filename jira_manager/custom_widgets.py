@@ -236,18 +236,18 @@ class TicketCard(tk.Frame):
         self.db_path = "jira_manager/tickets.db"
         self.panel_choice = panel_choice
         # Debug: print panel_choice and check for ticket_panel
-        if self.panel_choice is None:
-            print(
-                f"[DEBUG] TicketCard.__init__: panel_choice is None for ticket {ticket_data.get('key')}"
-            )
-        elif "ticket_panel" not in self.panel_choice:
-            print(
-                f"[DEBUG] TicketCard.__init__: panel_choice missing 'ticket_panel' for ticket {ticket_data.get('key')}"
-            )
-        else:
-            print(
-                f"[DEBUG] TicketCard.__init__: panel_choice OK for ticket {ticket_data.get('key')}"
-            )
+        # if self.panel_choice is None:
+        #     print(
+        #         f"[DEBUG] TicketCard.__init__: panel_choice is None for ticket {ticket_data.get('key')}"
+        #     )
+        # elif "ticket_panel" not in self.panel_choice:
+        #     print(
+        #         f"[DEBUG] TicketCard.__init__: panel_choice missing 'ticket_panel' for ticket {ticket_data.get('key')}"
+        #     )
+        # else:
+        #     print(
+        #         f"[DEBUG] TicketCard.__init__: panel_choice OK for ticket {ticket_data.get('key')}"
+        #     )
 
         self.ticket_key = ticket_data["key"]
         self.configure(padx=10, pady=5, bd=1, relief="solid")
@@ -313,7 +313,7 @@ class TicketCard(tk.Frame):
         self.panel_choice = panel_choice
 
     def update_toolbar_buttons(self):
-        print(f"{self.theme_manager=}")
+        # print(f"{self.theme_manager=}")
         # Setup of dynamic update and delete buttons for selected tickets
         if self.panel_choice is None or "ticket_panel" not in self.panel_choice:
             return
@@ -334,7 +334,7 @@ class TicketCard(tk.Frame):
         # Remove any existing buttons in the frame
         for child in dynamic_btn_frame.winfo_children():
             child.destroy()
-        print(f"[DEBUG] selected_items before button logic: {self.selected_items}")
+        # print(f"[DEBUG] selected_items before button logic: {self.selected_items}")
         if len(self.selected_items) > 0:
             # Always pack the frame when showing buttons
             dynamic_btn_frame.pack(side="left", padx=40)
@@ -358,9 +358,9 @@ class TicketCard(tk.Frame):
             self.widget_registry["delete_btn"] = delete_button
         else:
             # Hide the frame if no buttons
-            print(
-                f"[DEBUG] Hiding dynamic_btn_frame, selected_items: {self.selected_items}"
-            )
+            # print(
+            #     f"[DEBUG] Hiding dynamic_btn_frame, selected_items: {self.selected_items}"
+            # )
             dynamic_btn_frame.pack_forget()
 
     def select_for_update(self):
@@ -370,7 +370,7 @@ class TicketCard(tk.Frame):
         if select.cget("text") == "Select":
             self.configure(bg=self.theme_manager.theme["pending_color"])
             self.selected_items.append(self.ticket_key)
-            print(f"{self.selected_items=}")
+            # print(f"{self.selected_items=}")
             select.config(bg=self.theme_manager.theme["pending_color"])
             self.widget_registry["select_btn"].config(text="Unselect")
         elif select.cget("text") == "Unselect":
@@ -392,14 +392,14 @@ class TicketCard(tk.Frame):
         # Remove from selected_items if present
         if self.selected_items and self.ticket_key in self.selected_items:
             self.selected_items.remove(self.ticket_key)
-            print(f"{self.selected_items=}")
+            # print(f"{self.selected_items=}")
         # Update toolbar buttons after deletion
         self.update_toolbar_buttons()
         if self.card_retainer is not None:
             self.card_retainer[:] = [
                 t for t in self.card_retainer if t.get("key") != self.ticket_key
             ]
-        print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
+        # print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
         self.destroy()  # Remove the widget from the UI
         # Robust refresh: reload tickets, sync card_retainer, and update UI
         if self.panel_choice and "ticket_panel" in self.panel_choice:
@@ -441,7 +441,7 @@ class TicketCard(tk.Frame):
         if select.cget("text") == "Select":
             self.configure(bg=self.theme_manager.theme["pending_color"])
             self.selected_items.append(self.ticket_key)
-            print(f"{self.selected_items=}")
+            # print(f"{self.selected_items=}")
             select.config(bg=self.theme_manager.theme["pending_color"])
             self.widget_registry["select_btn"].config(text="Unselect")
         elif select.cget("text") == "Unselect":
@@ -451,22 +451,22 @@ class TicketCard(tk.Frame):
             self.widget_registry["select_btn"].config(text="Select")
 
         # Defensive check for panel_choice and ticket_panel
-        if self.panel_choice is None:
-            print(
-                f"[ERROR] select_for_update: self.panel_choice is None for ticket {self.ticket_key}"
-            )
-            return
-        if "ticket_panel" not in self.panel_choice:
-            print(
-                f"[ERROR] select_for_update: 'ticket_panel' missing in panel_choice for ticket {self.ticket_key}"
-            )
+        # if self.panel_choice is None:
+        #     print(
+        #         f"[ERROR] select_for_update: self.panel_choice is None for ticket {self.ticket_key}"
+        #     )
+        #     return
+        # if "ticket_panel" not in self.panel_choice:
+        #     print(
+        #         f"[ERROR] select_for_update: 'ticket_panel' missing in panel_choice for ticket {self.ticket_key}"
+        #     )
             return
 
         # Setup of dynamic update and delete buttons for selected tickets
         self.update_toolbar_buttons()
 
     def delete_from_database(self, on_delete=None):
-        print(self.ticket_key)
+        # print(self.ticket_key)
         # Prevent multiple popups
         if hasattr(self, "_delete_popup") and self._delete_popup is not None:
             try:
@@ -529,12 +529,12 @@ class TicketCard(tk.Frame):
                 pass
 
         def cancel():
-            print("Cancelled deletion")
+            # print("Cancelled deletion")
             cleanup_popup()
             popup.destroy()
 
         def do_delete():
-            print(f"Deleting ticket {self.ticket_key}...")
+            # print(f"Deleting ticket {self.ticket_key}...")
             cleanup_popup()
             popup.destroy()
             if on_delete:
@@ -664,7 +664,7 @@ class TicketCard(tk.Frame):
                 self.selected_items.remove(key)
                 for card_info in self.card_retainer:
                     if card_info.get("key") == key:
-                        print(f"{card_info=} from delete_all_selected_tickets")
+                        # print(f"{card_info=} from delete_all_selected_tickets")
 
                         try:
                             card_info["widget"].destroy()
