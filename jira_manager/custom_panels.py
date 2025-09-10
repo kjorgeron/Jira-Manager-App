@@ -117,8 +117,8 @@ def switch_panel(
         if configure_btn:
             configure_btn.config(state="normal")
 
+
     if panel_key == "ticket_panel":
-        # ...existing code...
         if db_path:
             try:
                 issues = run_sql_stmt(
@@ -126,11 +126,20 @@ def switch_panel(
                     "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC;",
                     stmt_type="select",
                 )
+                # --- Deduplicate and sync tickets ---
+                db_ticket_keys = set(issue[1] for issue in issues)
+                # Remove any tickets not in DB
+                panel_choice["ticket_panel"].tickets = [t for t in panel_choice["ticket_panel"].tickets if t["key"] in db_ticket_keys]
+                # Add any missing tickets from DB
+                existing_keys = set(t["key"] for t in panel_choice["ticket_panel"].tickets)
+                for issue in issues:
+                    key = issue[1]
+                    if key not in existing_keys:
+                        panel_choice["ticket_panel"].tickets.append({"key": key})
+                # Prepare show_issues for first page
                 show_issues = []
                 for i, issue in enumerate(issues):
                     show = {"key": issue[1]}
-                    if show not in panel_choice["ticket_panel"].tickets:
-                        panel_choice["ticket_panel"].tickets.append(show)
                     if i < 50 and show not in show_issues:
                         show_issues.append(show)
                 panel_choice["ticket_panel"].widget_registry.get(

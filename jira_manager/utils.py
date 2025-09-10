@@ -164,6 +164,7 @@ def jql_search_handler(
     widget_registry,
 ):
     print("Running thread...")
+
     try:
         t_type = str(task.get("type"))
 
@@ -175,13 +176,23 @@ def jql_search_handler(
             headers = task.get("headers")
             proxies = task.get("proxies")
             thread_count = int(task.get("thread_count", 2))
-            # ...existing JQL logic here...
-            # After processing, switch panel
+            server = config_data.get("server")
+
+            # --- Sync card_retainer with DB tickets to prevent UI duplication ---
+            db_tickets = run_sql_stmt(db_path, "SELECT key FROM tickets", stmt_type="select")
+            db_ticket_keys = set(str(row[0]) for row in db_tickets) if db_tickets else set()
+            # Only keep unique keys in card_retainer
+            card_retainer_keys = set(str(x.get("key", "")) for x in card_retainer) if card_retainer else set()
+            # Add missing tickets from DB to card_retainer
+            if card_retainer is None:
+                card_retainer = []
+            for key in db_ticket_keys:
+                if key and key not in card_retainer_keys:
+                    card_retainer.append({"key": key, "widget": None})
+
             print("Batch insert completed.")
             print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-            print(
-                f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
-            )
+            print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
 
             try:
                 added_issues = []
@@ -198,9 +209,7 @@ def jql_search_handler(
                     print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
                     key_val = str(key_val_raw)
                     check = {"key": key_val}
-                    print(
-                        f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}"
-                    )
+                    print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}")
                     if check in card_retainer:
                         existing_issues.append(key_val)
                         print("HERE!!! " + str(key_val))
@@ -211,6 +220,7 @@ def jql_search_handler(
                         # Ensure ticket is inserted into the database
                         created_ticket_id = add_or_find_key_return_id(db_path, key_val)
                         print(f"{created_ticket_id=}")
+                        run_database_updates_to_tickets_fields_values(db_path, server, headers, [issue])
 
 
                 # Create the receipt in the database
@@ -360,7 +370,7 @@ def update_ticket_bucket_with_single(
         card.pack(side="top", fill="x", padx=5, pady=3)
 
 
-def run_database_updates(db_path, server, headers, jira_tickets):
+def run_database_updates_to_tickets_fields_values(db_path, server, headers, jira_tickets):
     print("Running database update")
     for ticket in jira_tickets:
         key = ticket["key"]
