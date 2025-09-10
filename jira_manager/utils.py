@@ -38,11 +38,34 @@ def jql_worker(
     if worker_state is not None:
         worker_state["running"] = True
     try:
+        # Get the internal loadbar label widget from the registry
+        internal_label = None
+        if panel_choice and hasattr(panel_choice, 'get'):
+            ticket_panel = panel_choice.get("ticket_panel")
+            if ticket_panel and hasattr(ticket_panel, "widget_registry"):
+                internal_label = ticket_panel.widget_registry.get("internal_loadbar_label")
+
+        # Calculate total number of tasks in the queue at start
+        try:
+            total_queues = jql_task_queue.qsize()
+        except Exception:
+            total_queues = None
+
+        current_queue = 0
         while not stop_flag.is_set():
             try:
                 task = jql_task_queue.get(timeout=1)
             except Empty:
                 break
+
+            # Update the label to show current queue progress (e.g., 1/3, 2/3, ...)
+            current_queue += 1
+            if internal_label is not None and total_queues is not None and total_queues > 0:
+                try:
+                    internal_label.config(text=f"{current_queue}/{total_queues}")
+                except Exception as e:
+                    print(f"Failed to update internal loadbar label: {e}")
+
             try:
                 jql_search_handler(
                     stop_flag,
@@ -60,6 +83,12 @@ def jql_worker(
             finally:
                 jql_task_queue.task_done()
     finally:
+        # Optionally clear the label when done
+        if internal_label is not None:
+            try:
+                internal_label.config(text="")
+            except Exception:
+                pass
         if worker_state is not None:
             worker_state["running"] = False
         print("JQL worker thread finished.")
@@ -194,6 +223,17 @@ def jql_search_handler(
             print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
             print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
 
+            # --- Get the internal loadbar Progressbar widget and show/hide helpers ---
+            internal_bar = None
+            show_internal_loadbar = None
+            hide_internal_loadbar = None
+            if panel_choice and hasattr(panel_choice, 'get'):
+                ticket_panel = panel_choice.get("ticket_panel")
+                if ticket_panel and hasattr(ticket_panel, "widget_registry"):
+                    internal_bar = ticket_panel.widget_registry.get("internal_loadbar")
+                    show_internal_loadbar = ticket_panel.widget_registry.get("show_internal_loadbar")
+                    hide_internal_loadbar = ticket_panel.widget_registry.get("hide_internal_loadbar")
+
             try:
                 added_issues = []
                 existing_issues = []
@@ -202,8 +242,23 @@ def jql_search_handler(
                 )
                 print(f"len(issues)={len(issues)}")
 
+                # Show and set up progress bar
+                if show_internal_loadbar is not None:
+                    try:
+                        show_internal_loadbar()
+                    except Exception as e:
+                        print(f"Failed to show internal loadbar: {e}")
+                if internal_bar is not None:
+                    try:
+                        internal_bar["maximum"] = max(1, len(issues))
+                        internal_bar["value"] = 0
+                        internal_bar.update_idletasks()
+                    except Exception as e:
+                        print(f"Failed to initialize internal loadbar: {e}")
+
                 # Remove duplicates using card_retainer
                 new_issues = []
+                progress_count = 0
                 for issue in issues:
                     key_val_raw = issue.get("key", "")
                     print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
@@ -222,6 +277,15 @@ def jql_search_handler(
                         print(f"{created_ticket_id=}")
                         run_database_updates_to_tickets_fields_values(db_path, server, headers, [issue])
 
+                    # Update progress bar after each issue
+                    progress_count += 1
+                    if internal_bar is not None:
+                        try:
+                            internal_bar["value"] = progress_count
+                            internal_bar.update_idletasks()
+                        except Exception as e:
+                            print(f"Failed to update internal loadbar: {e}")
+
 
                 # Create the receipt in the database
                 import os
@@ -233,18 +297,21 @@ def jql_search_handler(
                 # Show a simple popup to inform the user
                 def show_receipt_popup():
                     master = widget_registry.get("jql_query").winfo_toplevel()
+
                     popup = tk.Toplevel(master)
+                    popup.withdraw()  # Hide immediately to prevent top-left glitch
                     popup.overrideredirect(True)  # Remove title bar
                     popup.resizable(False, False)
                     popup.transient(master)
-                    popup.grab_set()
                     theme_manager.register(popup, "frame")
                     frame = tk.Frame(popup, padx=20, pady=20)
                     theme_manager.register(frame, "frame")
                     frame.pack(fill="both", expand=True, padx=1, pady=1)
+                    # Only grab_set after deiconify (in center_popup)
 
                     def center_popup():
                         frame.update_idletasks()
+                        popup.update_idletasks()  # Ensure layout is calculated
                         w = frame.winfo_reqwidth() + 40
                         h = frame.winfo_reqheight() + 40
                         master.update_idletasks()
@@ -255,6 +322,8 @@ def jql_search_handler(
                         x = main_x + (main_w // 2) - (w // 2)
                         y = main_y + (main_h // 2) - (h // 2)
                         popup.geometry(f"{w}x{h}+{x}+{y}")
+                        popup.deiconify()  # Show after centering
+                        popup.grab_set()  # Only grab after showing
                         popup.lift()
                         popup.update_idletasks()
                         try:
@@ -268,6 +337,10 @@ def jql_search_handler(
                     label.pack(pady=20)
                     def close_popup():
                         master.unbind("<Configure>")
+                        try:
+                            popup.grab_release()
+                        except Exception:
+                            pass
                         popup.destroy()
 
                     close_btn = tk.Button(frame, text="Close", command=close_popup, font=("Segoe UI", 11, "bold"), cursor="hand2")
@@ -276,7 +349,7 @@ def jql_search_handler(
 
                     center_popup()
                     master.bind("<Configure>", lambda e: center_popup())
-                show_receipt_popup()
+
 
                 # Add a button to the ticket panel to view receipts
                 ticket_panel = parent.panel_choice.get("ticket_panel") if hasattr(parent, "panel_choice") else None
@@ -303,6 +376,31 @@ def jql_search_handler(
                     selected_items,
                 )
                 # If no new tickets, do NOT reload ticket panel
+                # Optionally reset and hide the progress bar when done
+                if internal_bar is not None:
+                    try:
+                        internal_bar["value"] = 0
+                        internal_bar.update_idletasks()
+                    except Exception:
+                        pass
+                if hide_internal_loadbar is not None:
+                    try:
+                        hide_internal_loadbar()
+                    except Exception:
+                        pass
+                # Now show the receipt popup after loadbar is hidden
+                show_receipt_popup()
+                # Diagnostic: print which widget (if any) holds the grab
+                try:
+                    root = None
+                    if panel_choice and hasattr(panel_choice, 'get'):
+                        root = panel_choice.get('root')
+                    grab_widget = None
+                    if root:
+                        grab_widget = root.grab_current() if hasattr(root, 'grab_current') else None
+                    print(f"[DIAG] After hiding loadbar, grab widget: {grab_widget}")
+                except Exception as e:
+                    print(f"[DIAG] Error checking grab status: {e}")
             except requests.exceptions.ConnectionError:
                 print("You appear to be offline or unable to connect to the server.")
                 run_error(

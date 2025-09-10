@@ -934,6 +934,9 @@ class TicketDisplayBuilder(tk.Frame):
         overlay.lift()
         parent.update_idletasks()
         for child in base_frame.winfo_children():
+            # Do not destroy the loadbar_frame (and its children)
+            if getattr(child, 'is_loadbar_frame', False):
+                continue
             child.destroy()
         # Slice tickets for the current page only
         tickets_to_show = self.tickets[minimum:maximum]
@@ -1238,6 +1241,55 @@ class TicketDisplayBuilder(tk.Frame):
         base_frame = tk.Frame(canvas)
         self.widget_registry["base_frame"] = base_frame
         self.theme_manager.register(base_frame, "frame")
+
+        # Add loadbar_frame to the right side of base_frame (only if not already present)
+        if "loadbar_frame" not in self.widget_registry:
+            loadbar_frame = tk.Frame(tool_bar)
+            loadbar_frame.is_loadbar_frame = True  # Mark for persistence
+            loadbar_frame.pack(side="right", fill="y", padx=(10, 0), pady=10)
+            self.widget_registry["loadbar_frame"] = loadbar_frame
+            self.theme_manager.register(loadbar_frame, "frame")
+            # Add two horizontal progress bars
+            # External loadbar with label to the right
+            external_loadbar_frame = tk.Frame(loadbar_frame)
+            external_loadbar_frame.pack(pady=(10,5), padx=10, fill="x")
+            external_loadbar = ttk.Progressbar(external_loadbar_frame, orient="horizontal", length=120, mode="determinate", maximum=100)
+            external_loadbar.pack(side="left", fill="y", expand=True)
+            external_loadbar_label = tk.Label(external_loadbar_frame, text="1/2", font=("Segoe UI", 9, "bold"), anchor="center")
+            external_loadbar_label.pack(side="left", padx=(0,0), fill="y")
+            # Internal loadbar with overlay label for queue progress
+            internal_loadbar_frame = tk.Frame(loadbar_frame)
+            # Do NOT pack internal_loadbar_frame yet (hidden by default)
+            internal_loadbar = ttk.Progressbar(internal_loadbar_frame, orient="horizontal", length=120, mode="determinate", maximum=100)
+            internal_loadbar.pack(side="left", fill="y", expand=True)
+            # Label to the right of the bar
+            internal_loadbar_label = tk.Label(internal_loadbar_frame, text="", font=("Segoe UI", 9, "bold"), anchor="center")
+            internal_loadbar_label.pack(side="left", padx=(0,0), fill="y")
+            # Register in widget_registry for access elsewhere
+            self.widget_registry["external_loadbar"] = external_loadbar
+            self.widget_registry["external_loadbar_label"] = external_loadbar_label
+            self.widget_registry["internal_loadbar"] = internal_loadbar
+            self.widget_registry["internal_loadbar_label"] = internal_loadbar_label
+            self.widget_registry["internal_loadbar_frame"] = internal_loadbar_frame
+            # Register with theme_manager for dynamic theming
+            self.theme_manager.register(external_loadbar, "loadbar")
+            self.theme_manager.register(external_loadbar_label, "loadbar_label")
+            self.theme_manager.register(internal_loadbar, "loadbar")
+            self.theme_manager.register(internal_loadbar_label, "loadbar_label")
+
+        # Helper methods to show/hide the internal loadbar
+        def show_internal_loadbar():
+            frame = self.widget_registry.get("internal_loadbar_frame")
+            if frame and not frame.winfo_ismapped():
+                frame.pack(pady=(5,10), padx=10, fill="x")
+
+        def hide_internal_loadbar():
+            frame = self.widget_registry.get("internal_loadbar_frame")
+            if frame and frame.winfo_ismapped():
+                frame.pack_forget()
+
+        self.widget_registry["show_internal_loadbar"] = show_internal_loadbar
+        self.widget_registry["hide_internal_loadbar"] = hide_internal_loadbar
 
         window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
 

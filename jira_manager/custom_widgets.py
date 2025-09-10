@@ -313,6 +313,7 @@ class TicketCard(tk.Frame):
         self.panel_choice = panel_choice
 
     def update_toolbar_buttons(self):
+        print("selected items = ", self.selected_items)
         # print(f"{self.theme_manager=}")
         # Setup of dynamic update and delete buttons for selected tickets
         if self.panel_choice is None or "ticket_panel" not in self.panel_choice:
@@ -475,10 +476,10 @@ class TicketCard(tk.Frame):
         #     print(
         #         f"[ERROR] select_for_update: 'ticket_panel' missing in panel_choice for ticket {self.ticket_key}"
         #     )
-            return
+        self.update_toolbar_buttons()
+        return
 
         # Setup of dynamic update and delete buttons for selected tickets
-        self.update_toolbar_buttons()
 
     def delete_from_database(self, on_delete=None):
         # print(self.ticket_key)

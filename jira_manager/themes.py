@@ -38,7 +38,11 @@ class ThemeManager:
         self._init_styles()
 
     def _init_styles(self):
-        self.style.theme_use("default")
+        # Use 'clam' theme for better ttk.Progressbar styling
+        try:
+            self.style.theme_use("clam")
+        except Exception:
+            self.style.theme_use("default")
 
         # Combobox styling
         self.style.configure(
@@ -101,6 +105,25 @@ class ThemeManager:
             case "flashy_label":
                 widget.configure(
                     bg=self.theme["background"], fg=self.theme["btn_highlight"]
+                )
+            case "loadbar":
+                # ttk.Progressbar: set style based on theme (no border, minimal padding)
+                style_name = "Custom.Horizontal.TProgressbar"
+                self.style.configure(
+                    style_name,
+                    troughcolor=self.theme["background"],
+                    background=self.theme["primary_color"],
+                    lightcolor=self.theme["primary_color"],
+                    darkcolor=self.theme["btn_highlight"],
+                    borderwidth=0,
+                    thickness=12,
+                    padding=0,
+                )
+                widget.configure(style=style_name)
+            case "loadbar_label":
+                widget.configure(
+                    bg=self.theme["background"],
+                    fg=self.theme["primary_color"],
                 )
             case "flashy_button":
                 widget.configure(
