@@ -383,23 +383,38 @@ class TicketCard(tk.Frame):
         self.update_toolbar_buttons()
 
     def delete(self, _):
+        # Get ticket_id for this key
+        ticket_row = run_sql_stmt(
+            self.db_path,
+            "SELECT ticket_id FROM tickets WHERE key = ?",
+            params=(self.ticket_key,),
+            stmt_type="select",
+        )
+        ticket_id = ticket_row[0][0] if ticket_row else None
+        # Delete from tickets (fields will be deleted by cascade if PRAGMA is on)
         run_sql_stmt(
             self.db_path,
             "DELETE FROM tickets WHERE key = ?",
             params=(self.ticket_key,),
             stmt_type="delete",
         )
+        # Explicitly delete from fields as fallback (in case PRAGMA is off)
+        if ticket_id is not None:
+            run_sql_stmt(
+                self.db_path,
+                "DELETE FROM fields WHERE ticket_id = ?",
+                params=(ticket_id,),
+                stmt_type="delete",
+            )
         # Remove from selected_items if present
         if self.selected_items and self.ticket_key in self.selected_items:
             self.selected_items.remove(self.ticket_key)
-            # print(f"{self.selected_items=}")
         # Update toolbar buttons after deletion
         self.update_toolbar_buttons()
         if self.card_retainer is not None:
             self.card_retainer[:] = [
                 t for t in self.card_retainer if t.get("key") != self.ticket_key
             ]
-        # print(f"Deleted ticket {self.ticket_key} from database and card_retainer.")
         self.destroy()  # Remove the widget from the UI
         # Robust refresh: reload tickets, sync card_retainer, and update UI
         if self.panel_choice and "ticket_panel" in self.panel_choice:

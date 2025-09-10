@@ -134,6 +134,7 @@ def run_sql_stmt(
         # Create a new connection for each call
         conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL;")  # Enable WAL mode
+        conn.execute("PRAGMA foreign_keys = ON;")  # Enable foreign key constraints
         cursor = conn.cursor()
 
         if stmt_type == "select":
