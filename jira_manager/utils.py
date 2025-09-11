@@ -180,6 +180,28 @@ def configure_handler(ui_state, panel_choice, widget_registry):
         )
         break
 
+def process_to_database(issues, card_retainer, existing_issues, added_issues, new_issues, db_path, server, headers, progress_queue, internal_bar=None):
+    for issue in issues:
+        key_val_raw = issue.get("key", "")
+        print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
+        key_val = str(key_val_raw)
+        check = {"key": key_val}
+        print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}" )
+        if check in card_retainer:
+            existing_issues.append(key_val)
+            print("HERE!!! " + str(key_val))
+        else:
+            added_issues.append(key_val)
+            card_retainer.append({"key": key_val, "widget" : None})
+            new_issues.append(issue)
+            # Ensure ticket is inserted into the database
+            created_ticket_id = add_or_find_key_return_id(db_path, key_val)
+            print(f"{created_ticket_id=}")
+            run_database_updates_to_tickets_fields_values(db_path, server, headers, [issue])
+
+        # Signal progress to the main thread
+        if progress_queue is not None:
+            progress_queue.put(1)
 
 def jql_search_handler(
     stop_flag,
@@ -204,7 +226,8 @@ def jql_search_handler(
             payload = task.get("payload")
             headers = task.get("headers")
             proxies = task.get("proxies")
-            thread_count = int(task.get("thread_count", 2))
+            thread_count = int(task.get("thread_count", 1))
+            print(f"thread_count={thread_count}")
             server = config_data.get("server")
 
             # --- Sync card_retainer with DB tickets to prevent UI duplication ---
@@ -258,34 +281,32 @@ def jql_search_handler(
 
                 # Remove duplicates using card_retainer
                 new_issues = []
-                progress_count = 0
-                for issue in issues:
-                    key_val_raw = issue.get("key", "")
-                    print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
-                    key_val = str(key_val_raw)
-                    check = {"key": key_val}
-                    print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}")
-                    if check in card_retainer:
-                        existing_issues.append(key_val)
-                        print("HERE!!! " + str(key_val))
-                    else:
-                        added_issues.append(key_val)
-                        card_retainer.append({"key": key_val, "widget" : None})
-                        new_issues.append(issue)
-                        # Ensure ticket is inserted into the database
-                        created_ticket_id = add_or_find_key_return_id(db_path, key_val)
-                        print(f"{created_ticket_id=}")
-                        run_database_updates_to_tickets_fields_values(db_path, server, headers, [issue])
+                import queue
+                progress_queue = queue.Queue()
+                batched_issues = batch_list(issues, thread_count)
+                threads = []
+                for batch in batched_issues:
+                    thread = Thread(target=process_to_database, args=(batch, card_retainer, existing_issues, added_issues, new_issues, db_path, server, headers, progress_queue, internal_bar))
+                    threads.append(thread)
+                    thread.start()
 
-                    # Update progress bar after each issue
-                    progress_count += 1
-                    if internal_bar is not None:
-                        try:
-                            internal_bar["value"] = progress_count
-                            internal_bar.update_idletasks()
-                        except Exception as e:
-                            print(f"Failed to update internal loadbar: {e}")
+                def poll_progress():
+                    try:
+                        while True:
+                            progress_queue.get_nowait()
+                            if internal_bar is not None:
+                                internal_bar["value"] += 1
+                                internal_bar.update_idletasks()
+                    except queue.Empty:
+                        pass
+                    if any(t.is_alive() for t in threads):
+                        if internal_bar is not None:
+                            internal_bar.after(100, poll_progress)
+                if internal_bar is not None:
+                    internal_bar.after(100, poll_progress)
 
+                for t in threads:
+                    t.join()
 
                 # Create the receipt in the database
                 import os
