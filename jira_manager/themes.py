@@ -51,6 +51,9 @@ class ThemeManager:
             fieldbackground=self.theme["background"],
             background=self.theme["background"],
             arrowcolor=self.theme["primary_color"],
+            borderwidth=1,  # <-- Add or adjust this line
+            relief="flat",  # <-- You can also try "groove", "ridge",
+            bordercolor=self.theme["background"],
         )
         self.style.map(
             "Custom.TCombobox",
@@ -62,6 +65,9 @@ class ThemeManager:
             ],
             selectbackground=[("!disabled", self.theme["background"])],
             selectforeground=[("!disabled", self.theme["primary_color"])],
+            borderwidth=[("focus", 2), ("!focus", 1)],
+            relief=[("focus", "groove"), ("!focus", "flat")],
+            bordercolor=[("focus", self.theme["background"]), ("!focus", self.theme["background"])],
         )
 
         # Scrollbar styling

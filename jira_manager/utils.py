@@ -1,6 +1,7 @@
 import tkinter as tk
 import json
 import requests
+import queue
 import base64
 from jira import JIRAError
 from jira_manager.custom_widgets import TicketCard, WorkReceiptsPanel
@@ -281,7 +282,7 @@ def jql_search_handler(
 
                 # Remove duplicates using card_retainer
                 new_issues = []
-                import queue
+                # import queue
                 progress_queue = queue.Queue()
                 batched_issues = batch_list(issues, thread_count)
                 threads = []

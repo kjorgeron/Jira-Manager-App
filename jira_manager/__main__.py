@@ -299,6 +299,7 @@ def main():
     )
     ticket_btn.pack(side="left", padx=10)
     theme_manager.register(ticket_btn, "base_button")
+    widget_registry["tickets_btn"] = ticket_btn
 
     # Add 'View Receipts' navigation button to toolbar
     from jira_manager.custom_widgets import WorkReceiptsPanel
@@ -321,6 +322,7 @@ def main():
     )
     receipts_btn.pack(side="left", padx=10)
     theme_manager.register(receipts_btn, "base_button")
+    widget_registry["receipts_btn"] = receipts_btn
 
 
     def jql_search_handler(event=None):

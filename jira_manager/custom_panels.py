@@ -97,6 +97,23 @@ def switch_panel(
         if widget_registry.get("configure_btn")
         else None
     )
+    tickets_btn = (
+        widget_registry.get("tickets_btn")
+        if widget_registry.get("tickets_btn")
+        else None
+    )
+    receipts_btn = (
+        widget_registry.get("receipts_btn")
+        if widget_registry.get("receipts_btn")
+        else None
+    )
+    if configure_btn:
+        configure_btn.config(state="normal")
+    if receipts_btn:
+        receipts_btn.config(state="normal")
+    if tickets_btn:
+        tickets_btn.config(state="normal")
+        
     if panel_key == "configure_panel":
         if welcome_label.winfo_ismapped():
             welcome_label.pack_forget()
@@ -113,9 +130,17 @@ def switch_panel(
                 )
         except Exception as e:
             print(f"[DEBUG] Canvas focus error: {e}")
-    else:
-        if configure_btn:
-            configure_btn.config(state="normal")
+    elif panel_key == "ticket_panel":
+        tickets_btn.config(state="disabled")
+    elif panel_key == "receipts_panel":
+        receipts_btn.config(state="disabled")
+    # else:
+    #     if configure_btn:
+    #         configure_btn.config(state="normal")
+    #     if receipts_btn:
+    #         receipts_btn.config(state="normal")
+    #     if tickets_btn:
+    #         tickets_btn.config(state="normal")
 
 
     if panel_key == "ticket_panel":
@@ -443,7 +468,8 @@ class ConfigurationFormBuilder(tk.Frame):
             text="Credential Type:",
             font=self.font_style,
         )
-        cred_label.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
+        # cred_label.grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
+        cred_label.grid(row=0, column=0, sticky="w", padx=(5, 10), pady=2)
         self.theme_manager.register(cred_label, "label")
 
         auth_type = ttk.Combobox(
@@ -453,7 +479,8 @@ class ConfigurationFormBuilder(tk.Frame):
             state="readonly",
             style="Custom.TCombobox",
         )
-        auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
+        # auth_type.grid(row=0, column=1, sticky="ew", padx=(0, 15), pady=2)
+        auth_type.grid(row=0, column=1, sticky="ew", padx=(5, 10), pady=2)
         self.theme_manager.register(auth_type, "combobox")
 
         # Row 0, Column 2 – Use Proxies
@@ -462,7 +489,8 @@ class ConfigurationFormBuilder(tk.Frame):
             text="Use Proxies:",
             font=self.font_style,
         )
-        proxy_label.grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
+        # proxy_label.grid(row=0, column=2, sticky="w", padx=(0, 5), pady=2)
+        proxy_label.grid(row=0, column=2, sticky="w", padx=(5, 10), pady=2)
         self.theme_manager.register(proxy_label, "label")
 
         proxy_type = ttk.Combobox(
@@ -472,7 +500,8 @@ class ConfigurationFormBuilder(tk.Frame):
             state="readonly",
             style="Custom.TCombobox",
         )
-        proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
+        # proxy_type.grid(row=0, column=3, sticky="ew", pady=2)
+        proxy_type.grid(row=0, column=3, sticky="ew", pady=2, padx=(5, 10))
         self.theme_manager.register(proxy_type, "combobox")
 
         # Row 1, Column 1 – Theme
@@ -481,7 +510,8 @@ class ConfigurationFormBuilder(tk.Frame):
             text="Theme:",
             font=self.font_style,
         )
-        theme_label.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
+        # theme_label.grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
+        theme_label.grid(row=1, column=0, sticky="w", padx=(5, 10), pady=2)
         self.theme_manager.register(theme_label, "label")
 
         theme = ttk.Combobox(
@@ -491,7 +521,8 @@ class ConfigurationFormBuilder(tk.Frame):
             state="readonly",
             style="Custom.TCombobox",
         )
-        theme.grid(row=1, column=1, sticky="ew", pady=2)
+        # theme.grid(row=1, column=1, sticky="ew", pady=2)
+        theme.grid(row=1, column=1, sticky="ew", pady=2, padx=(5, 10))
         self.theme_manager.register(theme, "combobox")
 
         # Thread Count Selector (Row 1, Column 2/3)
@@ -500,7 +531,8 @@ class ConfigurationFormBuilder(tk.Frame):
             text="Thread Count:",
             font=self.font_style,
         )
-        thread_count_label.grid(row=1, column=2, sticky="w", padx=(0, 5), pady=2)
+        # thread_count_label.grid(row=1, column=2, sticky="w", padx=(0, 5), pady=2)
+        thread_count_label.grid(row=1, column=2, sticky="w", padx=(5, 10), pady=2)
         self.theme_manager.register(thread_count_label, "label")
 
         thread_count_values = ["Safe Mode", 8, 12, 16, 20, 24, 28, 32]
@@ -522,7 +554,8 @@ class ConfigurationFormBuilder(tk.Frame):
             state="readonly",
             style="Custom.TCombobox",
         )
-        thread_count.grid(row=1, column=3, sticky="ew", pady=2)
+        # thread_count.grid(row=1, column=3, sticky="ew", pady=2)
+        thread_count.grid(row=1, column=3, sticky="ew", pady=2, padx=(5, 10))
         self.theme_manager.register(thread_count, "combobox")
 
         # SEPERATOR IN FORM
