@@ -537,7 +537,11 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
         # Pull current value from live fields or leave empty
         current_value = ""
         if current_issue_fields:
-            current_value = current_issue_fields["fields"].get(fid, "")
+            # Support both full issue object and just the fields dict
+            fields_dict = current_issue_fields.get("fields", current_issue_fields)
+            current_value = fields_dict.get(fid, "")
+        else:
+            current_value = ""
 
         # Prepare one row for each field
         row = {
@@ -555,7 +559,7 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
 
 
 def get_editable_fields_v2(issue_key, base_url, headers):
-    url = f"{base_url}/rest/api/2/issue/{issue_key}/editmeta"
+    url = f"{base_url}/rest/api/3/issue/{issue_key}/editmeta"
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -672,57 +676,80 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
 def fetch_all_issues_threaded(
     config_data, payload, headers, proxies, thread_count=1, return_queue: Queue = None
 ):
-    base_url = f"{config_data.get('server')}rest/api/2/search"
+    base_url = f"{config_data.get('server')}rest/api/3/search/jql"
     jql = payload["jql"]
-    max_results = 100
-
-    # First, make an initial request to determine total
-    response = requests.get(
-        base_url,
-        headers=headers,
-        proxies=proxies,
-        timeout=360,
-        params={"jql": jql, "startAt": 0, "maxResults": 1},  # just get metadata
-    )
-    response.raise_for_status()
-    total_issues = response.json().get("total", 0)
-
-    issue_lock = Lock()
+    data = {"jql": jql, "fields": ["key", "fields"]}
     all_issues = []
+    next_page_token = None
 
-    def worker(start_at):
-        params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
-        res = requests.get(
-            base_url, headers=headers, proxies=proxies, timeout=360, params=params
-        )
 
-        if res.status_code not in [200, 204]:
-            print(f"⚠️ Thread failed: {start_at} → {res.status_code}")
-            return  # optional: raise or retry
+    while True:
+        if next_page_token:
+            payload["nextPageToken"] = next_page_token
 
-        data = res.json()
+        response = requests.post(base_url, headers=headers, json=data)
+        if response.status_code != 200:
+            print(f"Error: {response.status_code} {response.text}")
+            break
+
+        data = response.json()
         issues = data.get("issues", [])
+        all_issues.extend(issues)
 
-        with issue_lock:
-            all_issues.extend(issues)
+        next_page_token = data.get("nextPageToken")
+        if not next_page_token:
+            break
+    return all_issues
 
-    threads = []
-    for start in range(0, total_issues, max_results):
-        t = Thread(target=worker, args=(start,))
-        threads.append(t)
+    # max_results = 100
 
-    # Start batches of threads
-    for i in range(0, len(threads), thread_count):
-        batch = threads[i : i + thread_count]
-        for t in batch:
-            t.start()
-        for t in batch:
-            t.join()
+    # # First, make an initial request to determine total
+    # response = requests.get(
+    #     base_url,
+    #     headers=headers,
+    #     proxies=proxies,
+    #     timeout=360,
+    #     params={"jql": jql, "startAt": 0, "maxResults": 1},  # just get metadata
+    # )
+    # response.raise_for_status()
+    # total_issues = response.json().get("total", 0)
 
-    if return_queue == None:
-        return all_issues
-    else:
-        return_queue.put(all_issues)
+    # issue_lock = Lock()
+    # all_issues = []
+
+    # def worker(start_at):
+    #     params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
+    #     res = requests.get(
+    #         base_url, headers=headers, proxies=proxies, timeout=360, params=params
+    #     )
+
+    #     if res.status_code not in [200, 204]:
+    #         print(f"⚠️ Thread failed: {start_at} → {res.status_code}")
+    #         return  # optional: raise or retry
+
+    #     data = res.json()
+    #     issues = data.get("issues", [])
+
+    #     with issue_lock:
+    #         all_issues.extend(issues)
+
+    # threads = []
+    # for start in range(0, total_issues, max_results):
+    #     t = Thread(target=worker, args=(start,))
+    #     threads.append(t)
+
+    # # Start batches of threads
+    # for i in range(0, len(threads), thread_count):
+    #     batch = threads[i : i + thread_count]
+    #     for t in batch:
+    #         t.start()
+    #     for t in batch:
+    #         t.join()
+
+    # if return_queue == None:
+    #     return all_issues
+    # else:
+    #     return_queue.put(all_issues)
 
 
 def configure_project_credentials(
