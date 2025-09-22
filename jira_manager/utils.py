@@ -41,10 +41,12 @@ def jql_worker(
     try:
         # Get the internal loadbar label widget from the registry
         internal_label = None
-        if panel_choice and hasattr(panel_choice, 'get'):
+        if panel_choice and hasattr(panel_choice, "get"):
             ticket_panel = panel_choice.get("ticket_panel")
             if ticket_panel and hasattr(ticket_panel, "widget_registry"):
-                internal_label = ticket_panel.widget_registry.get("internal_loadbar_label")
+                internal_label = ticket_panel.widget_registry.get(
+                    "internal_loadbar_label"
+                )
 
         # Calculate total number of tasks in the queue at start
         try:
@@ -61,7 +63,11 @@ def jql_worker(
 
             # Update the label to show current queue progress (e.g., 1/3, 2/3, ...)
             current_queue += 1
-            if internal_label is not None and total_queues is not None and total_queues > 0:
+            if (
+                internal_label is not None
+                and total_queues is not None
+                and total_queues > 0
+            ):
                 try:
                     internal_label.config(text=f"{current_queue}/{total_queues}")
                 except Exception as e:
@@ -181,28 +187,79 @@ def configure_handler(ui_state, panel_choice, widget_registry):
         )
         break
 
-def process_to_database(issues, card_retainer, existing_issues, added_issues, new_issues, db_path, server, headers, progress_queue, internal_bar=None):
+
+def process_to_database(
+    issues,
+    card_retainer,
+    existing_issues,
+    added_issues,
+    new_issues,
+    db_path,
+    server,
+    headers,
+    progress_queue,
+    internal_bar=None,
+    db_lock=None,
+):
     for issue in issues:
         key_val_raw = issue.get("key", "")
         print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
         key_val = str(key_val_raw)
         check = {"key": key_val}
-        print(f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}" )
+        print(
+            f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}"
+        )
         if check in card_retainer:
             existing_issues.append(key_val)
             print("HERE!!! " + str(key_val))
         else:
             added_issues.append(key_val)
-            card_retainer.append({"key": key_val, "widget" : None})
+            card_retainer.append({"key": key_val, "widget": None})
             new_issues.append(issue)
             # Ensure ticket is inserted into the database
-            created_ticket_id = add_or_find_key_return_id(db_path, key_val)
-            print(f"{created_ticket_id=}")
-            run_database_updates_to_tickets_fields_values(db_path, server, headers, [issue])
+            if db_lock:
+                with db_lock:
+                    created_ticket_id = add_or_find_key_return_id(db_path, key_val)
+                    print(f"{created_ticket_id=}")
+                    run_database_updates_to_tickets_fields_values(
+                        db_path, server, headers, [issue]
+                    )
+            else:
+                created_ticket_id = add_or_find_key_return_id(db_path, key_val)
+                print(f"{created_ticket_id=}")
+                run_database_updates_to_tickets_fields_values(
+                    db_path, server, headers, [issue]
+                )
 
         # Signal progress to the main thread
         if progress_queue is not None:
             progress_queue.put(1)
+    # for issue in issues:
+    #     key_val_raw = issue.get("key", "")
+    #     print(f"DEBUG: key_val_raw={key_val_raw}, type={type(key_val_raw)}")
+    #     key_val = str(key_val_raw)
+    #     check = {"key": key_val}
+    #     print(
+    #         f"DEBUG: check={check}, card_retainer_types={[type(x.get('key', '')) for x in card_retainer]}"
+    #     )
+    #     if check in card_retainer:
+    #         existing_issues.append(key_val)
+    #         print("HERE!!! " + str(key_val))
+    #     else:
+    #         added_issues.append(key_val)
+    #         card_retainer.append({"key": key_val, "widget": None})
+    #         new_issues.append(issue)
+    #         # Ensure ticket is inserted into the database
+    #         created_ticket_id = add_or_find_key_return_id(db_path, key_val)
+    #         print(f"{created_ticket_id=}")
+    #         run_database_updates_to_tickets_fields_values(
+    #             db_path, server, headers, [issue]
+    #         )
+
+    #     # Signal progress to the main thread
+    #     if progress_queue is not None:
+    #         progress_queue.put(1)
+
 
 def jql_search_handler(
     stop_flag,
@@ -232,10 +289,18 @@ def jql_search_handler(
             server = config_data.get("server")
 
             # --- Sync card_retainer with DB tickets to prevent UI duplication ---
-            db_tickets = run_sql_stmt(db_path, "SELECT key FROM tickets", stmt_type="select")
-            db_ticket_keys = set(str(row[0]) for row in db_tickets) if db_tickets else set()
+            db_tickets = run_sql_stmt(
+                db_path, "SELECT key FROM tickets", stmt_type="select"
+            )
+            db_ticket_keys = (
+                set(str(row[0]) for row in db_tickets) if db_tickets else set()
+            )
             # Only keep unique keys in card_retainer
-            card_retainer_keys = set(str(x.get("key", "")) for x in card_retainer) if card_retainer else set()
+            card_retainer_keys = (
+                set(str(x.get("key", "")) for x in card_retainer)
+                if card_retainer
+                else set()
+            )
             # Add missing tickets from DB to card_retainer
             if card_retainer is None:
                 card_retainer = []
@@ -245,28 +310,29 @@ def jql_search_handler(
 
             print("Batch insert completed.")
             print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-            print(f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}")
+            print(
+                f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
+            )
 
             # --- Get the internal loadbar Progressbar widget and show/hide helpers ---
             internal_bar = None
             show_internal_loadbar = None
             hide_internal_loadbar = None
-            if panel_choice and hasattr(panel_choice, 'get'):
+            if panel_choice and hasattr(panel_choice, "get"):
                 ticket_panel = panel_choice.get("ticket_panel")
                 if ticket_panel and hasattr(ticket_panel, "widget_registry"):
                     internal_bar = ticket_panel.widget_registry.get("internal_loadbar")
-                    show_internal_loadbar = ticket_panel.widget_registry.get("show_internal_loadbar")
-                    hide_internal_loadbar = ticket_panel.widget_registry.get("hide_internal_loadbar")
+                    show_internal_loadbar = ticket_panel.widget_registry.get(
+                        "show_internal_loadbar"
+                    )
+                    hide_internal_loadbar = ticket_panel.widget_registry.get(
+                        "hide_internal_loadbar"
+                    )
 
             try:
                 added_issues = []
                 existing_issues = []
-                issues = fetch_all_issues_threaded(
-                    config_data, payload, headers, proxies, thread_count
-                )
-                print(f"len(issues)={len(issues)}")
-
-                # Show and set up progress bar
+                # Show and set up progress bar in indeterminate mode while fetching
                 if show_internal_loadbar is not None:
                     try:
                         show_internal_loadbar()
@@ -274,22 +340,64 @@ def jql_search_handler(
                         print(f"Failed to show internal loadbar: {e}")
                 if internal_bar is not None:
                     try:
-                        internal_bar["maximum"] = max(1, len(issues))
-                        internal_bar["value"] = 0
+                        internal_bar.config(mode='indeterminate')
+                        internal_bar.start()
                         internal_bar.update_idletasks()
                     except Exception as e:
-                        print(f"Failed to initialize internal loadbar: {e}")
+                        print(f"Failed to start indeterminate internal loadbar: {e}")
+
+                # Fetch all issues (unknown total)
+                issues = fetch_all_issues_threaded(
+                    config_data, payload, headers, proxies, thread_count
+                )
+                print(f"len(issues)={len(issues)}")
+
+                # Switch to determinate mode for processing
+                if internal_bar is not None:
+                    try:
+                        internal_bar.stop()
+                        internal_bar.config(mode='determinate', maximum=max(1, len(issues)), value=0)
+                        internal_bar.update_idletasks()
+                    except Exception as e:
+                        print(f"Failed to switch to determinate internal loadbar: {e}")
 
                 # Remove duplicates using card_retainer
                 new_issues = []
-                # import queue
                 progress_queue = queue.Queue()
+                db_lock = Lock()
                 batched_issues = batch_list(issues, thread_count)
                 threads = []
                 for batch in batched_issues:
-                    thread = Thread(target=process_to_database, args=(batch, card_retainer, existing_issues, added_issues, new_issues, db_path, server, headers, progress_queue, internal_bar))
+                    thread = Thread(
+                        target=process_to_database,
+                        args=(
+                            batch,
+                            card_retainer,
+                            existing_issues,
+                            added_issues,
+                            new_issues,
+                            db_path,
+                            server,
+                            headers,
+                            progress_queue,
+                            internal_bar,
+                            db_lock,
+                        ),
+                    )
                     threads.append(thread)
                     thread.start()
+
+                for thread in threads:
+                    thread.join()
+                # batched_issues = batch_list(issues, thread_count)
+                # threads = []
+                # for batch in batched_issues:
+                #     thread = Thread(target=process_to_database, args=(batch, card_retainer, existing_issues, added_issues, new_issues, db_path, server, headers, progress_queue, internal_bar))
+                #     threads.append(thread)
+                #     thread.start()
+
+                # for thread in threads:
+                #     thread.join()
 
                 def poll_progress():
                     try:
@@ -303,6 +411,7 @@ def jql_search_handler(
                     if any(t.is_alive() for t in threads):
                         if internal_bar is not None:
                             internal_bar.after(100, poll_progress)
+
                 if internal_bar is not None:
                     internal_bar.after(100, poll_progress)
 
@@ -312,6 +421,7 @@ def jql_search_handler(
                 # Create the receipt in the database
                 import os
                 from jira_manager.sql_manager import insert_receipt
+
                 db_path = os.path.join(os.path.dirname(__file__), "tickets.db")
                 insert_receipt(db_path, existing_issues, added_issues)
                 parent = widget_registry.get("jql_query").winfo_toplevel()
@@ -354,9 +464,14 @@ def jql_search_handler(
                         except Exception:
                             pass
 
-                    label = tk.Label(frame, text="A work receipt has been created.", font=("Trebuchet MS", 14, "bold"))
+                    label = tk.Label(
+                        frame,
+                        text="A work receipt has been created.",
+                        font=("Trebuchet MS", 14, "bold"),
+                    )
                     theme_manager.register(label, "label")
                     label.pack(pady=20)
+
                     def close_popup():
                         master.unbind("<Configure>")
                         try:
@@ -365,24 +480,43 @@ def jql_search_handler(
                             pass
                         popup.destroy()
 
-                    close_btn = tk.Button(frame, text="Close", command=close_popup, font=("Segoe UI", 11, "bold"), cursor="hand2")
+                    close_btn = tk.Button(
+                        frame,
+                        text="Close",
+                        command=close_popup,
+                        font=("Segoe UI", 11, "bold"),
+                        cursor="hand2",
+                    )
                     theme_manager.register(close_btn, "base_button")
                     close_btn.pack(pady=10)
 
                     center_popup()
                     master.bind("<Configure>", lambda e: center_popup())
 
-
                 # Add a button to the ticket panel to view receipts
-                ticket_panel = parent.panel_choice.get("ticket_panel") if hasattr(parent, "panel_choice") else None
+                ticket_panel = (
+                    parent.panel_choice.get("ticket_panel")
+                    if hasattr(parent, "panel_choice")
+                    else None
+                )
                 if ticket_panel and not hasattr(ticket_panel, "_receipts_btn_added"):
+
                     def show_receipts_panel():
                         for child in parent.winfo_children():
                             child.pack_forget()
                         from jira_manager.custom_widgets import WorkReceiptsPanel
-                        receipts_panel = WorkReceiptsPanel(parent, theme_manager=theme_manager)
+
+                        receipts_panel = WorkReceiptsPanel(
+                            parent, theme_manager=theme_manager
+                        )
                         receipts_panel.pack(fill="both", expand=True)
-                    receipts_btn = tk.Button(ticket_panel, text="View Receipts", command=show_receipts_panel, font=("Trebuchet MS", 11, "bold"))
+
+                    receipts_btn = tk.Button(
+                        ticket_panel,
+                        text="View Receipts",
+                        command=show_receipts_panel,
+                        font=("Trebuchet MS", 11, "bold"),
+                    )
                     receipts_btn.pack(side="top", pady=8)
                     ticket_panel._receipts_btn_added = True
 
@@ -415,11 +549,15 @@ def jql_search_handler(
                 # Diagnostic: print which widget (if any) holds the grab
                 try:
                     root = None
-                    if panel_choice and hasattr(panel_choice, 'get'):
-                        root = panel_choice.get('root')
+                    if panel_choice and hasattr(panel_choice, "get"):
+                        root = panel_choice.get("root")
                     grab_widget = None
                     if root:
-                        grab_widget = root.grab_current() if hasattr(root, 'grab_current') else None
+                        grab_widget = (
+                            root.grab_current()
+                            if hasattr(root, "grab_current")
+                            else None
+                        )
                     print(f"[DIAG] After hiding loadbar, grab widget: {grab_widget}")
                 except Exception as e:
                     print(f"[DIAG] Error checking grab status: {e}")
@@ -490,7 +628,9 @@ def update_ticket_bucket_with_single(
         card.pack(side="top", fill="x", padx=5, pady=3)
 
 
-def run_database_updates_to_tickets_fields_values(db_path, server, headers, jira_tickets):
+def run_database_updates_to_tickets_fields_values(
+    db_path, server, headers, jira_tickets
+):
     print("Running database update")
     for ticket in jira_tickets:
         key = ticket["key"]
@@ -681,7 +821,6 @@ def fetch_all_issues_threaded(
     data = {"jql": jql, "fields": ["key", "fields"]}
     all_issues = []
     next_page_token = None
-
 
     while True:
         if next_page_token:
