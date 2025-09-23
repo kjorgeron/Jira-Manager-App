@@ -42,6 +42,11 @@ def update_ticket_bucket(
     ticket_bucket_items, panel_choice, theme_manager, selected_items, card_retainer=None
 ):
     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+
+    # Remove all existing ticket widgets from the base_frame
+    for child in base_frame.winfo_children():
+        child.destroy()
+
     max_cols = 5
     # print(f"{ticket_bucket_items=}")
     # Make columns expandable
@@ -58,6 +63,13 @@ def update_ticket_bucket(
             card_retainer=card_retainer,
         )
 
+def get_page_contents(page_number):
+    if page_number == 1:
+        return (1, 50)
+    elif page_number > 1:
+        start = (page_number - 1) * 50
+        end = start + 50
+        return (start, end)
 
 def switch_panel(
     panel_key,
@@ -134,42 +146,44 @@ def switch_panel(
         tickets_btn.config(state="disabled")
     elif panel_key == "receipts_panel":
         receipts_btn.config(state="disabled")
-    # else:
-    #     if configure_btn:
-    #         configure_btn.config(state="normal")
-    #     if receipts_btn:
-    #         receipts_btn.config(state="normal")
-    #     if tickets_btn:
-    #         tickets_btn.config(state="normal")
-
 
     if panel_key == "ticket_panel":
         if db_path:
+            current_page = panel_choice["ticket_panel"].current_page
+            
             try:
+                # Initial load: get the first 50 tickets, newest first
                 issues = run_sql_stmt(
                     db_path,
-                    "SELECT * FROM tickets ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC;",
-                    stmt_type="select",
+                    "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;",
+                    stmt_type="select"
                 )
-                # --- Deduplicate and sync tickets ---
-                db_ticket_keys = set(issue[1] for issue in issues)
-                # Remove any tickets not in DB
-                panel_choice["ticket_panel"].tickets = [t for t in panel_choice["ticket_panel"].tickets if t["key"] in db_ticket_keys]
-                # Add any missing tickets from DB
-                existing_keys = set(t["key"] for t in panel_choice["ticket_panel"].tickets)
                 for issue in issues:
-                    key = issue[1]
-                    if key not in existing_keys:
-                        panel_choice["ticket_panel"].tickets.append({"key": key})
-                # Prepare show_issues for first page
+                    print(f"ticket_id={issue[0]}, key={issue[1]}")
+                if issues:
+                    last_id = issues[-1][0]  # ticket_id of the last ticket on this page
+                    panel_choice.get("ticket_panel").update_last_ticket_id(last_id)
+                    first_id = issues[0][0]  # ticket_id of the first ticket on this page
+                    panel_choice.get("ticket_panel").update_first_ticket_id(first_id)
+                    panel_choice["ticket_panel"].update_page_index(current_page, (first_id, last_id))
+
+                else:
+                    last_id = None
+                print(f"{len(issues)=} from panel switch")
+                total_tickets = run_sql_stmt(db_path, "SELECT COUNT(*) FROM tickets", stmt_type="select")
+                print(f"{total_tickets[0][0]=}")
                 show_issues = []
                 for i, issue in enumerate(issues):
                     show = {"key": issue[1]}
                     if i < 50 and show not in show_issues:
                         show_issues.append(show)
+                total_pages = ceil(total_tickets[0][0] / 50)
                 panel_choice["ticket_panel"].widget_registry.get(
                     "total_tickets"
-                ).config(text=f"{ceil(len(panel_choice["ticket_panel"].tickets) / 50)}")
+                ).config(text=f"{total_pages}")
+                print(f"{total_pages=}")
+                panel_choice["ticket_panel"].update_total_pages(total_pages)
+
                 update_ticket_bucket(
                     show_issues,
                     panel_choice,
@@ -177,13 +191,6 @@ def switch_panel(
                     selected_items,
                     card_retainer,
                 )
-                # Reset page indicator to 1
-                panel_choice["ticket_panel"].widget_registry.get("current_pg").config(
-                    text="1"
-                )
-                # If you have a method to set page contents, call it for page 1
-                if hasattr(panel_choice["ticket_panel"], "set_page_contents"):
-                    panel_choice["ticket_panel"].set_page_contents(1, selected_items)
             except Exception as e:
                 print(f"Error loading tickets: {e}")
                 pass
@@ -192,6 +199,51 @@ def switch_panel(
         if not widget.winfo_ismapped():
             widget.pack(fill="x", padx=5, pady=5)
         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+
+    # if panel_key == "ticket_panel":
+    #     if db_path:
+    #         try:
+    #             current_page = panel_choice["ticket_panel"].current_page
+    #             start, end = get_page_contents(current_page)
+    #             print(f"{start=}, {end=}")
+    #             issues = run_sql_stmt(
+    #                 db_path,
+    #                 "SELECT * FROM tickets WHERE ticket_id >= ? ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC LIMIT 50;",
+    #                 stmt_type="select",
+    #                 params=(start,)
+    #             )
+    #             last_id = issues[-1][0]
+    #             panel_choice.get("ticket_panel").update_last_ticket_id(last_id)
+    #             print(f"{len(issues)=} from panel switch")
+    #             total_tickets = run_sql_stmt(db_path, "SELECT COUNT(*) FROM tickets", stmt_type="select")
+    #             print(f"{total_tickets[0][0]=}")
+    #             show_issues = []
+    #             for i, issue in enumerate(issues):
+    #                 show = {"key": issue[1]}
+    #                 if i < 50 and show not in show_issues:
+    #                     show_issues.append(show)
+    #             total_pages = ceil(total_tickets[0][0] / 50)
+    #             panel_choice["ticket_panel"].widget_registry.get(
+    #                 "total_tickets"
+    #             ).config(text=f"{total_pages}")
+    #             print(f"{total_pages=}")
+    #             panel_choice["ticket_panel"].update_total_pages(total_pages)
+
+    #             update_ticket_bucket(
+    #                 show_issues,
+    #                 panel_choice,
+    #                 theme_manager,
+    #                 selected_items,
+    #                 card_retainer,
+    #             )
+    #         except Exception as e:
+    #             print(f"Error loading tickets: {e}")
+    #             pass
+    #     widget = widget_registry.get("welcome_label")
+    #     widget.config(text="Ticket Bucket")
+    #     if not widget.winfo_ismapped():
+    #         widget.pack(fill="x", padx=5, pady=5)
+    #     next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
 
 
@@ -886,10 +938,30 @@ class TicketDisplayBuilder(tk.Frame):
         self.tickets = tickets
         self.panel_choice = None
         self.selected_items = selected_items
-        
+        self.current_page = 1
+        self.total_pages = None
+        self.last_ticket_id = None
+        self.first_ticket_id = None
+        self.page_index = {}
 
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
+
+    def update_page_index(self, page, items):
+        if page not in self.page_index.keys():
+            self.page_index[page] = items
+
+    def update_first_ticket_id(self, ticket_id):
+        self.first_ticket_id = ticket_id
+
+    def update_last_ticket_id(self, ticket_id):
+        self.last_ticket_id = ticket_id
+
+    def update_page_number(self, new_page_number):
+        self.current_page = new_page_number
+    
+    def update_total_pages(self, new_total_pages):
+        self.total_pages = new_total_pages
 
     def set_panel_choice(self, panel_choice):
         self.panel_choice = panel_choice
@@ -902,38 +974,71 @@ class TicketDisplayBuilder(tk.Frame):
 
             canvas.bind("<MouseWheel>", _on_mousewheel)
 
-    def set_page_contents(self, pg_num: int, selected_items):
-        # Always recalculate total tickets and pages after deletions
-        total_tickets = len(self.tickets)
-        tickets_per_page = 50
-        last_page = max(1, ceil(total_tickets / tickets_per_page))
-        if self.panel_choice != None:
-            card_retainer = self.panel_choice.get("card_retainer")
+    def set_page_contents(self, pg_num: int, selected_items, db_path, sql, params=None):
+        # db_path = self.panel_choice["db_path"]
+        # tickets_per_page = 50
+        # # Get total ticket count
+        # total_tickets_result = run_sql_stmt(
+        #     db_path, "SELECT COUNT(*) FROM tickets", stmt_type="select"
+        # )
+        # total_tickets = total_tickets_result[0][0] if total_tickets_result else 0
+        last_page = self.total_pages
+        print(f"{pg_num=}")
+        # start, end = get_page_contents(pg_num)
+        # offset = (pg_num - 1) * tickets_per_page
 
-        # Clamp page number to valid range
-        pg_num = max(1, min(pg_num, last_page))
+        # Fetch tickets for this page
+        # issues = run_sql_stmt(
+        #     db_path,
+        #     f"SELECT * FROM tickets ORDER BY id DESC LIMIT {tickets_per_page} OFFSET {offset};",
+        #     stmt_type="select"
+        # )
+        print(f"New Start = {self.last_ticket_id}")
+        issues = run_sql_stmt(
+            db_path,
+            # "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC LIMIT 50;",
+            sql,
+            stmt_type="select",
+            params=params,
+        )
+        for issue in issues:
+            print(f"ticket_id={issue[0]}, key={issue[1]}")
+        # last_id = issues[-1][0]
+        # first_id = issues[0][0]
+        # self.update_last_ticket_id(last_id)
+        # self.update_first_ticket_id(first_id)
+        if issues:
+            last_id = issues[-1][0]
+            self.update_last_ticket_id(last_id)
+            first_id = issues[0][0]
+            self.update_first_ticket_id(first_id)
+            print(f"{first_id=}, {last_id=}")
+            self.update_page_index(pg_num, (first_id, last_id))
+        else:
+            # Handle empty page (disable prev/next, show message, etc.)
+            print("No tickets found for this page.")
+            return
 
-        # Calculate ticket range for this page
-        minimum = (pg_num - 1) * tickets_per_page
-        maximum = min(pg_num * tickets_per_page, total_tickets)
+        # Convert DB rows to ticket dicts as needed by your UI
+        # Adjust this as needed for your TicketCard
+        tickets_to_show = []
+        for issue in issues:
+            # Example: id at index 0, key at index 1
+            ticket = {"id": issue[0], "key": issue[1]}
+            tickets_to_show.append(ticket)
+        print(f"{tickets_to_show=}")
 
-        # If the current page is now empty (after deletions), move to previous page if possible
-        if minimum >= total_tickets:
-            if pg_num > 1:
-                pg_num -= 1
-                minimum = (pg_num - 1) * tickets_per_page
-                maximum = min(pg_num * tickets_per_page, total_tickets)
-            else:
-                minimum = 0
-                maximum = 0
+        # if self.panel_choice is not None:
+        #     card_retainer = self.panel_choice.get("card_retainer")
+
         # Update page indicator and total page count
         if "current_pg" in self.widget_registry:
             self.widget_registry["current_pg"].config(text=str(pg_num))
         if "total_tickets" in self.widget_registry:
-            total_pages = max(1, ceil(total_tickets / tickets_per_page))
-            self.widget_registry["total_tickets"].config(text=str(total_pages))
+            self.widget_registry["total_tickets"].config(text=str(last_page))
+
         # If there are no tickets to show, remove Return to Top button and frame
-        if maximum - minimum == 0:
+        if not tickets_to_show:
             base_frame = self.widget_registry.get("base_frame")
             if base_frame:
                 # Remove button and frame
@@ -946,13 +1051,6 @@ class TicketDisplayBuilder(tk.Frame):
                 for child in base_frame.winfo_children():
                     if isinstance(child, tk.Frame) and getattr(child, "_is_return_top_btn_frame", False):
                         child.destroy()
-
-        # Update page indicator and total page count
-        if "current_pg" in self.widget_registry:
-            self.widget_registry["current_pg"].config(text=str(pg_num))
-        if "total_tickets" in self.widget_registry:
-            total_pages = max(1, ceil(total_tickets / tickets_per_page))
-            self.widget_registry["total_tickets"].config(text=str(total_pages))
 
         base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
         parent = base_frame.master
@@ -971,40 +1069,36 @@ class TicketDisplayBuilder(tk.Frame):
             if getattr(child, 'is_loadbar_frame', False):
                 continue
             child.destroy()
-        # Slice tickets for the current page only
-        tickets_to_show = self.tickets[minimum:maximum]
-        for ticket in tickets_to_show:
-            card = TicketCard(
-                ticket,
-                self.theme_manager,
-                master=base_frame,
-                selected_items=selected_items,
-                card_retainer=(
-                    self.panel_choice.get("card_retainer")
-                    if self.panel_choice and hasattr(self.panel_choice, "get")
-                    else None
-                ),
-            )
-            print(f"{ticket=} from set_page_contents")
-            
-            card.update_panel_choice(panel_choice=self.panel_choice)
-            if ticket["key"] in selected_items:
-                card.set_bg(self.theme_manager.theme["pending_color"])
-                card.widget_registry.get("select_btn").config(
-                    text="Unselect", bg=self.theme_manager.theme["pending_color"]
-                )
-
-
-            card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
-            if card_retainer is not None:
-                found = False
-                for item in card_retainer:
-                    if item.get("key") == ticket["key"]:
-                        item["widget"] = card
-                        found = True
-                        break
-                if not found:
-                    card_retainer.append({"key": ticket["key"], "widget": card})
+        update_ticket_bucket(tickets_to_show, self.panel_choice, self.theme_manager, self.selected_items, card_retainer=None)
+        # for ticket in tickets_to_show:
+        #     card = TicketCard(
+        #         ticket,
+        #         self.theme_manager,
+        #         master=base_frame,
+        #         selected_items=selected_items,
+        #         card_retainer=(
+        #             self.panel_choice.get("card_retainer")
+        #             if self.panel_choice and hasattr(self.panel_choice, "get")
+        #             else None
+        #         ),
+        #     )
+            # print(f"{ticket=} from set_page_contents (SQL)")
+            # card.update_panel_choice(panel_choice=self.panel_choice)
+            # if ticket["key"] in selected_items:
+            #     card.set_bg(self.theme_manager.theme["pending_color"])
+            #     card.widget_registry.get("select_btn").config(
+            #         text="Unselect", bg=self.theme_manager.theme["pending_color"]
+            #     )
+            # card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+            # if card_retainer is not None:
+            #     found = False
+            #     for item in card_retainer:
+            #         if item.get("key") == ticket["key"]:
+            #             item["widget"] = card
+            #             found = True
+            #             break
+            #     if not found:
+            #         card_retainer.append({"key": ticket["key"], "widget": card})
 
         # Initial call after building ticket board
         self.update_return_top_btn()
@@ -1023,7 +1117,7 @@ class TicketDisplayBuilder(tk.Frame):
 
         parent.after(120, remove_overlay)
         self.update_return_top_btn()
-        print(f"{minimum=}\n{maximum=}")
+        # print(f"SQL paging: page={pg_num}, offset={offset}, count={len(tickets_to_show)}")
 
     def scroll_to_top(self):
         canvas = self.widget_registry.get("canvas")
@@ -1081,58 +1175,115 @@ class TicketDisplayBuilder(tk.Frame):
             self.return_top_btn.pack(side="top", pady=5)
             self.theme_manager.register(self.return_top_btn, "base_button")
 
+    def update_nav_buttons(self, page_num):
+        # Call this after every page change
+        last_page = self.total_pages
+        prev_btn = self.widget_registry.get("prev_btn")
+        nxt_btn = self.widget_registry.get("nxt_btn")
+        if page_num <= 1:
+            prev_btn.config(state="disabled")
+        else:
+            prev_btn.config(state="normal")
+        if page_num >= last_page:
+            nxt_btn.config(state="disabled")
+        else:
+            nxt_btn.config(state="normal")
+
+    # def prev_action(self):
+    #     pg_num = self.widget_registry.get("current_pg")
+    #     self.widget_registry.get("prev_btn").config(state="disabled")
+    #     self.widget_registry.get("nxt_btn").config(
+    #         state="disabled"
+    #     )  # Pre-disable next_btn
+
+    #     current_page = self.current_page
+    #     new_pg = current_page - 1 if current_page > 1 else 1
+
+    #     self.set_page_contents(new_pg, self.selected_items)
+    #     pg_num.config(text=f"{new_pg}")
+
+    #     # Scroll to top of ticket bucket
+    #     canvas = self.widget_registry.get("canvas")
+    #     canvas.yview_moveto(0)
+    #     self.update_page_number(new_pg)
+    #     def enable_buttons():
+    #         # Enable or disable based on new page value
+    #         if new_pg > 1:
+    #             self.widget_registry.get("prev_btn").config(state="normal")
+    #         if new_pg < ceil(len(self.tickets) / 50):
+    #             self.widget_registry.get("nxt_btn").config(state="normal")
+
+    #     self.widget_registry.get("prev_btn").after(100, enable_buttons)
     def prev_action(self):
-        pg_num = self.widget_registry.get("current_pg")
-        self.widget_registry.get("prev_btn").config(state="disabled")
-        self.widget_registry.get("nxt_btn").config(
-            state="disabled"
-        )  # Pre-disable next_btn
-
-        current_page = int(pg_num.cget("text"))
-        new_pg = current_page - 1 if current_page > 1 else 1
-
-        self.set_page_contents(new_pg, self.selected_items)
-        pg_num.config(text=f"{new_pg}")
-
-        # Scroll to top of ticket bucket
-        canvas = self.widget_registry.get("canvas")
-        canvas.yview_moveto(0)
-
+        prev_btn = self.widget_registry.get("prev_btn")
+        nxt_btn = self.widget_registry.get("nxt_btn")
+        # Disable both buttons to prevent spamming
+        if prev_btn:
+            prev_btn.config(state="disabled")
+        if nxt_btn:
+            nxt_btn.config(state="disabled")
+        current_page = self.current_page
+        db_path = self.panel_choice.get("db_path")
+        new_pg = max(1, current_page - 1)
+        print(f"{self.page_index=}")
+        prev_pg_first_id, _ = self.page_index.get(new_pg)
+        sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
+        self.set_page_contents(new_pg, self.selected_items, db_path, sql, (prev_pg_first_id,))
+        self.update_page_number(new_pg)
+        # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
-            # Enable or disable based on new page value
-            if new_pg > 1:
-                self.widget_registry.get("prev_btn").config(state="normal")
-            if new_pg < ceil(len(self.tickets) / 50):
-                self.widget_registry.get("nxt_btn").config(state="normal")
+            self.update_nav_buttons(new_pg)
+        if prev_btn:
+            prev_btn.after(150, enable_buttons)
 
-        self.widget_registry.get("prev_btn").after(100, enable_buttons)
+    # def nxt_action(self):
+    #     pg_num = self.widget_registry.get("current_pg")
+    #     self.widget_registry.get("nxt_btn").config(state="disabled")
+    #     self.widget_registry.get("prev_btn").config(
+    #         state="disabled"
+    #     )  # Pre-disable prev_btn
+
+    #     current_page = self.current_page
+    #     last_page = self.total_pages
+    #     new_pg = current_page + 1 if current_page < last_page else last_page
+
+    #     self.set_page_contents(new_pg, self.selected_items)
+    #     pg_num.config(text=f"{new_pg}")
+
+    #     # Scroll to top of ticket bucket
+    #     canvas = self.widget_registry.get("canvas")
+    #     canvas.yview_moveto(0)
+    #     self.update_page_number(new_pg)
+
+    #     def enable_buttons():
+    #         # Enable or disable based on new page value
+    #         if new_pg > 1:
+    #             self.widget_registry.get("prev_btn").config(state="normal")
+    #         if new_pg < last_page:
+    #             self.widget_registry.get("nxt_btn").config(state="normal")
+
+    #     self.widget_registry.get("nxt_btn").after(100, enable_buttons)
 
     def nxt_action(self):
-        pg_num = self.widget_registry.get("current_pg")
-        self.widget_registry.get("nxt_btn").config(state="disabled")
-        self.widget_registry.get("prev_btn").config(
-            state="disabled"
-        )  # Pre-disable prev_btn
-
-        current_page = int(pg_num.cget("text"))
-        last_page = ceil(len(self.tickets) / 50)
-        new_pg = current_page + 1 if current_page < last_page else last_page
-
-        self.set_page_contents(new_pg, self.selected_items)
-        pg_num.config(text=f"{new_pg}")
-
-        # Scroll to top of ticket bucket
-        canvas = self.widget_registry.get("canvas")
-        canvas.yview_moveto(0)
-
+        prev_btn = self.widget_registry.get("prev_btn")
+        nxt_btn = self.widget_registry.get("nxt_btn")
+        # Disable both buttons to prevent spamming
+        if prev_btn:
+            prev_btn.config(state="disabled")
+        if nxt_btn:
+            nxt_btn.config(state="disabled")
+        current_page = self.current_page
+        last_page = self.total_pages
+        db_path = self.panel_choice.get("db_path")
+        new_pg = min(last_page, current_page + 1)
+        sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
+        self.set_page_contents(new_pg, self.selected_items, db_path, sql, (self.last_ticket_id,))
+        self.update_page_number(new_pg)
+        # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
-            # Enable or disable based on new page value
-            if new_pg > 1:
-                self.widget_registry.get("prev_btn").config(state="normal")
-            if new_pg < last_page:
-                self.widget_registry.get("nxt_btn").config(state="normal")
-
-        self.widget_registry.get("nxt_btn").after(100, enable_buttons)
+            self.update_nav_buttons(new_pg)
+        if nxt_btn:
+            nxt_btn.after(150, enable_buttons)
 
     def _build_ticket_board(self):
         max_pg_count = ceil(len((self.tickets)) / 50)
@@ -1190,31 +1341,42 @@ class TicketDisplayBuilder(tk.Frame):
         # Bind Enter key to trigger page jump
         page_jump_entry.bind("<Return>", lambda event: jump_to_page())
 
-        def jump_to_page():
-            try:
-                value = page_jump_entry.get()
-                page = int(value)
-                last_page = ceil(len(self.tickets) / 50)
-                if 1 <= page <= last_page:
-                    self.set_page_contents(page, self.selected_items)
-                    self.widget_registry["current_pg"].config(text=f"{page}")
-                    canvas = self.widget_registry.get("canvas")
-                    canvas.yview_moveto(0)
-                    page_jump_frame.pack_forget()
-                    if page > 1:
-                        self.widget_registry["prev_btn"].config(state="normal")
-                        if page == last_page:
-                            self.widget_registry["nxt_btn"].config(state="disabled")
-                    else:
-                        self.widget_registry["prev_btn"].config(state="disabled")
-                        self.widget_registry["nxt_btn"].config(state="normal")
+        # def jump_to_page():
+        #     try:
+        #         value = page_jump_entry.get()
+        #         page = int(value)
+        #         last_page = self.total_pages
+        #         if 1 <= page <= last_page:
+        #             self.set_page_contents(page, self.selected_items)
+        #             self.widget_registry["current_pg"].config(text=f"{page}")
+        #             canvas = self.widget_registry.get("canvas")
+        #             canvas.yview_moveto(0)
+        #             page_jump_frame.pack_forget()
+        #             self.update_page_number(page)
+        #             if page > 1:
+        #                 self.widget_registry["prev_btn"].config(state="normal")
+        #                 if page == last_page:
+        #                     self.widget_registry["nxt_btn"].config(state="disabled")
+        #             else:
+        #                 self.widget_registry["prev_btn"].config(state="disabled")
+        #                 self.widget_registry["nxt_btn"].config(state="normal")
 
-                else:
-                    page_jump_entry.reset_to_placeholder()
-                    go_btn.focus_set()
-            except ValueError:
-                page_jump_entry.reset_to_placeholder()
-                go_btn.focus_set()
+        #         else:
+        #             page_jump_entry.reset_to_placeholder()
+        #             go_btn.focus_set()
+        #     except ValueError:
+        #         page_jump_entry.reset_to_placeholder()
+        #         go_btn.focus_set()
+        def jump_to_page(self, page):
+            last_page = self.total_pages
+            db_path = self.panel_choice.get("db_path")
+            # Clamp page to valid range
+            page = max(1, min(page, last_page))
+            self.set_page_contents(page, self.selected_items, db_path)
+            self.update_page_number(page)
+            self.update_nav_buttons(page)
+            # Optionally update the page indicator label
+            self.widget_registry["current_pg"].config(text=str(page))
 
         go_btn = tk.Button(
             page_jump_frame,

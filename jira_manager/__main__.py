@@ -214,6 +214,7 @@ def main():
         "receipts_panel": receipts_panel,
         "card_retainer": card_retainer,
         "root": root,
+        "db_path": db_path,
     }
     ticket_panel.set_panel_choice(panel_choice)
     panel_choice["ticket_panel"].set_panel_choice(panel_choice)
