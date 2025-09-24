@@ -1226,9 +1226,15 @@ class TicketDisplayBuilder(tk.Frame):
         db_path = self.panel_choice.get("db_path")
         new_pg = max(1, current_page - 1)
         print(f"{self.page_index=}")
-        prev_pg_first_id, _ = self.page_index.get(new_pg)
-        sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
-        self.set_page_contents(new_pg, self.selected_items, db_path, sql, (prev_pg_first_id,))
+        if new_pg in self.page_index:
+            prev_pg_first_id, _ = self.page_index.get(new_pg)
+            sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
+            self.set_page_contents(new_pg, self.selected_items, db_path, sql, (prev_pg_first_id,))
+        else:
+            # Use LIMIT/OFFSET to fetch previous page and update page_index
+            offset = (new_pg - 1) * 50
+            sql = f"SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50 OFFSET {offset};"
+            self.set_page_contents(new_pg, self.selected_items, db_path, sql)
         self.update_page_number(new_pg)
         # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
@@ -1339,7 +1345,19 @@ class TicketDisplayBuilder(tk.Frame):
         self.theme_manager.register(page_jump_entry, "placeholder_entry")
 
         # Bind Enter key to trigger page jump
-        page_jump_entry.bind("<Return>", lambda event: jump_to_page())
+        # Bind Enter key to trigger page jump with correct arguments
+        def handle_page_jump_event(event=None):
+            try:
+                value = page_jump_entry.get()
+                page = int(value)
+                jump_to_page(self, page)
+                page_jump_entry.reset_to_placeholder()
+                # Move focus away so placeholder appears as hint
+                self.focus_set()
+            except Exception:
+                page_jump_entry.reset_to_placeholder()
+                self.focus_set()
+        page_jump_entry.bind("<Return>", handle_page_jump_event)
 
         # def jump_to_page():
         #     try:
@@ -1372,7 +1390,31 @@ class TicketDisplayBuilder(tk.Frame):
             db_path = self.panel_choice.get("db_path")
             # Clamp page to valid range
             page = max(1, min(page, last_page))
-            self.set_page_contents(page, self.selected_items, db_path)
+            # If we have a cursor for this page, use keyset paging (fast)
+            if page in self.page_index:
+                first_id, last_id = self.page_index[page]
+                sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
+                self.set_page_contents(page, self.selected_items, db_path, sql, (first_id,))
+            else:
+                # Show internal loadbar for slow OFFSET-based jump
+                show_internal = self.widget_registry.get("show_internal_loadbar")
+                hide_internal = self.widget_registry.get("hide_internal_loadbar")
+                if show_internal:
+                    show_internal()
+                    # Set internal loadbar to determinate and full
+                    internal_loadbar = self.widget_registry.get("internal_loadbar")
+                    internal_loadbar_label = self.widget_registry.get("internal_loadbar_label")
+                    if internal_loadbar:
+                        internal_loadbar.config(mode="determinate")
+                        internal_loadbar['value'] = 100
+                    if internal_loadbar_label:
+                        internal_loadbar_label.config(text="1/1")
+                offset = (page - 1) * 50
+                sql = f"SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50 OFFSET {offset};"
+                self.set_page_contents(page, self.selected_items, db_path, sql)
+                # Hide the loadbar after loading (after a short delay to ensure UI updates)
+                if hide_internal:
+                    self.after(200, hide_internal)
             self.update_page_number(page)
             self.update_nav_buttons(page)
             # Optionally update the page indicator label
@@ -1381,7 +1423,7 @@ class TicketDisplayBuilder(tk.Frame):
         go_btn = tk.Button(
             page_jump_frame,
             text="Go",
-            command=jump_to_page,
+            command=handle_page_jump_event,
             font=("Segoe UI", 11),
             cursor="hand2",
         )
@@ -1457,7 +1499,6 @@ class TicketDisplayBuilder(tk.Frame):
             # Do NOT pack internal_loadbar_frame yet (hidden by default)
             internal_loadbar = ttk.Progressbar(internal_loadbar_frame, orient="horizontal", length=120, mode="determinate", maximum=100)
             internal_loadbar.pack(side="left", fill="y", expand=True)
-            # Label to the right of the bar
             internal_loadbar_label = tk.Label(internal_loadbar_frame, text="", font=("Segoe UI", 9, "bold"), anchor="center")
             internal_loadbar_label.pack(side="left", padx=(0,0), fill="y")
             # Register in widget_registry for access elsewhere
