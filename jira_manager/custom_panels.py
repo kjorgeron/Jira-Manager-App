@@ -1062,10 +1062,11 @@ class TicketDisplayBuilder(tk.Frame):
         # self.update_first_ticket_id(first_id)
         if issues:
             last_id = issues[-1][0]
-            self.update_last_ticket_id(last_id)
             first_id = issues[0][0]
+            self.update_last_ticket_id(last_id)
             self.update_first_ticket_id(first_id)
             print(f"{first_id=}, {last_id=}")
+            # Always update the page index for this page after a jump or navigation
             self.update_page_index(pg_num, (first_id, last_id))
         else:
             # Handle empty page (disable prev/next, show message, etc.)
@@ -1270,7 +1271,6 @@ class TicketDisplayBuilder(tk.Frame):
     def prev_action(self):
         prev_btn = self.widget_registry.get("prev_btn")
         nxt_btn = self.widget_registry.get("nxt_btn")
-        # Disable both buttons to prevent spamming
         if prev_btn:
             prev_btn.config(state="disabled")
         if nxt_btn:
@@ -1278,24 +1278,22 @@ class TicketDisplayBuilder(tk.Frame):
         current_page = self.current_page
         db_path = self.panel_choice.get("db_path")
         new_pg = max(1, current_page - 1)
-        print(f"{self.page_index=}")
         if current_page == 1:
-            # Already at first page
             sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
             self.set_page_contents(1, self.selected_items, db_path, sql)
         else:
-            # Use the first_id of the current page as the cursor
+            # Strict keyset paging: use first_id as cursor, ASC, then reverse
             first_id = self.first_ticket_id
             sql = "SELECT * FROM tickets WHERE ticket_id > ? ORDER BY ticket_id ASC LIMIT 50;"
             issues = run_sql_stmt(db_path, sql, stmt_type="select", params=(first_id,))
             issues = list(reversed(issues))
             self.set_page_contents(new_pg, self.selected_items, db_path, None, None, issues)
         self.update_page_number(new_pg)
-        # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
             self.update_nav_buttons(new_pg)
         if prev_btn:
             prev_btn.after(150, enable_buttons)
+        self.scroll_to_top()
 
     # def nxt_action(self):
     #     pg_num = self.widget_registry.get("current_pg")
@@ -1328,7 +1326,6 @@ class TicketDisplayBuilder(tk.Frame):
     def nxt_action(self):
         prev_btn = self.widget_registry.get("prev_btn")
         nxt_btn = self.widget_registry.get("nxt_btn")
-        # Disable both buttons to prevent spamming
         if prev_btn:
             prev_btn.config(state="disabled")
         if nxt_btn:
@@ -1337,16 +1334,16 @@ class TicketDisplayBuilder(tk.Frame):
         last_page = self.total_pages
         db_path = self.panel_choice.get("db_path")
         new_pg = min(last_page, current_page + 1)
-        # Use the last_id of the current page as the cursor
+        # Strict keyset paging: use last_id as cursor, DESC
         last_id = self.last_ticket_id
         sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
         self.set_page_contents(new_pg, self.selected_items, db_path, sql, (last_id,))
         self.update_page_number(new_pg)
-        # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
             self.update_nav_buttons(new_pg)
         if nxt_btn:
             nxt_btn.after(150, enable_buttons)
+        self.scroll_to_top()
 
     def _build_ticket_board(self):
         max_pg_count = ceil(len((self.tickets)) / 50)
@@ -1445,24 +1442,19 @@ class TicketDisplayBuilder(tk.Frame):
         def jump_to_page(self, page):
             last_page = self.total_pages
             db_path = self.panel_choice.get("db_path")
-            # Clamp page to valid range
             page = max(1, min(page, last_page))
             if page == 1:
-                # First page: get the highest ticket_id
                 sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
                 self.set_page_contents(page, self.selected_items, db_path, sql)
             elif (page - 1) in self.page_index:
-                # Use last_id of previous page as cursor
                 _, prev_last_id = self.page_index[page - 1]
                 sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
                 self.set_page_contents(page, self.selected_items, db_path, sql, (prev_last_id,))
             else:
-                # Show internal loadbar for slow OFFSET-based jump
                 show_internal = self.widget_registry.get("show_internal_loadbar")
                 hide_internal = self.widget_registry.get("hide_internal_loadbar")
                 if show_internal:
                     show_internal()
-                    # Set internal loadbar to determinate and full
                     internal_loadbar = self.widget_registry.get("internal_loadbar")
                     internal_loadbar_label = self.widget_registry.get("internal_loadbar_label")
                     if internal_loadbar:
@@ -1473,13 +1465,12 @@ class TicketDisplayBuilder(tk.Frame):
                 offset = (page - 1) * 50
                 sql = f"SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50 OFFSET {offset};"
                 self.set_page_contents(page, self.selected_items, db_path, sql)
-                # Hide the loadbar after loading (after a short delay to ensure UI updates)
                 if hide_internal:
                     self.after(200, hide_internal)
             self.update_page_number(page)
             self.update_nav_buttons(page)
-            # Optionally update the page indicator label
             self.widget_registry["current_pg"].config(text=str(page))
+            self.scroll_to_top()
 
         go_btn = tk.Button(
             page_jump_frame,
