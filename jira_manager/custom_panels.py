@@ -947,6 +947,57 @@ class TicketDisplayBuilder(tk.Frame):
         # Build UI immediately or delay via external trigger
         self._build_ticket_board()
 
+
+    def load_page_index(self, db_path, sql, pull_type, lock, stop_flag=None):
+        try:
+            existed_count = 0
+            issues = run_sql_stmt(
+                db_path,
+                sql,
+                stmt_type="select",
+            )
+            total_pages = max(1, ceil(len(issues) / 50))
+            if pull_type == "start":
+                pages = range(1, total_pages + 1)  # 1 to total_pages inclusive
+            elif pull_type == "end":
+                pages = range(total_pages, 0, -1)  # total_pages down to 1 inclusive
+            else:
+                return
+            if issues:
+                for page in pages:
+                    if stop_flag is not None and stop_flag.is_set():
+                        print("Page index thread received stop signal, exiting early.")
+                        break
+                    start_idx = (page - 1) * 50
+                    end_idx = start_idx + 50
+                    page_issues = issues[start_idx:end_idx]
+                    if not page_issues:
+                        continue
+                    with lock:
+                        if self.check_page_index(page) == False:
+                            first_id = page_issues[0][0]
+                            last_id = page_issues[-1][0]
+                            self.update_first_ticket_id(first_id)
+                            self.update_last_ticket_id(last_id)
+                            self.update_page_index(page, (first_id, last_id))
+                            print(f"Loaded page {page} index: {first_id} to {last_id}")
+                            if existed_count > 0:
+                                existed_count -= 1
+                        else:
+                            existed_count += 1
+                        if existed_count >= 20:
+                            break
+            print("Page index thread finished normally.")
+        except Exception as e:
+            import traceback
+            print("Exception in load_page_index:", e)
+            traceback.print_exc()
+
+    def check_page_index(self, page):
+        if page in self.page_index.keys():
+            return True
+        return False
+
     def update_page_index(self, page, items):
         if page not in self.page_index.keys():
             self.page_index[page] = items

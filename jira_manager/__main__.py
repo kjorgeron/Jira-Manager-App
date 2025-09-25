@@ -22,7 +22,7 @@ from jira_manager.custom_panels import (
 from jira_manager.sql_manager import run_sql_stmt
 from jira_manager.sql import tickets_table, fields_table
 from multiprocessing import Queue
-from threading import Event
+from threading import Event, Lock, Thread
 from jira_manager.custom_widgets import TicketCard
 from os import cpu_count
 from jira_manager.file_manager import load_data
@@ -384,6 +384,13 @@ def main():
     set_button_cursors(root)
     set_combobox_cursors(root)
 
+    lock = Lock()
+    start_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock))
+    end_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock))
+
+    start_paging.start()
+    end_paging.start()
+
     # SET STARTER PANEL
     ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
     if not ticket_bucket:
@@ -406,6 +413,9 @@ def main():
             ),
         )
 
+    start_paging.join()
+    end_paging.join()
+    
     def on_configure(event):
         theme_manager.register(root, "root")
         theme_manager.register(panel_choice["ticket_panel"], "frame")
