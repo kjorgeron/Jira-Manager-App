@@ -974,7 +974,7 @@ class TicketDisplayBuilder(tk.Frame):
 
             canvas.bind("<MouseWheel>", _on_mousewheel)
 
-    def set_page_contents(self, pg_num: int, selected_items, db_path, sql, params=None):
+    def set_page_contents(self, pg_num: int, selected_items, db_path, sql, params=None, pre_fetched_issues=None):
         # db_path = self.panel_choice["db_path"]
         # tickets_per_page = 50
         # # Get total ticket count
@@ -994,13 +994,15 @@ class TicketDisplayBuilder(tk.Frame):
         #     stmt_type="select"
         # )
         print(f"New Start = {self.last_ticket_id}")
-        issues = run_sql_stmt(
-            db_path,
-            # "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY CAST(SUBSTR(key, INSTR(key, '-') + 1) AS INTEGER) DESC LIMIT 50;",
-            sql,
-            stmt_type="select",
-            params=params,
-        )
+        if pre_fetched_issues is not None:
+            issues = pre_fetched_issues
+        else:
+            issues = run_sql_stmt(
+                db_path,
+                sql,
+                stmt_type="select",
+                params=params,
+            )
         for issue in issues:
             print(f"ticket_id={issue[0]}, key={issue[1]}")
         # last_id = issues[-1][0]
@@ -1226,15 +1228,17 @@ class TicketDisplayBuilder(tk.Frame):
         db_path = self.panel_choice.get("db_path")
         new_pg = max(1, current_page - 1)
         print(f"{self.page_index=}")
-        if new_pg in self.page_index:
-            prev_pg_first_id, _ = self.page_index.get(new_pg)
-            sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
-            self.set_page_contents(new_pg, self.selected_items, db_path, sql, (prev_pg_first_id,))
+        if current_page == 1:
+            # Already at first page
+            sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+            self.set_page_contents(1, self.selected_items, db_path, sql)
         else:
-            # Use LIMIT/OFFSET to fetch previous page and update page_index
-            offset = (new_pg - 1) * 50
-            sql = f"SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50 OFFSET {offset};"
-            self.set_page_contents(new_pg, self.selected_items, db_path, sql)
+            # Use the first_id of the current page as the cursor
+            first_id = self.first_ticket_id
+            sql = "SELECT * FROM tickets WHERE ticket_id > ? ORDER BY ticket_id ASC LIMIT 50;"
+            issues = run_sql_stmt(db_path, sql, stmt_type="select", params=(first_id,))
+            issues = list(reversed(issues))
+            self.set_page_contents(new_pg, self.selected_items, db_path, None, None, issues)
         self.update_page_number(new_pg)
         # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
@@ -1282,8 +1286,10 @@ class TicketDisplayBuilder(tk.Frame):
         last_page = self.total_pages
         db_path = self.panel_choice.get("db_path")
         new_pg = min(last_page, current_page + 1)
-        sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
-        self.set_page_contents(new_pg, self.selected_items, db_path, sql, (self.last_ticket_id,))
+        # Use the last_id of the current page as the cursor
+        last_id = self.last_ticket_id
+        sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
+        self.set_page_contents(new_pg, self.selected_items, db_path, sql, (last_id,))
         self.update_page_number(new_pg)
         # Re-enable buttons after short delay to allow UI update
         def enable_buttons():
@@ -1390,11 +1396,15 @@ class TicketDisplayBuilder(tk.Frame):
             db_path = self.panel_choice.get("db_path")
             # Clamp page to valid range
             page = max(1, min(page, last_page))
-            # If we have a cursor for this page, use keyset paging (fast)
-            if page in self.page_index:
-                first_id, last_id = self.page_index[page]
-                sql = "SELECT * FROM tickets WHERE ticket_id <= ? ORDER BY ticket_id DESC LIMIT 50;"
-                self.set_page_contents(page, self.selected_items, db_path, sql, (first_id,))
+            if page == 1:
+                # First page: get the highest ticket_id
+                sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+                self.set_page_contents(page, self.selected_items, db_path, sql)
+            elif (page - 1) in self.page_index:
+                # Use last_id of previous page as cursor
+                _, prev_last_id = self.page_index[page - 1]
+                sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
+                self.set_page_contents(page, self.selected_items, db_path, sql, (prev_last_id,))
             else:
                 # Show internal loadbar for slow OFFSET-based jump
                 show_internal = self.widget_registry.get("show_internal_loadbar")
