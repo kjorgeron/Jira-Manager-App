@@ -198,9 +198,15 @@ def main():
     error_panel = ErrorMessageBuilder(root, theme_manager)
     theme_manager.register(error_panel, "frame")
     configure_panel = setup_configure_panel(root, theme_manager)
-    ticket_panel = setup_ticket_panel(
-        root, theme_manager, card_retainer, selected_items_for_update
+    # Create ticket_panel but do NOT pack it yet (hide until index is loaded)
+    ticket_panel = TicketDisplayBuilder(
+        root,
+        theme_manager=theme_manager,
+        tickets=card_retainer,
+        selected_items=selected_items_for_update,
     )
+    theme_manager.register(ticket_panel, "frame")
+    # Do NOT pack ticket_panel yet
     from jira_manager.custom_widgets import WorkReceiptsPanel
     receipts_panel = WorkReceiptsPanel(root, theme_manager=theme_manager)
     theme_manager.register(receipts_panel, "frame")
@@ -388,8 +394,6 @@ def main():
     start_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock))
     end_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock))
 
-    start_paging.start()
-    end_paging.start()
 
     # SET STARTER PANEL
     ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
@@ -398,23 +402,74 @@ def main():
             "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."
         )
         switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-    else:
-        root.after(
-            100,
-            lambda: switch_panel(
-                "ticket_panel",
-                ui_state,
-                panel_choice,
-                widget_registry,
-                db_path,
-                theme_manager,
-                card_retainer,
-                selected_items_for_update,
-            ),
-        )
+    # else: (do not show ticket_panel yet; will show after index is loaded)
 
-    start_paging.join()
-    end_paging.join()
+
+    def show_loading_and_start_index():
+        # --- Loading Popup ---
+        # Get total ticket count and format with underscores
+        try:
+            total = run_sql_stmt(db_path, "SELECT COUNT(*) FROM tickets", stmt_type="select")[0][0]
+        except Exception:
+            total = 0
+        total_str = f"{total:,}"
+        loading_popup = tk.Toplevel(root)
+        theme_manager.register(loading_popup, "frame")
+        loading_popup.overrideredirect(True)
+        loading_popup.withdraw()  # Hide until centered
+        loading_popup.geometry("400x120")
+        loading_popup.transient(root)
+        loading_popup.grab_set()
+        loading_popup.resizable(False, False)
+        loading_popup.protocol("WM_DELETE_WINDOW", lambda: None)  # Disable close
+        msg_label = tk.Label(loading_popup, text=f"Loading Dataset Total {total_str}", font=("Trebuchet MS", 14))
+        msg_label.pack(pady=(20, 10))
+        theme_manager.register(msg_label, "label")
+        progress = ttk.Progressbar(loading_popup, mode="indeterminate", length=300)
+        theme_manager.register(progress, "loadbar")
+        progress.pack(pady=(0, 10))
+        progress.start(10)
+
+        def center_popup():
+            loading_popup.update_idletasks()
+            rw = root.winfo_width()
+            rh = root.winfo_height()
+            rx = root.winfo_rootx()
+            ry = root.winfo_rooty()
+            w = loading_popup.winfo_width()
+            h = loading_popup.winfo_height()
+            x = rx + (rw // 2) - (w // 2)
+            y = ry + (rh // 2) - (h // 2)
+            loading_popup.geometry(f"{w}x{h}+{x}+{y}")
+            loading_popup.deiconify()  # Show only after centered
+
+        root.after(100, center_popup)
+
+        start_paging.start()
+        end_paging.start()
+
+        def poll_page_index_threads():
+            if start_paging.is_alive() or end_paging.is_alive():
+                root.after(100, poll_page_index_threads)
+            else:
+                print("Page index threads finished.")
+                progress.stop()
+                loading_popup.destroy()
+                # Now show the ticket panel using switch_panel
+                switch_panel(
+                    "ticket_panel",
+                    ui_state,
+                    panel_choice,
+                    widget_registry,
+                    db_path,
+                    theme_manager,
+                    card_retainer,
+                    selected_items_for_update,
+                )
+
+        root.after(100, poll_page_index_threads)
+
+    root.after(0, show_loading_and_start_index)
     
     def on_configure(event):
         theme_manager.register(root, "root")

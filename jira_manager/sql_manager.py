@@ -125,7 +125,7 @@ def run_sql_stmt(
     stmt_type: str = None,
     params: tuple = None,
 ):
-    print(f"Running sql type {stmt_type}")
+    # print(f"Running sql type {stmt_type}")
     items = None
 
     stmt_type = stmt_type.lower() if stmt_type else ""

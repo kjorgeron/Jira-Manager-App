@@ -985,7 +985,7 @@ class TicketDisplayBuilder(tk.Frame):
                                 existed_count -= 1
                         else:
                             existed_count += 1
-                        if existed_count >= 20:
+                        if existed_count >= 5:
                             break
             print("Page index thread finished normally.")
         except Exception as e:
