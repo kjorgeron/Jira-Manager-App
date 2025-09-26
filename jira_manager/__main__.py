@@ -391,8 +391,8 @@ def main():
     set_combobox_cursors(root)
 
     lock = Lock()
-    start_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock))
-    end_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock))
+    start_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock, stop_flag))
+    end_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock, stop_flag))
 
 
     # SET STARTER PANEL
@@ -402,74 +402,50 @@ def main():
             "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."
         )
         switch_panel("error_panel", ui_state, panel_choice, widget_registry)
-    # else: (do not show ticket_panel yet; will show after index is loaded)
-
-
-    def show_loading_and_start_index():
-        # --- Loading Popup ---
-        # Get total ticket count and format with underscores
+    else:
+        switch_panel(
+            "ticket_panel",
+            ui_state,
+            panel_choice,
+            widget_registry,
+            db_path,
+            theme_manager,
+            card_retainer,
+            selected_items_for_update,
+        )
+        # Add overlay to ticket panel
+        ticket_panel = panel_choice["ticket_panel"]
+        overlay = tk.Frame(ticket_panel, bd=0)
+        theme_manager.register(overlay, "frame")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        overlay.attributes = {}
         try:
-            total = run_sql_stmt(db_path, "SELECT COUNT(*) FROM tickets", stmt_type="select")[0][0]
+            overlay.attributes['alpha'] = overlay.winfo_toplevel().attributes('-alpha')
+            overlay.winfo_toplevel().attributes('-alpha', 1)
         except Exception:
-            total = 0
-        total_str = f"{total:,}"
-        loading_popup = tk.Toplevel(root)
-        theme_manager.register(loading_popup, "frame")
-        loading_popup.overrideredirect(True)
-        loading_popup.withdraw()  # Hide until centered
-        loading_popup.geometry("400x120")
-        loading_popup.transient(root)
-        loading_popup.grab_set()
-        loading_popup.resizable(False, False)
-        loading_popup.protocol("WM_DELETE_WINDOW", lambda: None)  # Disable close
-        msg_label = tk.Label(loading_popup, text=f"Loading Dataset Total {total_str}", font=("Trebuchet MS", 14))
-        msg_label.pack(pady=(20, 10))
-        theme_manager.register(msg_label, "label")
-        progress = ttk.Progressbar(loading_popup, mode="indeterminate", length=300)
-        theme_manager.register(progress, "loadbar")
-        progress.pack(pady=(0, 10))
-        progress.start(10)
+            pass
+        # Remove overlay after 1.5 seconds
+        def remove_overlay():
+            overlay.destroy()
+            try:
+                overlay.winfo_toplevel().attributes('-alpha', overlay.attributes.get('alpha', 1.0))
+            except Exception:
+                pass
+        ticket_panel.after(1500, remove_overlay)
 
-        def center_popup():
-            loading_popup.update_idletasks()
-            rw = root.winfo_width()
-            rh = root.winfo_height()
-            rx = root.winfo_rootx()
-            ry = root.winfo_rooty()
-            w = loading_popup.winfo_width()
-            h = loading_popup.winfo_height()
-            x = rx + (rw // 2) - (w // 2)
-            y = ry + (rh // 2) - (h // 2)
-            loading_popup.geometry(f"{w}x{h}+{x}+{y}")
-            loading_popup.deiconify()  # Show only after centered
 
-        root.after(100, center_popup)
+    start_paging.start()
+    end_paging.start()
 
-        start_paging.start()
-        end_paging.start()
+    def poll_page_index_threads():
+        if start_paging.is_alive() or end_paging.is_alive():
+            root.after(100, poll_page_index_threads)
+        else:
+            print("Page index threads finished.")
 
-        def poll_page_index_threads():
-            if start_paging.is_alive() or end_paging.is_alive():
-                root.after(100, poll_page_index_threads)
-            else:
-                print("Page index threads finished.")
-                progress.stop()
-                loading_popup.destroy()
-                # Now show the ticket panel using switch_panel
-                switch_panel(
-                    "ticket_panel",
-                    ui_state,
-                    panel_choice,
-                    widget_registry,
-                    db_path,
-                    theme_manager,
-                    card_retainer,
-                    selected_items_for_update,
-                )
+    root.after(100, poll_page_index_threads)
 
-        root.after(100, poll_page_index_threads)
-
-    root.after(0, show_loading_and_start_index)
+    # root.after(0, show_loading_and_start_index)
     
     def on_configure(event):
         theme_manager.register(root, "root")

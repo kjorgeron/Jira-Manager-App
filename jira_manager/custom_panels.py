@@ -974,9 +974,9 @@ class TicketDisplayBuilder(tk.Frame):
                     if not page_issues:
                         continue
                     with lock:
-                        if self.check_page_index(page) == False:
-                            first_id = page_issues[0][0]
-                            last_id = page_issues[-1][0]
+                        first_id = page_issues[0][0]
+                        last_id = page_issues[-1][0]
+                        if self.check_page_index(page) == False and self.check_page_cursors(page, (first_id, last_id)) == False:
                             self.update_first_ticket_id(first_id)
                             self.update_last_ticket_id(last_id)
                             self.update_page_index(page, (first_id, last_id))
@@ -1001,6 +1001,12 @@ class TicketDisplayBuilder(tk.Frame):
     def update_page_index(self, page, items):
         if page not in self.page_index.keys():
             self.page_index[page] = items
+    
+    def check_page_cursors(self, page, cursors):
+        if page in self.page_index.keys():
+            if self.page_index[page] == cursors:
+                return True
+        return False
 
     def update_first_ticket_id(self, ticket_id):
         self.first_ticket_id = ticket_id
@@ -1063,11 +1069,12 @@ class TicketDisplayBuilder(tk.Frame):
         if issues:
             last_id = issues[-1][0]
             first_id = issues[0][0]
-            self.update_last_ticket_id(last_id)
-            self.update_first_ticket_id(first_id)
-            print(f"{first_id=}, {last_id=}")
-            # Always update the page index for this page after a jump or navigation
-            self.update_page_index(pg_num, (first_id, last_id))
+            if self.check_page_index(pg_num) == False:
+                self.update_last_ticket_id(last_id)
+                self.update_first_ticket_id(first_id)
+                print(f"{first_id=}, {last_id=}")
+                # Always update the page index for this page after a jump or navigation
+                self.update_page_index(pg_num, (first_id, last_id))
         else:
             # Handle empty page (disable prev/next, show message, etc.)
             print("No tickets found for this page.")
