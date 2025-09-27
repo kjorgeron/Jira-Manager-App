@@ -433,7 +433,11 @@ def main():
                 pass
         ticket_panel.after(1500, remove_overlay)
 
-    if len(ticket_bucket) > 10000:
+    if len(ticket_bucket) >= 51:
+        print("Starting page index thread for start...")
+        start_paging.start()
+    elif len(ticket_bucket) >= 1000:
+        print("Starting page index threads for both start and end...")
         start_paging.start()
         end_paging.start()
 

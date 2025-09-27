@@ -987,7 +987,7 @@ class TicketDisplayBuilder(tk.Frame):
                             existed_count += 1
                         if existed_count >= 5:
                             break
-            print("Page index thread finished normally.")
+            print(f"{self.page_index=}\nPage index thread finished normally.")
         except Exception as e:
             import traceback
             print("Exception in load_page_index:", e)
