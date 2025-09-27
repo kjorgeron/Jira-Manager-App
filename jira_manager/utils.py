@@ -22,6 +22,7 @@ from jira_manager.custom_panels import (
     ErrorMessageBuilder,
     ErrorPopupBuilder,
 )
+from jira_manager.thread_manager import SmartThread
 
 
 def jql_worker(
@@ -347,7 +348,7 @@ def jql_search_handler(
                         print(f"Failed to start indeterminate internal loadbar: {e}")
 
                 # Fetch all issues (unknown total)
-                issues = fetch_all_issues_threaded(
+                issues = fetch_all_issue_cursors(
                     config_data, payload, headers, proxies, thread_count
                 )
                 print(f"len(issues)={len(issues)}")
@@ -367,8 +368,9 @@ def jql_search_handler(
                 db_lock = Lock()
                 batched_issues = batch_list(issues, thread_count)
                 threads = []
+                """ QUESTIONABLE THREAD APPROACH """
                 for batch in batched_issues:
-                    thread = Thread(
+                    thread = SmartThread(
                         target=process_to_database,
                         args=(
                             batch,
@@ -813,7 +815,7 @@ def create_toolbar(parent, bg="#4C30EB", padding=10):
     return toolbar
 
 
-def fetch_all_issues_threaded(
+def fetch_all_issue_cursors(
     config_data, payload, headers, proxies, thread_count=1, return_queue: Queue = None
 ):
     base_url = f"{config_data.get('server')}rest/api/3/search/jql"
@@ -1076,7 +1078,7 @@ def toolbar_action(
                 jql_query.delete(0, "end")
             # Start worker if not running
             if not worker_state["running"]:
-                worker_thread = Thread(
+                worker_thread = SmartThread(
                     target=jql_worker,
                     args=(
                         panel_choice,
@@ -1105,11 +1107,7 @@ def toolbar_action(
 
     # LOGIC FOR CONFIGURE PANEL
     elif payload["type"] == "configure":
-        thread = Thread(
-            target=configure_handler,
-            args=(ui_state, panel_choice, widget_registry),
-        )
-        thread.start()
+        configure_handler(ui_state, panel_choice, widget_registry)
 
     # LOGIC FOR TICKETS PANEL
     elif payload["type"] == "tickets":

@@ -26,7 +26,7 @@ from threading import Event, Lock, Thread
 from jira_manager.custom_widgets import TicketCard
 from os import cpu_count
 from jira_manager.file_manager import load_data
-
+from jira_manager.thread_manager import SmartThread
 
 def _set_cursor(event, widget, cursor):
     widget.configure(cursor=cursor)
@@ -391,8 +391,8 @@ def main():
     set_combobox_cursors(root)
 
     lock = Lock()
-    start_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock, stop_flag))
-    end_paging = Thread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock, stop_flag))
+    start_paging = SmartThread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id ASC", "start", lock, stop_flag))
+    end_paging = SmartThread(target=panel_choice["ticket_panel"].load_page_index, args=(db_path, "SELECT ticket_id FROM tickets ORDER BY ticket_id DESC", "end", lock, stop_flag))
 
 
     # SET STARTER PANEL
@@ -433,9 +433,9 @@ def main():
                 pass
         ticket_panel.after(1500, remove_overlay)
 
-
-    start_paging.start()
-    end_paging.start()
+    if len(ticket_bucket) > 10000:
+        start_paging.start()
+        end_paging.start()
 
     def poll_page_index_threads():
         if start_paging.is_alive() or end_paging.is_alive():
@@ -443,7 +443,8 @@ def main():
         else:
             print("Page index threads finished.")
 
-    root.after(100, poll_page_index_threads)
+    if start_paging.is_alive() or end_paging.is_alive():
+        root.after(100, poll_page_index_threads)
 
     # root.after(0, show_loading_and_start_index)
     
