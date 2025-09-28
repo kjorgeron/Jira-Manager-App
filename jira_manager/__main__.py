@@ -202,7 +202,7 @@ def main():
     ticket_panel = TicketDisplayBuilder(
         root,
         theme_manager=theme_manager,
-        tickets=card_retainer,
+        db_path=db_path,
         selected_items=selected_items_for_update,
     )
     theme_manager.register(ticket_panel, "frame")
@@ -433,22 +433,22 @@ def main():
                 pass
         ticket_panel.after(1500, remove_overlay)
 
-    if len(ticket_bucket) >= 51:
-        print("Starting page index thread for start...")
-        start_paging.start()
-    elif len(ticket_bucket) >= 1000:
-        print("Starting page index threads for both start and end...")
-        start_paging.start()
-        end_paging.start()
+    # if len(ticket_bucket) >= 51:
+    #     print("Starting page index thread for start...")
+    #     start_paging.start()
+    # elif len(ticket_bucket) >= 1000:
+    #     print("Starting page index threads for both start and end...")
+    #     start_paging.start()
+    #     end_paging.start()
 
-    def poll_page_index_threads():
-        if start_paging.is_alive() or end_paging.is_alive():
-            root.after(100, poll_page_index_threads)
-        else:
-            print("Page index threads finished.")
+    # def poll_page_index_threads():
+    #     if start_paging.is_alive() or end_paging.is_alive():
+    #         root.after(100, poll_page_index_threads)
+    #     else:
+    #         print("Page index threads finished.")
 
-    if start_paging.is_alive() or end_paging.is_alive():
-        root.after(100, poll_page_index_threads)
+    # if start_paging.is_alive() or end_paging.is_alive():
+    #     root.after(100, poll_page_index_threads)
 
     # root.after(0, show_loading_and_start_index)
     
