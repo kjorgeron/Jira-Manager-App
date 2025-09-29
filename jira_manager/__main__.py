@@ -204,6 +204,7 @@ def main():
         theme_manager=theme_manager,
         db_path=db_path,
         selected_items=selected_items_for_update,
+        stop_flag=stop_flag,
     )
     theme_manager.register(ticket_panel, "frame")
     # Do NOT pack ticket_panel yet
@@ -414,24 +415,24 @@ def main():
             selected_items_for_update,
         )
         # Add overlay to ticket panel
-        ticket_panel = panel_choice["ticket_panel"]
-        overlay = tk.Frame(ticket_panel, bd=0)
-        theme_manager.register(overlay, "frame")
-        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-        overlay.attributes = {}
-        try:
-            overlay.attributes['alpha'] = overlay.winfo_toplevel().attributes('-alpha')
-            overlay.winfo_toplevel().attributes('-alpha', 1)
-        except Exception:
-            pass
-        # Remove overlay after 1.5 seconds
-        def remove_overlay():
-            overlay.destroy()
-            try:
-                overlay.winfo_toplevel().attributes('-alpha', overlay.attributes.get('alpha', 1.0))
-            except Exception:
-                pass
-        ticket_panel.after(1500, remove_overlay)
+        # ticket_panel = panel_choice["ticket_panel"]
+        # overlay = tk.Frame(ticket_panel, bd=0)
+        # theme_manager.register(overlay, "frame")
+        # overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # overlay.attributes = {}
+        # try:
+        #     overlay.attributes['alpha'] = overlay.winfo_toplevel().attributes('-alpha')
+        #     overlay.winfo_toplevel().attributes('-alpha', 1)
+        # except Exception:
+        #     pass
+        # # Remove overlay after 1.5 seconds
+        # def remove_overlay():
+        #     overlay.destroy()
+        #     try:
+        #         overlay.winfo_toplevel().attributes('-alpha', overlay.attributes.get('alpha', 1.0))
+        #     except Exception:
+        #         pass
+        # ticket_panel.after(1500, remove_overlay)
 
     # if len(ticket_bucket) >= 51:
     #     print("Starting page index thread for start...")
