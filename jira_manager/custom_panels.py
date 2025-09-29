@@ -1543,27 +1543,60 @@ class TicketDisplayBuilder(tk.Frame):
                     print("Overlay already destroyed or does not exist.")
 
     def build(self):
-        """BUILD PAGE INDEX THEN DISPLAY CURRENT PAGE"""
-        
-        # self.update_idletasks()
-        # overlay = tk.Frame(self)
-        # overlay.place(
-        #     x=0,
-        #     y=0,
-        #     width=self.winfo_width(),
-        #     height=self.winfo_height(),
-        # )
-        # self.theme_manager.register(overlay, "frame")
-        # overlay.lift()  # Ensure overlay is on top before UI updates
-        # self.update_idletasks()
-        # self.after(500, overlay.lift)  # Remove overlay after UI is updated
-        # self.update_idletasks()
-        # overlay.lift()  # Ensure overlay is on top before UI updates
-        # self.update_idletasks()
+        # --- Stop previous threads if running ---
+        import threading
+        from jira_manager.thread_manager import SmartThread
 
-        # max_pg_count = ceil(len((self.tickets)) / 50)
+        # Signal stop if possible
+        if hasattr(self, "stop_flag") and self.stop_flag:
+            self.stop_flag.set()
+        # Wait for threads to finish (non-blocking if not started)
+        for t in (getattr(self, "start_paging", None), getattr(self, "end_paging", None)):
+            if t and hasattr(t, "is_alive") and t.is_alive():
+                t.join(timeout=1)
+        # New stop flag for new threads
+        self.stop_flag = threading.Event()
+        # --- Clear widgets and state ---
+        for child in self.winfo_children():
+            child.destroy()
+        if hasattr(self, "widget_registry"):
+            self.widget_registry.clear()
+        self.page_index = {}
+        self.current_page = 1
+        self.total_pages = None
 
+        # --- Recreate threads ---
+        self.start_paging = SmartThread(
+            target=self.load_page_index,
+            args=(
+                self.db_path,
+                self.sql_query,
+                "start",
+                self.lock,
+                self.stop_flag,
+            ),
+        )
+        self.end_paging = SmartThread(
+            target=self.load_page_index,
+            args=(
+                self.db_path,
+                self.sql_query,
+                "end",
+                self.lock,
+                self.stop_flag,
+            ),
+        )
 
+        # Destroy all child widgets
+        for child in self.winfo_children():
+            child.destroy()
+        # Clear widget registry if it exists
+        if hasattr(self, "widget_registry"):
+            self.widget_registry.clear()
+        # Optionally reset paging state
+        self.page_index = {}
+        self.current_page = 1
+        self.total_pages = None
 
         tool_bar = tk.Frame(self)
         tool_bar.pack(fill="x", padx=10, pady=10)
@@ -1824,8 +1857,8 @@ class TicketDisplayBuilder(tk.Frame):
         total_count = self.get_total_count()
         print(f"Total tickets matching query: {total_count}")
         # self.show_loading_popup(total_count)
-        self.start_paging.start()
-        self.end_paging.start()
+        # self.start_paging.start()
+        # self.end_paging.start()
         print("Started page index threads.")
         self.update_idletasks()
         overlay = tk.Frame(self)
