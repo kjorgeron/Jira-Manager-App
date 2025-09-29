@@ -9,7 +9,7 @@ from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
 from math import ceil
 from jira_manager.thread_manager import SmartThread
-from threading import Lock
+from threading import Lock, Event
 from time import sleep
 
 
@@ -917,6 +917,7 @@ class TicketDisplayBuilder(tk.Frame):
                 total_pages = max(1, ceil(len(issues) / 50))
                 pages = range(1, total_pages + 1)  # 1 to total_pages inclusive
             elif pull_type == "end":
+                sleep(0.5)
                 dynamic_sql = f"{sql} ORDER BY ticket_id ASC"
                 issues = run_sql_stmt(
                     db_path,
@@ -927,6 +928,13 @@ class TicketDisplayBuilder(tk.Frame):
                 pages = range(total_pages, 0, -1)  # total_pages down to 1 inclusive
             else:
                 print("Invalid pull_type for page indexing.")
+
+            # Set self.total_pages if not already set, and update UI
+            if self.total_pages is None:
+                self.total_pages = total_pages
+                # Update the UI label if it exists
+                if hasattr(self, "widget_registry") and "total_tickets" in self.widget_registry:
+                    self.widget_registry["total_tickets"].config(text=str(self.total_pages))
             if issues:
                 for page in pages:
                     if stop_flag is not None and stop_flag.is_set():
@@ -953,7 +961,7 @@ class TicketDisplayBuilder(tk.Frame):
                                 existed_count -= 1
                         else:
                             existed_count += 1
-                        if existed_count >= 5:
+                        if existed_count >= 1:
                             break
             # print(f"{self.page_index=}\nPage index thread finished normally.")
         except Exception as e:
@@ -1043,7 +1051,7 @@ class TicketDisplayBuilder(tk.Frame):
                 return True
         return False
 
-    def update_page_number(self, new_page_number):
+    def update_current_page(self, new_page_number):
         self.current_page = new_page_number
 
     def update_total_pages(self, new_total_pages):
@@ -1146,7 +1154,8 @@ class TicketDisplayBuilder(tk.Frame):
         #     self.after(500, overlay.destroy)  # Remove overlay after UI is updated
         #     self.update_idletasks()
         last_page = self.total_pages
-        print(f"set_page_contents: {pg_num=}")
+        print(f"set_page_contents: {pg_num=}\n{sql=}")
+
 
         # Get issues for this page (either pre-fetched or via SQL)
         if pre_fetched_issues is not None:
@@ -1158,6 +1167,11 @@ class TicketDisplayBuilder(tk.Frame):
                 stmt_type="select",
                 params=params,
             )
+            print(f"Fetched {len(issues)} issues from DB for page {pg_num}")
+
+        # Always display tickets in descending order
+        if sql and "ORDER BY ticket_id ASC" in sql:
+            issues = list(reversed(issues))
 
         # Convert DB rows to ticket dicts as needed by your UI
         tickets_to_show = []
@@ -1422,33 +1436,44 @@ class TicketDisplayBuilder(tk.Frame):
         current_page = self.current_page
         db_path = self.panel_choice.get("db_path")
         new_pg = max(1, current_page - 1)
-        first_id, _ = self.page_index.get(new_pg)
-        if current_page == 1:
-            sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+        # For page 1, just use the base query
+        # if new_pg == 1:
+        #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+        #     self.set_page_contents(
+        #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
+        #     )
+        #     self.update_current_page(1)
+        #     if prev_btn:
+        #         prev_btn.after(150, lambda: self.update_nav_buttons(1))
+        #     self.scroll_to_top()
+        # else:
+            # Use the (first_id, last_id) of the target page for the range
+        if new_pg in self.page_index:
+            first_id, last_id = self.page_index.get(new_pg)
+            min_id, max_id = min(first_id, last_id), max(first_id, last_id)
+            if " where " in self.sql_query.lower():
+                sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+            else:
+                sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
             self.set_page_contents(
-                1,
-                self.selected_items,
-                db_path,
-                sql,
-                self.widget_registry.get("base_frame"),
+                new_pg, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, (min_id, max_id)
             )
-        else:
-            # Strict keyset paging: use first_id as cursor, ASC, then reverse
-            # first_id = self.first_ticket_id
-            sql = "SELECT * FROM tickets WHERE ticket_id > ? ORDER BY ticket_id ASC LIMIT 50;"
-            # issues = run_sql_stmt(db_path, sql, stmt_type="select", params=(first_id,))
-            # issues = list(reversed(issues))
-            self.set_page_contents(
-                new_pg, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), (first_id,)
-            )
-        self.update_page_number(new_pg)
-
-        def enable_buttons():
-            self.update_nav_buttons(new_pg)
-
-        if prev_btn:
-            prev_btn.after(150, enable_buttons)
-        self.scroll_to_top()
+            self.update_current_page(new_pg)
+            def enable_buttons():
+                self.update_nav_buttons(new_pg)
+            if prev_btn:
+                prev_btn.after(150, enable_buttons)
+            self.scroll_to_top()
+            # else:
+            #     # Fallback: reload first page
+            #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+            #     self.set_page_contents(
+            #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
+            #     )
+            #     self.update_current_page(1)
+            #     if prev_btn:
+            #         prev_btn.after(150, lambda: self.update_nav_buttons(1))
+            #     self.scroll_to_top()
 
     def nxt_action(self):
         prev_btn = self.widget_registry.get("prev_btn")
@@ -1461,26 +1486,44 @@ class TicketDisplayBuilder(tk.Frame):
         last_page = self.total_pages
         db_path = self.panel_choice.get("db_path")
         new_pg = min(last_page, current_page + 1)
-        _, last_id = self.page_index.get(new_pg)
-        # Strict keyset paging: use last_id as cursor, DESC
-        # last_id = self.last_ticket_id
-        sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
-        self.set_page_contents(
-            new_pg,
-            self.selected_items,
-            db_path,
-            sql,
-            self.widget_registry.get("base_frame"),
-            (last_id,),
-        )
-        self.update_page_number(new_pg)
-
-        def enable_buttons():
-            self.update_nav_buttons(new_pg)
-
-        if nxt_btn:
-            nxt_btn.after(150, enable_buttons)
-        self.scroll_to_top()
+        # For page 1, just use the base query
+        # if new_pg == 1:
+        #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+        #     self.set_page_contents(
+        #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
+        #     )
+        #     self.update_current_page(1)
+        #     if nxt_btn:
+        #         nxt_btn.after(150, lambda: self.update_nav_buttons(1))
+        #     self.scroll_to_top()
+        # else:
+            # Use the (first_id, last_id) of the target page for the range
+        if new_pg in self.page_index:
+            first_id, last_id = self.page_index.get(new_pg)
+            min_id, max_id = min(first_id, last_id), max(first_id, last_id)
+            if " where " in self.sql_query.lower():
+                sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+            else:
+                sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+            self.set_page_contents(
+                new_pg, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, (min_id, max_id)
+            )
+            self.update_current_page(new_pg)
+            def enable_buttons():
+                self.update_nav_buttons(new_pg)
+            if nxt_btn:
+                nxt_btn.after(150, enable_buttons)
+            self.scroll_to_top()
+            # else:
+            #     # Fallback: reload last page
+            #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
+            #     self.set_page_contents(
+            #         last_page, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
+            #     )
+            #     self.update_current_page(last_page)
+            #     if nxt_btn:
+            #         nxt_btn.after(150, lambda: self.update_nav_buttons(last_page))
+            #     self.scroll_to_top()
 
     def show_loading_popup(self, total_count):
         print("Showing loading popup...")
@@ -1527,13 +1570,23 @@ class TicketDisplayBuilder(tk.Frame):
             print("Page index threads finished.")
             print(self.page_index)
             try:
+                # Fix: Append WHERE or AND depending on self.sql_query
+                if " where " in self.sql_query.lower():
+                    sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+                else:
+                    sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+                params = self.page_index.get(1)
+                if params is not None:
+                    min_id, max_id = min(params[0], params[1]), max(params[0], params[1])
+                    params = (min_id, max_id)
                 self.set_page_contents(
                     self.current_page,
                     self.selected_items,
                     self.db_path,
-                    self.sql_query,
+                    sql,
                     self.widget_registry.get("base_frame"),
                     overlay,
+                    params,
                 )
             finally:
                 if overlay and overlay.winfo_exists():
@@ -1544,8 +1597,8 @@ class TicketDisplayBuilder(tk.Frame):
 
     def build(self):
         # --- Stop previous threads if running ---
-        import threading
-        from jira_manager.thread_manager import SmartThread
+        # import threading
+        # from jira_manager.thread_manager import SmartThread
 
         # Signal stop if possible
         if hasattr(self, "stop_flag") and self.stop_flag:
@@ -1555,7 +1608,7 @@ class TicketDisplayBuilder(tk.Frame):
             if t and hasattr(t, "is_alive") and t.is_alive():
                 t.join(timeout=1)
         # New stop flag for new threads
-        self.stop_flag = threading.Event()
+        self.stop_flag = Event()
         # --- Clear widgets and state ---
         for child in self.winfo_children():
             child.destroy()
@@ -1594,9 +1647,9 @@ class TicketDisplayBuilder(tk.Frame):
         if hasattr(self, "widget_registry"):
             self.widget_registry.clear()
         # Optionally reset paging state
-        self.page_index = {}
-        self.current_page = 1
-        self.total_pages = None
+        # self.page_index = {}
+        # self.current_page = 1
+        # self.total_pages = None
 
         tool_bar = tk.Frame(self)
         tool_bar.pack(fill="x", padx=10, pady=10)
@@ -1857,8 +1910,8 @@ class TicketDisplayBuilder(tk.Frame):
         total_count = self.get_total_count()
         print(f"Total tickets matching query: {total_count}")
         # self.show_loading_popup(total_count)
-        # self.start_paging.start()
-        # self.end_paging.start()
+        self.start_paging.start()
+        self.end_paging.start()
         print("Started page index threads.")
         self.update_idletasks()
         overlay = tk.Frame(self)
