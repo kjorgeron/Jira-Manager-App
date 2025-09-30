@@ -18,48 +18,68 @@ def batch_list(lst, batch_size):
         yield lst[i : i + batch_size]
 
 
-# def update_ticket_bucket_with_single(
-#     ticket, panel_choice, theme_manager, selected_items, card_retainer=None
-# ):
-#     # print(f"{panel_choice=}")  # Debug print commented out
-#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-#     card = TicketCard(
-#         ticket,
-#         theme_manager,
-#         master=base_frame,
-#         selected_items=selected_items,
-#         card_retainer=card_retainer,
-#     )
-#     # print(f"{ticket=} from update_ticket_bucket_with_single")
-#     card.update_panel_choice(panel_choice=panel_choice)
-#     if ticket["key"] in selected_items:
-#         card.set_bg(theme_manager.theme["pending_color"])
-#         card.widget_registry.get("select_btn").config(
-#             text="Unselect", bg=theme_manager.theme["pending_color"]
-#         )
-#     # Always pack at the bottom for correct order
-#     card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+def update_ticket_bucket(
+    self,
+    ticket_bucket_items,
+    panel_choice,
+    theme_manager,
+    selected_items,
+    card_retainer=None,
+):
+    base_frame = self.widget_registry.get("base_frame")
+    base_frame.pack_propagate(False)
+    canvas = self.widget_registry.get("canvas")
+    window_id = None
+    # Find the window_id for base_frame in the canvas
+    if canvas is not None and base_frame is not None:
+        for item in canvas.find_all():
+            if canvas.type(item) == "window" and str(canvas.itemcget(item, 'window')) == str(base_frame):
+                window_id = item
+                break
+        # Hide the base_frame window if found
+        if window_id:
+            canvas.itemconfigure(window_id, state='hidden')
 
+    # Remove all existing ticket widgets from the base_frame
+    for child in base_frame.winfo_children():
+        child.destroy()
 
-# def update_ticket_bucket(
-#     ticket_bucket_items, panel_choice, theme_manager, selected_items, card_retainer=None
-# ):
-#     base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    max_cols = 5
+    for col in range(max_cols):
+        base_frame.columnconfigure(col, weight=1)
 
-#     # Remove all existing ticket widgets from the base_frame
-#     for child in base_frame.winfo_children():
-#         child.destroy()
+    # Create, theme, and pack all cards while base_frame is hidden
+    cards = []
+    for index, item in enumerate(ticket_bucket_items):
+        row = index // max_cols
+        col = index % max_cols
+        card = TicketCard(
+            item,
+            theme_manager,
+            master=base_frame,
+            selected_items=selected_items,
+            card_retainer=card_retainer,
+        )
+        card.update_panel_choice(panel_choice=panel_choice)
+        # Apply theming immediately
+        if item["key"] in selected_items:
+            card.set_bg(theme_manager.theme["pending_color"])
+            card.widget_registry.get("select_btn").config(
+                text="Unselect", bg=theme_manager.theme["pending_color"]
+            )
+        cards.append(card)
 
-#     max_cols = 5
-#     # print(f"{ticket_bucket_items=}")
-#     # Make columns expandable
-#     for col in range(max_cols):
-#         base_frame.columnconfigure(col, weight=1)
-#     for index, item in enumerate(ticket_bucket_items):
-#         row = index // max_cols
-#         col = index % max_cols
-#         update_ticket_bucket_with_single(
-#             item,
+    for card in cards:
+        card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+        card.update_idletasks()  # Ensure geometry is updated immediately
+    base_frame.update_idletasks()
+    if canvas is not None:
+        canvas.update_idletasks()
+
+    # Show the base_frame window again after all cards are packed and themed
+    if canvas is not None and window_id:
+        canvas.itemconfigure(window_id, state='normal')
+        canvas.update_idletasks()
 #             panel_choice,
 #             theme_manager,
 #             selected_items,
@@ -976,65 +996,6 @@ class TicketDisplayBuilder(tk.Frame):
         result = run_sql_stmt(self.db_path, count_sql, stmt_type="select")
         return result[0][0] if result else 0
 
-    # def load_page_index(
-    #     self,
-    #     db_path,
-    #     sql,
-    #     pull_type,
-    #     lock,
-    #     stop_flag=None,
-    #     end_progress=None,
-    #     end_done_event=None,
-    # ):
-    #     try:
-    #         existed_count = 0
-    #         # ...existing code to get issues...
-    #         if pull_type == "start":
-    #             print("Start page indexing started.")
-    #             # Wait for end thread to reach halfway or finish
-    #             if end_progress is not None and end_done_event is not None:
-    #                 while not end_done_event.is_set():
-    #                     with lock:
-    #                         if end_progress[0] >= total_pages // 2:
-    #                             break
-    #                     sleep(0.1)  # Sleep briefly before checking again
-    #             dynamic_sql = f"{sql} ORDER BY ticket_id DESC"
-    #             issues = run_sql_stmt(
-    #                 db_path,
-    #                 dynamic_sql,
-    #                 stmt_type="select",
-    #             )
-    #             total_pages = max(1, ceil(len(issues) / 50))
-    #             pages = range(1, total_pages + 1)
-    #         elif pull_type == "end":
-    #             print("End page indexing started.")
-    #             dynamic_sql = f"{sql} ORDER BY ticket_id ASC"
-    #             issues = run_sql_stmt(
-    #                 db_path,
-    #                 dynamic_sql,
-    #                 stmt_type="select",
-    #             )
-    #             total_pages = max(1, ceil(len(issues) / 50))
-    #             pages = range(total_pages, 0, -1)
-    #         else:
-    #             print("Invalid pull_type for page indexing.")
-    #         if issues:
-    #             for idx, page in enumerate(pages):
-    #                 if stop_flag is not None and stop_flag.is_set():
-    #                     print("Page index thread received stop signal, exiting early.")
-    #                     break
-    #                 # ...existing page logic...
-    #                 if pull_type == "end" and end_progress is not None:
-    #                     with lock:
-    #                         end_progress[0] = idx + 1  # Track progress
-    #             if pull_type == "end" and end_done_event is not None:
-    #                 end_done_event.set()
-    #         print(f"{self.page_index=}\nPage index thread finished normally.")
-    #     except Exception as e:
-    #         import traceback
-
-    #         print("Exception in load_page_index:", e)
-    #         traceback.print_exc()
 
     def check_page_index(self, page):
         if page in self.page_index.keys():
@@ -1090,6 +1051,40 @@ class TicketDisplayBuilder(tk.Frame):
             )
         # Always pack at the bottom for correct order
         card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+        # Ensure card geometry is updated after packing
+        card.after_idle(card.update_idletasks)
+        base_frame.after_idle(base_frame.update_idletasks)
+
+    # def update_ticket_bucket(
+    #     self,
+    #     ticket_bucket_items,
+    #     panel_choice,
+    #     theme_manager,
+    #     selected_items,
+    #     card_retainer=None,
+    # ):
+    #     # base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
+    #     base_frame = self.widget_registry.get("base_frame")
+
+    #     # Remove all existing ticket widgets from the base_frame
+    #     for child in base_frame.winfo_children():
+    #         child.destroy()
+
+    #     max_cols = 5
+    #     # print(f"{ticket_bucket_items=}")
+    #     # Make columns expandable
+    #     for col in range(max_cols):
+    #         base_frame.columnconfigure(col, weight=1)
+    #     for index, item in enumerate(ticket_bucket_items):
+    #         row = index // max_cols
+    #         col = index % max_cols
+    #         self.update_ticket_bucket_with_single(
+    #             item,
+    #             panel_choice,
+    #             theme_manager,
+    #             selected_items,
+    #             card_retainer=card_retainer,
+    #         )
 
     def update_ticket_bucket(
         self,
@@ -1099,7 +1094,6 @@ class TicketDisplayBuilder(tk.Frame):
         selected_items,
         card_retainer=None,
     ):
-        # base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
         base_frame = self.widget_registry.get("base_frame")
 
         # Remove all existing ticket widgets from the base_frame
@@ -1107,20 +1101,34 @@ class TicketDisplayBuilder(tk.Frame):
             child.destroy()
 
         max_cols = 5
-        # print(f"{ticket_bucket_items=}")
-        # Make columns expandable
         for col in range(max_cols):
             base_frame.columnconfigure(col, weight=1)
+
+        # Batch create all cards, but do not pack yet
+        cards = []
         for index, item in enumerate(ticket_bucket_items):
             row = index // max_cols
             col = index % max_cols
-            self.update_ticket_bucket_with_single(
+            card = TicketCard(
                 item,
-                panel_choice,
                 theme_manager,
-                selected_items,
+                master=base_frame,
+                selected_items=selected_items,
                 card_retainer=card_retainer,
             )
+            card.update_panel_choice(panel_choice=panel_choice)
+            if item["key"] in selected_items:
+                card.set_bg(theme_manager.theme["pending_color"])
+                card.widget_registry.get("select_btn").config(
+                    text="Unselect", bg=theme_manager.theme["pending_color"]
+                )
+            cards.append(card)
+
+        # Now pack all cards in a batch
+        for card in cards:
+            card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
+            card.after_idle(card.update_idletasks)
+        base_frame.after_idle(base_frame.update_idletasks)
     
     def set_page_contents(
         self,
@@ -1137,25 +1145,22 @@ class TicketDisplayBuilder(tk.Frame):
         Display the tickets for the given page using the provided data.
         Does NOT update the page index in any way.
         """
-
-        # Overlay to block UI during update
-        # root = self.winfo_toplevel()
-        # self.update_idletasks()
-        # overlay = tk.Frame(self)
-        # overlay.place(
-        #     x=0,
-        #     y=0,
-        #     width=self.winfo_width(),
-        #     height=self.winfo_height(),
-        # )
-        # self.theme_manager.register(overlay, "frame")
-        # if overlay:
-        #     print("Removing overlay")
-        #     self.after(500, overlay.destroy)  # Remove overlay after UI is updated
-        #     self.update_idletasks()
         last_page = self.total_pages
         print(f"set_page_contents: {pg_num=}\n{sql=}")
 
+
+        # If overlay is None, create a temporary overlay for paging transitions
+        temp_overlay = None
+        if overlay is None:
+            temp_overlay = tk.Frame(self)
+            temp_overlay.place(x=0, y=0, width=self.winfo_width(), height=self.winfo_height())
+            self.theme_manager.register(temp_overlay, "frame")
+            temp_overlay.lift()
+            temp_overlay.update_idletasks()
+            def resize_temp_overlay(event):
+                temp_overlay.place(x=0, y=0, width=event.width, height=event.height)
+            self.bind("<Configure>", resize_temp_overlay)
+            overlay = temp_overlay
 
         # Get issues for this page (either pre-fetched or via SQL)
         if pre_fetched_issues is not None:
@@ -1212,145 +1217,18 @@ class TicketDisplayBuilder(tk.Frame):
             card_retainer=None,
         )
 
-
         # Initial call after building ticket board
         self.update_return_top_btn()
         self.update_idletasks()
-
-        # if overlay:
-        #     print("Removing overlay")
-        #     self.after_idle(overlay.destroy)  # Remove overlay after UI is updated
-
-    # overlay.place(
-    #     x=base_frame.winfo_x(),
-    #     y=base_frame.winfo_y(),
-    #     width=base_frame.winfo_width(),
-    #     height=base_frame.winfo_height(),
-    # )
-    # base_frame.update_idletasks()
-    # overlay.lift()  # Ensure overlay is on top after widgets are packed
-    # self.after(300, lambda: overlay.lift())  # Extra lift after 300ms
-    # parent.update_idletasks()
-
-        # def remove_overlay():
-        #     overlay.destroy()
-
-        # self.after(500, remove_overlay)  # Remove overlay after UI is updated
-        # remove_overlay()
         self.update_return_top_btn()
 
-    # def set_page_contents(
-    #     self,
-    #     pg_num: int,
-    #     selected_items,
-    #     db_path,
-    #     sql,
-    #     base_frame,
-    #     params=None,
-    #     pre_fetched_issues=None,
-    # ):
-    #     last_page = self.total_pages
-    #     print(f"{pg_num=}")
-    #     # print(f"New Start = {self.last_ticket_id}")
-    #     if pre_fetched_issues is not None:
-    #         issues = pre_fetched_issues
-    #     else:
-    #         issues = run_sql_stmt(
-    #             db_path,
-    #             sql,
-    #             stmt_type="select",
-    #             params=params,
-    #         )
-    #     # for issue in issues:
-    #     #     print(f"ticket_id={issue[0]}, key={issue[1]}")
-    #     if issues:
-    #         last_id = issues[-1][0]
-    #         first_id = issues[0][0]
-    #         if self.check_page_index(pg_num) == False:
-    #             # self.update_last_ticket_id(last_id)
-    #             # self.update_first_ticket_id(first_id)
-    #             # print(f"{first_id=}, {last_id=}")
-    #             # Always update the page index for this page after a jump or navigation
-    #             self.update_page_index(pg_num, (first_id, last_id))
-    #     else:
-    #         # Handle empty page (disable prev/next, show message, etc.)
-    #         print("No tickets found for this page.")
-    #         return
+        # If we created a temp overlay, destroy it after all UI updates
+        if temp_overlay is not None:
+            self.update_idletasks()
+            temp_overlay.update_idletasks()
+            if temp_overlay.winfo_exists():
+                temp_overlay.destroy()
 
-    #     # Convert DB rows to ticket dicts as needed by your UI
-    #     # Adjust this as needed for your TicketCard
-    #     tickets_to_show = []
-    #     for issue in issues:
-    #         # Example: id at index 0, key at index 1
-    #         ticket = {"id": issue[0], "key": issue[1]}
-    #         tickets_to_show.append(ticket)
-    #     # print(f"{tickets_to_show=}")
-
-    #     # Update page indicator and total page count
-    #     if "current_pg" in self.widget_registry:
-    #         self.widget_registry["current_pg"].config(text=str(pg_num))
-    #     if "total_tickets" in self.widget_registry:
-    #         self.widget_registry["total_tickets"].config(text=str(last_page))
-
-    #     # If there are no tickets to show, remove Return to Top button and frame
-    #     if not tickets_to_show:
-    #         # base_frame = self.widget_registry.get("base_frame")
-    #         if base_frame:
-    #             # Remove button and frame
-    #             if hasattr(self, "return_top_btn") and self.return_top_btn:
-    #                 try:
-    #                     self.return_top_btn.destroy()
-    #                 except Exception:
-    #                     pass
-    #                 self.return_top_btn = None
-    #             for child in base_frame.winfo_children():
-    #                 if isinstance(child, tk.Frame) and getattr(
-    #                     child, "_is_return_top_btn_frame", False
-    #                 ):
-    #                     child.destroy()
-
-    #     # base_frame = self.panel_choice["ticket_panel"].widget_registry.get("base_frame")
-    #     parent = base_frame.master
-    #     overlay = tk.Frame(parent)
-    #     overlay.place(
-    #         x=base_frame.winfo_x(),
-    #         y=base_frame.winfo_y(),
-    #         width=base_frame.winfo_width(),
-    #         height=base_frame.winfo_height(),
-    #     )
-    #     self.theme_manager.register(overlay, "frame")
-    #     overlay.lift()
-    #     parent.update_idletasks()
-    #     for child in base_frame.winfo_children():
-            # Do not destroy the loadbar_frame (and its children)
-        #     if getattr(child, "is_loadbar_frame", False):
-        #         continue
-        #     child.destroy()
-        # self.update_ticket_bucket(
-        #     tickets_to_show,
-        #     self.panel_choice,
-        #     self.theme_manager,
-        #     self.selected_items,
-        #     card_retainer=None,
-        # )
-
-        # # Initial call after building ticket board
-        # self.update_return_top_btn()
-
-        # base_frame.update_idletasks()
-        # overlay.place(
-        #     x=base_frame.winfo_x(),
-        #     y=base_frame.winfo_y(),
-        #     width=base_frame.winfo_width(),
-        #     height=base_frame.winfo_height(),
-        # )
-        # overlay.lift()
-
-        # def remove_overlay():
-        #     overlay.destroy()
-
-        # parent.after(120, remove_overlay)
-        # self.update_return_top_btn()
 
     def scroll_to_top(self):
         canvas = self.widget_registry.get("canvas")
@@ -1436,18 +1314,6 @@ class TicketDisplayBuilder(tk.Frame):
         current_page = self.current_page
         db_path = self.panel_choice.get("db_path")
         new_pg = max(1, current_page - 1)
-        # For page 1, just use the base query
-        # if new_pg == 1:
-        #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
-        #     self.set_page_contents(
-        #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
-        #     )
-        #     self.update_current_page(1)
-        #     if prev_btn:
-        #         prev_btn.after(150, lambda: self.update_nav_buttons(1))
-        #     self.scroll_to_top()
-        # else:
-            # Use the (first_id, last_id) of the target page for the range
         if new_pg in self.page_index:
             first_id, last_id = self.page_index.get(new_pg)
             min_id, max_id = min(first_id, last_id), max(first_id, last_id)
@@ -1464,16 +1330,6 @@ class TicketDisplayBuilder(tk.Frame):
             if prev_btn:
                 prev_btn.after(150, enable_buttons)
             self.scroll_to_top()
-            # else:
-            #     # Fallback: reload first page
-            #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
-            #     self.set_page_contents(
-            #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
-            #     )
-            #     self.update_current_page(1)
-            #     if prev_btn:
-            #         prev_btn.after(150, lambda: self.update_nav_buttons(1))
-            #     self.scroll_to_top()
 
     def nxt_action(self):
         prev_btn = self.widget_registry.get("prev_btn")
@@ -1486,18 +1342,6 @@ class TicketDisplayBuilder(tk.Frame):
         last_page = self.total_pages
         db_path = self.panel_choice.get("db_path")
         new_pg = min(last_page, current_page + 1)
-        # For page 1, just use the base query
-        # if new_pg == 1:
-        #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
-        #     self.set_page_contents(
-        #         1, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
-        #     )
-        #     self.update_current_page(1)
-        #     if nxt_btn:
-        #         nxt_btn.after(150, lambda: self.update_nav_buttons(1))
-        #     self.scroll_to_top()
-        # else:
-            # Use the (first_id, last_id) of the target page for the range
         if new_pg in self.page_index:
             first_id, last_id = self.page_index.get(new_pg)
             min_id, max_id = min(first_id, last_id), max(first_id, last_id)
@@ -1514,16 +1358,6 @@ class TicketDisplayBuilder(tk.Frame):
             if nxt_btn:
                 nxt_btn.after(150, enable_buttons)
             self.scroll_to_top()
-            # else:
-            #     # Fallback: reload last page
-            #     sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
-            #     self.set_page_contents(
-            #         last_page, self.selected_items, db_path, sql, self.widget_registry.get("base_frame")
-            #     )
-            #     self.update_current_page(last_page)
-            #     if nxt_btn:
-            #         nxt_btn.after(150, lambda: self.update_nav_buttons(last_page))
-            #     self.scroll_to_top()
 
     def show_loading_popup(self, total_count):
         print("Showing loading popup...")
@@ -1589,16 +1423,12 @@ class TicketDisplayBuilder(tk.Frame):
                     params,
                 )
             finally:
+                self.update_idletasks()
+                overlay.update_idletasks()
                 if overlay and overlay.winfo_exists():
-                    print(f"Removing overlay: {overlay}")
-                    self.after_idle(overlay.destroy)
-                else:
-                    print("Overlay already destroyed or does not exist.")
+                    overlay.destroy()
 
     def build(self):
-        # --- Stop previous threads if running ---
-        # import threading
-        # from jira_manager.thread_manager import SmartThread
 
         # Signal stop if possible
         if hasattr(self, "stop_flag") and self.stop_flag:
@@ -1646,10 +1476,6 @@ class TicketDisplayBuilder(tk.Frame):
         # Clear widget registry if it exists
         if hasattr(self, "widget_registry"):
             self.widget_registry.clear()
-        # Optionally reset paging state
-        # self.page_index = {}
-        # self.current_page = 1
-        # self.total_pages = None
 
         tool_bar = tk.Frame(self)
         tool_bar.pack(fill="x", padx=10, pady=10)
@@ -1720,24 +1546,26 @@ class TicketDisplayBuilder(tk.Frame):
             last_page = self.total_pages
             db_path = self.panel_choice.get("db_path")
             page = max(1, min(page, last_page))
-            if page == 1:
-                sql = "SELECT * FROM tickets ORDER BY ticket_id DESC LIMIT 50;"
-                self.set_page_contents(page, self.selected_items, db_path, sql)
-            elif (page - 1) in self.page_index:
-                _, prev_last_id = self.page_index[page - 1]
-                sql = "SELECT * FROM tickets WHERE ticket_id < ? ORDER BY ticket_id DESC LIMIT 50;"
+            # Use page index if available
+            if page in self.page_index:
+                first_id, last_id = self.page_index.get(page)
+                min_id, max_id = min(first_id, last_id), max(first_id, last_id)
+                if " where " in self.sql_query.lower():
+                    sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+                else:
+                    sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+                params = (min_id, max_id)
                 self.set_page_contents(
-                    page, self.selected_items, db_path, sql, (prev_last_id,)
+                    page, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, params
                 )
             else:
+                # Fallback: use LIMIT/OFFSET if page index is not available
                 show_internal = self.widget_registry.get("show_internal_loadbar")
                 hide_internal = self.widget_registry.get("hide_internal_loadbar")
                 if show_internal:
                     show_internal()
                     internal_loadbar = self.widget_registry.get("internal_loadbar")
-                    internal_loadbar_label = self.widget_registry.get(
-                        "internal_loadbar_label"
-                    )
+                    internal_loadbar_label = self.widget_registry.get("internal_loadbar_label")
                     if internal_loadbar:
                         internal_loadbar.config(mode="determinate")
                         internal_loadbar["value"] = 100
@@ -1781,9 +1609,9 @@ class TicketDisplayBuilder(tk.Frame):
         dropdown_btn.pack(side="left", padx=(20, 0))
         self.theme_manager.register(dropdown_btn, "base_button")
 
-        canvas = tk.Canvas(self)
-        canvas.pack(fill="both", expand=True, side="left")
+        canvas = tk.Canvas(self, bg=self.theme_manager.theme["background"])
         self.theme_manager.register(canvas, "frame")
+        canvas.pack(fill="both", expand=True, side="left")
         # Always show the scrollbar for reliable scrolling
         scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
         scrollbar.pack(side="right", fill="y")
@@ -1896,12 +1724,8 @@ class TicketDisplayBuilder(tk.Frame):
 
         # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
         def _on_mousewheel(event):
-            # print(
-            #     f"[DEBUG] _on_mousewheel: canvas={canvas}, has focus={canvas.focus_displayof()}"
-            # )
             if canvas != canvas.focus_displayof():
                 canvas.focus_set()
-                # print(f"[DEBUG] Focus set to canvas: {canvas}")
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
@@ -1909,39 +1733,22 @@ class TicketDisplayBuilder(tk.Frame):
         """ NEED TO FINISH THIS PART / WILL BE FOR LOADING PAGE INDEX AND LOADBAR POPUP DISPLAY / HANDLING """
         total_count = self.get_total_count()
         print(f"Total tickets matching query: {total_count}")
-        # self.show_loading_popup(total_count)
         self.start_paging.start()
         self.end_paging.start()
         print("Started page index threads.")
         self.update_idletasks()
-        overlay = tk.Frame(self)
-        overlay.place(
-            x=0,
-            y=0,
-            width=self.winfo_width(),
-            height=self.winfo_height(),
-        )
-        self.theme_manager.register(overlay, "frame")
-        # overlay.lift()
-        self.update_idletasks()
-        self.after(0, overlay.lift)  # <-- This ensures overlay is lifted after all UI events
 
-        # if self.start_paging.is_alive() or self.end_paging.is_alive():
-        #     print("Polling page index threads...")
-        #     self.after(100, lambda: self.poll_page_index_threads(overlay))
+        # --- Overlay logic ---
+        overlay = tk.Frame(self)
+        overlay.place(x=0, y=0, width=self.winfo_width(), height=self.winfo_height())
+        self.theme_manager.register(overlay, "frame")
+        overlay.lift()
+        overlay.update_idletasks()
+
+        def resize_overlay(event):
+            overlay.place(x=0, y=0, width=event.width, height=event.height)
+        self.bind("<Configure>", resize_overlay)
+
         print("Polling page index threads (guaranteed call)...")
         self.poll_page_index_threads(overlay)
 
-        # def remove_overlay():
-        #     overlay.destroy()
-
-        # self.after(500, remove_overlay)  # Remove overlay after UI is updated
-
-        # # Initial population of tickets
-        # self.set_page_contents(
-        #     self.current_page,
-        #     self.selected_items,
-        #     self.db_path,
-        #     self.sql_query,
-        #     self.widget_registry.get("base_frame"),
-        # )

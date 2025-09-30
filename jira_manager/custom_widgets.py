@@ -250,23 +250,29 @@ class TicketCard(tk.Frame):
         #     )
 
         self.ticket_key = ticket_data["key"]
-        self.configure(padx=10, pady=5, bd=1, relief="solid")
+        theme = self.theme_manager.theme
+        self.configure(padx=10, pady=5, bd=1, relief="solid", bg=theme.get("background", "#f0f0f0"))
         self.theme_manager.register(self, "frame")
 
-        base = tk.Frame(self)
+        base = tk.Frame(self, bg=theme.get("background", "#f0f0f0"))
         base.pack(fill="x")
         self.theme_manager.register(base, "frame")
 
-        info = tk.Frame(base)
+        info = tk.Frame(base, bg=theme.get("background", "#f0f0f0"))
         info.pack(side="left", fill="y")
         self.theme_manager.register(info, "frame")
 
-        actions = tk.Frame(base)
+        actions = tk.Frame(base, bg=theme.get("background", "#f0f0f0"))
         actions.pack(side="right", fill="y")
         self.theme_manager.register(actions, "frame")
 
         title = tk.Label(
-            info, text=self.ticket_key, font=("Segoe UI", 12, "bold"), justify="left"
+            info,
+            text=self.ticket_key,
+            font=("Segoe UI", 12, "bold"),
+            justify="left",
+            bg=theme.get("background", "#f0f0f0"),
+            fg=theme.get("label_fg", "#000"),
         )
         title.pack(anchor="w")
         self.theme_manager.register(title, "label")
@@ -278,6 +284,8 @@ class TicketCard(tk.Frame):
                 font=("Segoe UI", 10),
                 wraplength=400,
                 justify="left",
+                bg=theme.get("background", "#f0f0f0"),
+                fg=theme.get("label_fg", "#000"),
             )
             descript.pack(anchor="w")
             self.theme_manager.register(descript, "label")
@@ -287,16 +295,35 @@ class TicketCard(tk.Frame):
             text="Delete",
             justify="right",
             command=lambda: self.delete_from_database(self.delete),
+            bg=theme.get("btn_highlight", "#e57373"),
+            fg=theme.get("button_fg", "#fff"),
+            activebackground=theme.get("btn_active", theme.get("btn_highlight", "#e57373")),
+            relief="raised",
         )
         delete_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(delete_btn, "base_button")
 
-        update_btn = tk.Button(actions, text="Update", justify="right")
+        update_btn = tk.Button(
+            actions,
+            text="Update",
+            justify="right",
+            bg=theme.get("btn_highlight", "#e57373"),
+            fg=theme.get("button_fg", "#fff"),
+            activebackground=theme.get("btn_active", theme.get("btn_highlight", "#e57373")),
+            relief="raised",
+        )
         update_btn.pack(side="left", padx=10, pady=10)
         self.theme_manager.register(update_btn, "base_button")
 
         select_btn = tk.Button(
-            actions, text="Select", justify="right", command=self.select_for_update
+            actions,
+            text="Select",
+            justify="right",
+            command=self.select_for_update,
+            bg=theme.get("btn_highlight", "#e57373"),
+            fg=theme.get("button_fg", "#fff"),
+            activebackground=theme.get("btn_active", theme.get("btn_highlight", "#e57373")),
+            relief="raised",
         )
         select_btn.pack(side="right", padx=10, pady=10)
         self.theme_manager.register(select_btn, "flashy_button")
