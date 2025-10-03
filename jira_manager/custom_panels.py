@@ -1094,6 +1094,8 @@ class TicketDisplayBuilder(tk.Frame):
         selected_items,
         card_retainer=None,
         base_frame=None,
+        progress_tracker=None,
+        progress_bar=None,
     ):
 
         # Remove all existing ticket widgets from the base_frame
@@ -1107,6 +1109,11 @@ class TicketDisplayBuilder(tk.Frame):
         # Batch create all cards, but do not pack yet
         cards = []
         for index, item in enumerate(ticket_bucket_items):
+            if progress_tracker and progress_bar:
+                progress_tracker["value"] += 1
+                percentage = (progress_tracker["value"] / progress_tracker["total"]) * 100
+                progress_bar["value"] = percentage
+                progress_bar.update_idletasks()  # Force UI update
             row = index // max_cols
             col = index % max_cols
             card = TicketCard(
@@ -1129,7 +1136,7 @@ class TicketDisplayBuilder(tk.Frame):
             card.pack(side="top", fill="x", padx=5, pady=3, expand=True)
             card.after_idle(card.update_idletasks)
         base_frame.after_idle(base_frame.update_idletasks)
-    
+
     def set_page_contents(
         self,
         pg_num: int,
@@ -1148,6 +1155,8 @@ class TicketDisplayBuilder(tk.Frame):
         last_page = self.total_pages
         print(f"set_page_contents: {pg_num=}\n{sql=}")
 
+        # Initialize progress_bar to None by default
+        progress_bar = None
 
         # If overlay is None, create a temporary overlay for paging transitions
         temp_overlay = None
@@ -1164,21 +1173,23 @@ class TicketDisplayBuilder(tk.Frame):
             )
             message_label.place(relx=0.5, rely=0.45, anchor="center")
             self.theme_manager.register(message_label, "label")
-            
             # Add progress bar below the message
             progress_bar = ttk.Progressbar(
                 temp_overlay,
                 orient="horizontal",
                 length=250,
-                mode="indeterminate"
+                mode="determinate",
+                maximum=100,
+                value=0,
             )
+            self.theme_manager.register(progress_bar, "loadbar")
             progress_bar.place(relx=0.5, rely=0.55, anchor="center")
-            progress_bar.start(10)  # Start animation
             
             temp_overlay.lift()
             temp_overlay.update_idletasks()
             def resize_temp_overlay(event):
-                temp_overlay.place(x=0, y=0, width=event.width, height=event.height)
+                if temp_overlay and temp_overlay.winfo_exists():
+                    temp_overlay.place(x=0, y=0, width=event.width, height=event.height)
             self.bind("<Configure>", resize_temp_overlay)
             overlay = temp_overlay
 
@@ -1201,13 +1212,6 @@ class TicketDisplayBuilder(tk.Frame):
         base_frame = tk.Frame(canvas)
         self.widget_registry["base_frame"] = base_frame
         self.theme_manager.register(base_frame, "frame")
-        # window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
-        # def on_configure(event):
-        #     canvas.configure(scrollregion=canvas.bbox("all"))
-        # base_frame.bind("<Configure>", on_configure)
-        # def on_resize(event):
-        #     canvas.itemconfig(window_id, width=event.width)
-        # canvas.bind("<Configure>", on_resize)
 
         # Get issues for this page (either pre-fetched or via SQL)
         if pre_fetched_issues is not None:
@@ -1256,6 +1260,7 @@ class TicketDisplayBuilder(tk.Frame):
                 continue
             child.destroy()
 
+        progress_tracker = {"value": 0, "total": len(tickets_to_show)}
         self.update_ticket_bucket(
             tickets_to_show,
             self.panel_choice,
@@ -1263,6 +1268,8 @@ class TicketDisplayBuilder(tk.Frame):
             self.selected_items,
             card_retainer=None,
             base_frame=base_frame,
+            progress_tracker=progress_tracker,
+            progress_bar=progress_bar
         )
 
         # Initial call after building ticket board
@@ -1287,11 +1294,23 @@ class TicketDisplayBuilder(tk.Frame):
         if canvas_width > 1:  # Make sure canvas has been rendered
             canvas.itemconfig(window_id, width=canvas_width)
 
-        # If we created a temp overlay, destroy it after all UI updates
+        # If we created a temp overlay, complete progress bar and destroy it
         if temp_overlay is not None:
             self.update_idletasks()
             temp_overlay.update_idletasks()
             if temp_overlay.winfo_exists():
+                # # Complete the progress bar to 100%
+                # try:
+                #     progress_bar["value"] = 100
+                #     temp_overlay.update_idletasks()
+                # except:
+                #     pass  # In case progress_bar doesn't exist
+                
+                # # Small delay to let user see completion
+                # import time
+                # time.sleep(0.1)
+                
+                # Now destroy the overlay
                 temp_overlay.destroy()
 
 
@@ -1560,6 +1579,7 @@ class TicketDisplayBuilder(tk.Frame):
             last_page = self.total_pages
             db_path = self.panel_choice.get("db_path")
             page = max(1, min(page, last_page))
+            self.update_current_page(page)
             # Use page index if available
             if page in self.page_index:
                 first_id, last_id = self.page_index.get(page)
@@ -1777,7 +1797,8 @@ class TicketDisplayBuilder(tk.Frame):
         overlay.update_idletasks()
 
         def resize_overlay(event):
-            overlay.place(x=0, y=0, width=event.width, height=event.height)
+            if overlay and overlay.winfo_exists():
+                overlay.place(x=0, y=0, width=event.width, height=event.height)
         self.bind("<Configure>", resize_overlay)
 
         print("Polling page index threads (guaranteed call)...")
