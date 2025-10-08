@@ -173,12 +173,15 @@ def switch_panel(
         receipts_btn.config(state="disabled")
 
     if panel_key == "ticket_panel":
-        if panel_choice.get("ticket_panel"):
-            panel_choice.get("ticket_panel").build()
-            widget = widget_registry.get("welcome_label")
-            widget.config(text="Ticket Bucket")
-            if not widget.winfo_ismapped():
-                widget.pack(fill="x", padx=5, pady=5)
+        ticket_panel = panel_choice.get("ticket_panel")
+        if ticket_panel:
+            if ticket_panel.page_index == {}:
+                # Don't show welcome label yet - let build() complete first
+                panel_choice.get("ticket_panel").build()
+            else:
+                print(f"Ticket Paging Set... Going to current page {ticket_panel.current_page}")
+                # Internal ticket bucket label will be managed by refresh_current_page/set_page_contents
+                ticket_panel.refresh_current_page()
             next_panel.pack(fill="both", expand=True, padx=10, pady=10)
     ui_state["active_panel"] = next_panel
 
@@ -1137,13 +1140,86 @@ class TicketDisplayBuilder(tk.Frame):
             card.after_idle(card.update_idletasks)
         base_frame.after_idle(base_frame.update_idletasks)
 
+    def refresh_current_page(self):
+        # Get the page parameters
+        params = self.page_index.get(self.current_page)
+        if params is None:
+            print(f"Warning: No page index found for page {self.current_page}")
+            return
+        
+        # Build the SQL query with proper WHERE/AND logic
+        if " where " in self.sql_query.lower():
+            sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+        else:
+            sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
+        
+        # Ensure min/max order is correct
+        min_id, max_id = min(params[0], params[1]), max(params[0], params[1])
+        params = (min_id, max_id)
+        
+        # Create overlay for loading indication immediately to avoid lag
+        overlay = tk.Frame(self)
+        overlay.place(x=0, y=0, relwidth=1, relheight=1)
+        self.theme_manager.register(overlay, "frame")
+        
+        # Add loading message and progress bar to overlay
+        message_label = tk.Label(
+            overlay,
+            text=f"Refreshing page {self.current_page}...",
+            font=("Segoe UI", 14, "bold"),
+        )
+        message_label.place(relx=0.5, rely=0.45, anchor="center")
+        self.theme_manager.register(message_label, "label")
+        
+        # Add progress bar below the message - use determinate mode for actual progress
+        progress_bar = ttk.Progressbar(
+            overlay,
+            orient="horizontal",
+            length=250,
+            mode="determinate",
+            maximum=100,
+            value=0
+        )
+        self.theme_manager.register(progress_bar, "loadbar")
+        progress_bar.place(relx=0.5, rely=0.55, anchor="center")
+        
+        overlay.lift()
+        overlay.update_idletasks()
+        
+        # Handle overlay resizing
+        def resize_overlay(event):
+            if overlay and overlay.winfo_exists():
+                overlay.place(x=0, y=0, relwidth=1, relheight=1)
+        resize_handler = self.bind("<Configure>", resize_overlay)
+        
+        # Schedule the actual refresh to run after the overlay is displayed
+        def do_refresh():
+            try:
+                self.set_page_contents(
+                    pg_num=self.current_page,
+                    selected_items=self.selected_items,
+                    db_path=self.db_path,
+                    sql=sql,
+                    overlay=overlay,
+                    params=params,
+                    pre_fetched_issues=None
+                )
+            finally:
+                # Clean up the resize handler
+                try:
+                    self.unbind("<Configure>", resize_handler)
+                except:
+                    pass
+        
+        # Use after_idle to ensure the overlay is rendered before starting the refresh
+        self.after_idle(do_refresh)
     def set_page_contents(
         self,
         pg_num: int,
         selected_items,
         db_path,
         sql,
-        base_frame,
+        # base_frame,
         overlay=None,
         params=None,
         pre_fetched_issues=None,
@@ -1152,11 +1228,23 @@ class TicketDisplayBuilder(tk.Frame):
         Display the tickets for the given page using the provided data.
         Does NOT update the page index in any way.
         """
+        # Hide internal ticket bucket label during loading
+        ticket_bucket_label = self.widget_registry.get("ticket_bucket_label")
+        if ticket_bucket_label and ticket_bucket_label.winfo_ismapped():
+            ticket_bucket_label.pack_forget()
+        
         last_page = self.total_pages
         print(f"set_page_contents: {pg_num=}\n{sql=}")
 
         # Initialize progress_bar to None by default
         progress_bar = None
+
+        # If overlay is provided, try to find the progress bar in it
+        if overlay is not None:
+            for child in overlay.winfo_children():
+                if isinstance(child, ttk.Progressbar):
+                    progress_bar = child
+                    break
 
         # If overlay is None, create a temporary overlay for paging transitions
         temp_overlay = None
@@ -1217,6 +1305,7 @@ class TicketDisplayBuilder(tk.Frame):
         if pre_fetched_issues is not None:
             issues = pre_fetched_issues
         else:
+            print(f"{sql=}\n{params=}")
             issues = run_sql_stmt(
                 db_path,
                 sql,
@@ -1294,24 +1383,27 @@ class TicketDisplayBuilder(tk.Frame):
         if canvas_width > 1:  # Make sure canvas has been rendered
             canvas.itemconfig(window_id, width=canvas_width)
 
-        # If we created a temp overlay, complete progress bar and destroy it
-        if temp_overlay is not None:
+        # Show internal ticket bucket label now that page content is loaded
+        ticket_bucket_label = self.widget_registry.get("ticket_bucket_label")
+        if ticket_bucket_label and not ticket_bucket_label.winfo_ismapped():
+            ticket_bucket_label.pack(fill="x", padx=5, pady=5)
+
+        # Destroy the overlay (either temp_overlay we created or overlay passed in)
+        overlay_to_destroy = temp_overlay if temp_overlay is not None else overlay
+        if overlay_to_destroy is not None:
             self.update_idletasks()
-            temp_overlay.update_idletasks()
-            if temp_overlay.winfo_exists():
-                # # Complete the progress bar to 100%
-                # try:
-                #     progress_bar["value"] = 100
-                #     temp_overlay.update_idletasks()
-                # except:
-                #     pass  # In case progress_bar doesn't exist
+            overlay_to_destroy.update_idletasks()
+            if overlay_to_destroy.winfo_exists():
+                # Stop any progress bar animations
+                try:
+                    for child in overlay_to_destroy.winfo_children():
+                        if isinstance(child, ttk.Progressbar):
+                            child.stop()
+                except:
+                    pass
                 
-                # # Small delay to let user see completion
-                # import time
-                # time.sleep(0.1)
-                
-                # Now destroy the overlay
-                temp_overlay.destroy()
+                # Destroy the overlay
+                overlay_to_destroy.destroy()
 
 
     def scroll_to_top(self):
@@ -1355,7 +1447,7 @@ class TicketDisplayBuilder(tk.Frame):
             else:
                 sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
             self.set_page_contents(
-                new_pg, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, (min_id, max_id)
+                new_pg, self.selected_items, db_path, sql, None, (min_id, max_id)
             )
             self.update_current_page(new_pg)
             def enable_buttons():
@@ -1383,7 +1475,7 @@ class TicketDisplayBuilder(tk.Frame):
             else:
                 sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
             self.set_page_contents(
-                new_pg, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, (min_id, max_id)
+                new_pg, self.selected_items, db_path, sql, None, (min_id, max_id)
             )
             self.update_current_page(new_pg)
             def enable_buttons():
@@ -1451,7 +1543,6 @@ class TicketDisplayBuilder(tk.Frame):
                     self.selected_items,
                     self.db_path,
                     sql,
-                    self.widget_registry.get("base_frame"),
                     overlay,
                     params,
                 )
@@ -1590,7 +1681,7 @@ class TicketDisplayBuilder(tk.Frame):
                     sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
                 params = (min_id, max_id)
                 self.set_page_contents(
-                    page, self.selected_items, db_path, sql, self.widget_registry.get("base_frame"), None, params
+                    page, self.selected_items, db_path, sql, None, params
                 )
             else:
                 # Fallback: use LIMIT/OFFSET if page index is not available
@@ -1642,6 +1733,20 @@ class TicketDisplayBuilder(tk.Frame):
         )
         dropdown_btn.pack(side="left", padx=(20, 0))
         self.theme_manager.register(dropdown_btn, "base_button")
+
+        # Create label frame for "Ticket Bucket" - positioned between nav and tickets
+        label_frame = tk.Frame(self)
+        label_frame.pack(fill="x", padx=5, pady=(0, 5))
+        self.theme_manager.register(label_frame, "frame")
+        
+        ticket_bucket_label = tk.Label(
+            label_frame,
+            text="Ticket Bucket",
+            font=("Trebuchet MS", 18, "bold"),
+        )
+        self.theme_manager.register(ticket_bucket_label, "label")
+        self.widget_registry["ticket_bucket_label"] = ticket_bucket_label
+        # Don't pack the label yet - it will be shown after tickets load
 
         canvas = tk.Canvas(self, bg=self.theme_manager.theme["background"])
         self.theme_manager.register(canvas, "frame")
