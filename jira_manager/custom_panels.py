@@ -172,17 +172,48 @@ def switch_panel(
     elif panel_key == "receipts_panel":
         receipts_btn.config(state="disabled")
 
+    # if panel_key == "ticket_panel":
+    #     ticket_panel = panel_choice.get("ticket_panel")
+    #     if ticket_panel:
+    #         if ticket_panel.page_index == {}:
+    #             # Don't show welcome label yet - let build() complete first
+    #             panel_choice.get("ticket_panel").build()
+    #         else:
+    #             print(f"Ticket Paging Set... Going to current page {ticket_panel.current_page}")
+    #             # Internal ticket bucket label will be managed by refresh_current_page/set_page_contents
+    #             ticket_panel.refresh_current_page()
+    #         next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+    import time
+
     if panel_key == "ticket_panel":
+        # Hide welcome_label since ticket panel has its own "Ticket Bucket" label
+        if welcome_label and welcome_label.winfo_ismapped():
+            welcome_label.pack_forget()
+            
+        print(f"DEBUG: Starting ticket panel switch at {time.time():.3f}")
+        start_time = time.time()
+        
+        print(f"DEBUG: About to get ticket_panel...")
         ticket_panel = panel_choice.get("ticket_panel")
+        print(f"DEBUG: Got ticket_panel in {time.time() - start_time:.3f}s")
+        
         if ticket_panel:
+            print(f"DEBUG: Checking page_index...")
+            check_time = time.time()
             if ticket_panel.page_index == {}:
-                # Don't show welcome label yet - let build() complete first
+                print(f"DEBUG: Page index empty, calling build()...")
                 panel_choice.get("ticket_panel").build()
             else:
-                print(f"Ticket Paging Set... Going to current page {ticket_panel.current_page}")
-                # Internal ticket bucket label will be managed by refresh_current_page/set_page_contents
-                ticket_panel.refresh_current_page()
+                print(f"DEBUG: Page index exists, current page: {ticket_panel.current_page}")
+                print(f"DEBUG: Page index check took {time.time() - check_time:.3f}s")
+                pass  # Replaced refresh_current_page()
+            
+            print(f"DEBUG: About to pack panel...")
+            pack_start = time.time()
             next_panel.pack(fill="both", expand=True, padx=10, pady=10)
+            print(f"DEBUG: Pack operation took {time.time() - pack_start:.3f}s")
+        
+        print(f"DEBUG: Total ticket panel switch took {time.time() - start_time:.3f}s")
     ui_state["active_panel"] = next_panel
 
 
@@ -1058,37 +1089,6 @@ class TicketDisplayBuilder(tk.Frame):
         card.after_idle(card.update_idletasks)
         base_frame.after_idle(base_frame.update_idletasks)
 
-    # def update_ticket_bucket(
-    #     self,
-    #     ticket_bucket_items,
-    #     panel_choice,
-    #     theme_manager,
-    #     selected_items,
-    #     card_retainer=None,
-    # ):
-    #     # base_frame = panel_choice["ticket_panel"].widget_registry.get("base_frame")
-    #     base_frame = self.widget_registry.get("base_frame")
-
-    #     # Remove all existing ticket widgets from the base_frame
-    #     for child in base_frame.winfo_children():
-    #         child.destroy()
-
-    #     max_cols = 5
-    #     # print(f"{ticket_bucket_items=}")
-    #     # Make columns expandable
-    #     for col in range(max_cols):
-    #         base_frame.columnconfigure(col, weight=1)
-    #     for index, item in enumerate(ticket_bucket_items):
-    #         row = index // max_cols
-    #         col = index % max_cols
-    #         self.update_ticket_bucket_with_single(
-    #             item,
-    #             panel_choice,
-    #             theme_manager,
-    #             selected_items,
-    #             card_retainer=card_retainer,
-    #         )
-
     def update_ticket_bucket(
         self,
         ticket_bucket_items,
@@ -1213,6 +1213,7 @@ class TicketDisplayBuilder(tk.Frame):
         
         # Use after_idle to ensure the overlay is rendered before starting the refresh
         self.after_idle(do_refresh)
+
     def set_page_contents(
         self,
         pg_num: int,
@@ -1866,8 +1867,8 @@ class TicketDisplayBuilder(tk.Frame):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         """ NEED TO FINISH THIS PART / WILL BE FOR LOADING PAGE INDEX AND LOADBAR POPUP DISPLAY / HANDLING """
-        total_count = self.get_total_count()
-        print(f"Total tickets matching query: {total_count}")
+        # total_count = self.get_total_count()
+        # print(f"Total tickets matching query: {total_count}")
         self.start_paging.start()
         self.end_paging.start()
         print("Started page index threads.")
