@@ -309,11 +309,11 @@ def jql_search_handler(
                 if key and key not in card_retainer_keys:
                     card_retainer.append({"key": key, "widget": None})
 
-            print("Batch insert completed.")
-            print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
-            print(
-                f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
-            )
+            # print("Batch insert completed.")
+            # print(f"DEBUG: card_retainer before switch_panel: {card_retainer}")
+            # print(
+            #     f"DEBUG: card_retainer types: {[type(x.get('key', '')) for x in card_retainer]}"
+            # )
 
             # --- Get the internal loadbar Progressbar widget and show/hide helpers ---
             internal_bar = None
@@ -1043,9 +1043,9 @@ def toolbar_action(
 
     # Ensure card_retainer is a list of dicts with 'key' as str
     if not isinstance(card_retainer, list):
-        print(
-            f"WARNING: card_retainer was type {type(card_retainer)}, resetting to empty list."
-        )
+        # print(
+        #     f"WARNING: card_retainer was type {type(card_retainer)}, resetting to empty list."
+        # )
         card_retainer = []
     else:
         # If card_retainer contains non-dict items, filter out

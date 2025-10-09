@@ -162,9 +162,9 @@ def switch_panel(
             canvas = panel_choice["ticket_panel"].widget_registry.get("canvas")
             if canvas:
                 canvas.focus_set()
-                print(
-                    f"[DEBUG] Focused canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}"
-                )
+                # print(
+                #     f"[DEBUG] Focused canvas: {canvas}, has focus: {canvas == canvas.focus_displayof()}"
+                # )
         except Exception as e:
             print(f"[DEBUG] Canvas focus error: {e}")
     elif panel_key == "ticket_panel":
@@ -1235,7 +1235,7 @@ class TicketDisplayBuilder(tk.Frame):
             ticket_bucket_label.pack_forget()
         
         last_page = self.total_pages
-        print(f"set_page_contents: {pg_num=}\n{sql=}")
+        # print(f"set_page_contents: {pg_num=}\n{sql=}")
 
         # Initialize progress_bar to None by default
         progress_bar = None
@@ -1528,7 +1528,7 @@ class TicketDisplayBuilder(tk.Frame):
             self.after(100, lambda: self.poll_page_index_threads(overlay))
         else:
             print("Page index threads finished.")
-            print(self.page_index)
+            # print(self.page_index)
             try:
                 # Fix: Append WHERE or AND depending on self.sql_query
                 if " where " in self.sql_query.lower():
