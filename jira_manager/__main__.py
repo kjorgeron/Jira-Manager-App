@@ -380,7 +380,7 @@ def main():
     # WELCOME LABEL
     welcome_label = tk.Label(
         root,
-        text=f"Welcome {getuser()}, let's manage some jira tickets!",
+        text=f"",
         justify="center",
         font=("Trebuchet MS", 20, "bold"),
     )
@@ -397,7 +397,7 @@ def main():
 
 
     # SET STARTER PANEL
-    ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets", stmt_type="select")
+    ticket_bucket = run_sql_stmt(db_path, "SELECT * FROM tickets LIMIT 1", stmt_type="select")
     if not ticket_bucket:
         panel_choice["error_panel"].update_message(
             "No tickets stored in local database.\nPlease configure your Jira connection and fetch tickets."

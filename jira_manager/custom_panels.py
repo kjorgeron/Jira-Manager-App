@@ -7,6 +7,7 @@ from jira_manager.themes import ThemeManager
 from jira_manager.file_manager import load_data, save_data
 from jira_manager.custom_widgets import EntryWithPlaceholder, TicketCard
 from jira_manager.sql_manager import run_sql_stmt
+from jira_manager.widget_utils import map_fields_to_widgets
 from math import ceil
 from jira_manager.thread_manager import SmartThread
 from threading import Lock, Event
@@ -33,12 +34,14 @@ def update_ticket_bucket(
     # Find the window_id for base_frame in the canvas
     if canvas is not None and base_frame is not None:
         for item in canvas.find_all():
-            if canvas.type(item) == "window" and str(canvas.itemcget(item, 'window')) == str(base_frame):
+            if canvas.type(item) == "window" and str(
+                canvas.itemcget(item, "window")
+            ) == str(base_frame):
                 window_id = item
                 break
         # Hide the base_frame window if found
         if window_id:
-            canvas.itemconfigure(window_id, state='hidden')
+            canvas.itemconfigure(window_id, state="hidden")
 
     # Remove all existing ticket widgets from the base_frame
     for child in base_frame.winfo_children():
@@ -78,8 +81,10 @@ def update_ticket_bucket(
 
     # Show the base_frame window again after all cards are packed and themed
     if canvas is not None and window_id:
-        canvas.itemconfigure(window_id, state='normal')
+        canvas.itemconfigure(window_id, state="normal")
         canvas.update_idletasks()
+
+
 #             panel_choice,
 #             theme_manager,
 #             selected_items,
@@ -189,14 +194,14 @@ def switch_panel(
         # Hide welcome_label since ticket panel has its own "Ticket Bucket" label
         if welcome_label and welcome_label.winfo_ismapped():
             welcome_label.pack_forget()
-            
+
         print(f"DEBUG: Starting ticket panel switch at {time.time():.3f}")
         start_time = time.time()
-        
+
         print(f"DEBUG: About to get ticket_panel...")
         ticket_panel = panel_choice.get("ticket_panel")
         print(f"DEBUG: Got ticket_panel in {time.time() - start_time:.3f}s")
-        
+
         if ticket_panel:
             print(f"DEBUG: Checking page_index...")
             check_time = time.time()
@@ -204,15 +209,17 @@ def switch_panel(
                 print(f"DEBUG: Page index empty, calling build()...")
                 panel_choice.get("ticket_panel").build()
             else:
-                print(f"DEBUG: Page index exists, current page: {ticket_panel.current_page}")
+                print(
+                    f"DEBUG: Page index exists, current page: {ticket_panel.current_page}"
+                )
                 print(f"DEBUG: Page index check took {time.time() - check_time:.3f}s")
                 pass  # Replaced refresh_current_page()
-            
+
             print(f"DEBUG: About to pack panel...")
             pack_start = time.time()
             next_panel.pack(fill="both", expand=True, padx=10, pady=10)
             print(f"DEBUG: Pack operation took {time.time() - pack_start:.3f}s")
-        
+
         print(f"DEBUG: Total ticket panel switch took {time.time() - start_time:.3f}s")
     ui_state["active_panel"] = next_panel
 
@@ -987,8 +994,13 @@ class TicketDisplayBuilder(tk.Frame):
             if self.total_pages is None:
                 self.total_pages = total_pages
                 # Update the UI label if it exists
-                if hasattr(self, "widget_registry") and "total_tickets" in self.widget_registry:
-                    self.widget_registry["total_tickets"].config(text=str(self.total_pages))
+                if (
+                    hasattr(self, "widget_registry")
+                    and "total_tickets" in self.widget_registry
+                ):
+                    self.widget_registry["total_tickets"].config(
+                        text=str(self.total_pages)
+                    )
             if issues:
                 for page in pages:
                     if stop_flag is not None and stop_flag.is_set():
@@ -1029,7 +1041,6 @@ class TicketDisplayBuilder(tk.Frame):
         count_sql = f"SELECT COUNT(*) FROM ({self.sql_query})"
         result = run_sql_stmt(self.db_path, count_sql, stmt_type="select")
         return result[0][0] if result else 0
-
 
     def check_page_index(self, page):
         if page in self.page_index.keys():
@@ -1114,7 +1125,9 @@ class TicketDisplayBuilder(tk.Frame):
         for index, item in enumerate(ticket_bucket_items):
             if progress_tracker and progress_bar:
                 progress_tracker["value"] += 1
-                percentage = (progress_tracker["value"] / progress_tracker["total"]) * 100
+                percentage = (
+                    progress_tracker["value"] / progress_tracker["total"]
+                ) * 100
                 progress_bar["value"] = percentage
                 progress_bar.update_idletasks()  # Force UI update
             row = index // max_cols
@@ -1146,22 +1159,22 @@ class TicketDisplayBuilder(tk.Frame):
         if params is None:
             print(f"Warning: No page index found for page {self.current_page}")
             return
-        
+
         # Build the SQL query with proper WHERE/AND logic
         if " where " in self.sql_query.lower():
             sql = f"{self.sql_query} AND ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
         else:
             sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
-        
+
         # Ensure min/max order is correct
         min_id, max_id = min(params[0], params[1]), max(params[0], params[1])
         params = (min_id, max_id)
-        
+
         # Create overlay for loading indication immediately to avoid lag
         overlay = tk.Frame(self)
         overlay.place(x=0, y=0, relwidth=1, relheight=1)
         self.theme_manager.register(overlay, "frame")
-        
+
         # Add loading message and progress bar to overlay
         message_label = tk.Label(
             overlay,
@@ -1170,7 +1183,7 @@ class TicketDisplayBuilder(tk.Frame):
         )
         message_label.place(relx=0.5, rely=0.45, anchor="center")
         self.theme_manager.register(message_label, "label")
-        
+
         # Add progress bar below the message - use determinate mode for actual progress
         progress_bar = ttk.Progressbar(
             overlay,
@@ -1178,20 +1191,21 @@ class TicketDisplayBuilder(tk.Frame):
             length=250,
             mode="determinate",
             maximum=100,
-            value=0
+            value=0,
         )
         self.theme_manager.register(progress_bar, "loadbar")
         progress_bar.place(relx=0.5, rely=0.55, anchor="center")
-        
+
         overlay.lift()
         overlay.update_idletasks()
-        
+
         # Handle overlay resizing
         def resize_overlay(event):
             if overlay and overlay.winfo_exists():
                 overlay.place(x=0, y=0, relwidth=1, relheight=1)
+
         resize_handler = self.bind("<Configure>", resize_overlay)
-        
+
         # Schedule the actual refresh to run after the overlay is displayed
         def do_refresh():
             try:
@@ -1202,7 +1216,7 @@ class TicketDisplayBuilder(tk.Frame):
                     sql=sql,
                     overlay=overlay,
                     params=params,
-                    pre_fetched_issues=None
+                    pre_fetched_issues=None,
                 )
             finally:
                 # Clean up the resize handler
@@ -1210,7 +1224,7 @@ class TicketDisplayBuilder(tk.Frame):
                     self.unbind("<Configure>", resize_handler)
                 except:
                     pass
-        
+
         # Use after_idle to ensure the overlay is rendered before starting the refresh
         self.after_idle(do_refresh)
 
@@ -1233,7 +1247,7 @@ class TicketDisplayBuilder(tk.Frame):
         ticket_bucket_label = self.widget_registry.get("ticket_bucket_label")
         if ticket_bucket_label and ticket_bucket_label.winfo_ismapped():
             ticket_bucket_label.pack_forget()
-        
+
         last_page = self.total_pages
         # print(f"set_page_contents: {pg_num=}\n{sql=}")
 
@@ -1251,9 +1265,11 @@ class TicketDisplayBuilder(tk.Frame):
         temp_overlay = None
         if overlay is None:
             temp_overlay = tk.Frame(self)
-            temp_overlay.place(x=0, y=0, width=self.winfo_width(), height=self.winfo_height())
+            temp_overlay.place(
+                x=0, y=0, width=self.winfo_width(), height=self.winfo_height()
+            )
             self.theme_manager.register(temp_overlay, "frame")
-            
+
             # Add loading message and progress bar to overlay
             message_label = tk.Label(
                 temp_overlay,
@@ -1273,32 +1289,35 @@ class TicketDisplayBuilder(tk.Frame):
             )
             self.theme_manager.register(progress_bar, "loadbar")
             progress_bar.place(relx=0.5, rely=0.55, anchor="center")
-            
+
             temp_overlay.lift()
             temp_overlay.update_idletasks()
+
             def resize_temp_overlay(event):
                 if temp_overlay and temp_overlay.winfo_exists():
                     temp_overlay.place(x=0, y=0, width=event.width, height=event.height)
+
             self.bind("<Configure>", resize_temp_overlay)
             overlay = temp_overlay
 
-        canvas = self.widget_registry.get("canvas")
-        
+        main_container = self.widget_registry.get("main_container")
+        ticket_canvas = self.widget_registry.get("ticket_canvas")
+
         # Clean up existing base_frame and canvas window if they exist
         existing_base_frame = self.widget_registry.get("base_frame")
         existing_window_id = self.widget_registry.get("base_frame_window_id")
-        
+
         if existing_base_frame and existing_base_frame.winfo_exists():
             existing_base_frame.destroy()
-        
-        if existing_window_id and canvas:
+
+        if existing_window_id and ticket_canvas:
             try:
-                canvas.delete(existing_window_id)
+                ticket_canvas.delete(existing_window_id)
             except tk.TclError:
                 pass
-        
-        # Create fresh base_frame
-        base_frame = tk.Frame(canvas)
+
+        # Create fresh base_frame as child of ticket_canvas
+        base_frame = tk.Frame(ticket_canvas)
         self.widget_registry["base_frame"] = base_frame
         self.theme_manager.register(base_frame, "frame")
 
@@ -1341,7 +1360,9 @@ class TicketDisplayBuilder(tk.Frame):
                         pass
                     self.return_top_btn = None
                 for child in base_frame.winfo_children():
-                    if isinstance(child, tk.Frame) and getattr(child, "_is_return_top_btn_frame", False):
+                    if isinstance(child, tk.Frame) and getattr(
+                        child, "_is_return_top_btn_frame", False
+                    ):
                         child.destroy()
 
         # Remove all children except loadbar_frame
@@ -1359,7 +1380,7 @@ class TicketDisplayBuilder(tk.Frame):
             card_retainer=None,
             base_frame=base_frame,
             progress_tracker=progress_tracker,
-            progress_bar=progress_bar
+            progress_bar=progress_bar,
         )
 
         # Initial call after building ticket board
@@ -1367,22 +1388,25 @@ class TicketDisplayBuilder(tk.Frame):
         self.update_idletasks()
         self.update_return_top_btn()
 
-        window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
+        # Add base_frame to ticket_canvas using create_window
+        window_id = ticket_canvas.create_window((0, 0), window=base_frame, anchor="nw")
         self.widget_registry["base_frame_window_id"] = window_id
-        
+
+        # Update canvas scroll region for the ticket area
         def on_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            ticket_canvas.configure(scrollregion=ticket_canvas.bbox("all"))
+
         def on_resize(event):
-            canvas.itemconfig(window_id, width=event.width)
-        
+            ticket_canvas.itemconfig(window_id, width=event.width)
+
         base_frame.bind("<Configure>", on_configure)
-        canvas.bind("<Configure>", on_resize)
-        
-        # Set initial width to fill canvas
-        canvas.update_idletasks()
-        canvas_width = canvas.winfo_width()
+        ticket_canvas.bind("<Configure>", on_resize)
+
+        # Set initial width to fill ticket canvas
+        ticket_canvas.update_idletasks()
+        canvas_width = ticket_canvas.winfo_width()
         if canvas_width > 1:  # Make sure canvas has been rendered
-            canvas.itemconfig(window_id, width=canvas_width)
+            ticket_canvas.itemconfig(window_id, width=canvas_width)
 
         # Show internal ticket bucket label now that page content is loaded
         ticket_bucket_label = self.widget_registry.get("ticket_bucket_label")
@@ -1402,19 +1426,18 @@ class TicketDisplayBuilder(tk.Frame):
                             child.stop()
                 except:
                     pass
-                
+
                 # Destroy the overlay
                 overlay_to_destroy.destroy()
 
-
     def scroll_to_top(self):
-        canvas = self.widget_registry.get("canvas")
-        canvas.yview_moveto(0)
+        ticket_canvas = self.widget_registry.get("ticket_canvas")
+        if ticket_canvas:
+            ticket_canvas.yview_moveto(0)
 
     def update_return_top_btn(self):
         """WILL NEED TO FIX THIS LATER DATE"""
         pass
-
 
     def update_nav_buttons(self, page_num):
         # Call this after every page change
@@ -1451,8 +1474,10 @@ class TicketDisplayBuilder(tk.Frame):
                 new_pg, self.selected_items, db_path, sql, None, (min_id, max_id)
             )
             self.update_current_page(new_pg)
+
             def enable_buttons():
                 self.update_nav_buttons(new_pg)
+
             if prev_btn:
                 prev_btn.after(150, enable_buttons)
             self.scroll_to_top()
@@ -1479,8 +1504,10 @@ class TicketDisplayBuilder(tk.Frame):
                 new_pg, self.selected_items, db_path, sql, None, (min_id, max_id)
             )
             self.update_current_page(new_pg)
+
             def enable_buttons():
                 self.update_nav_buttons(new_pg)
+
             if nxt_btn:
                 nxt_btn.after(150, enable_buttons)
             self.scroll_to_top()
@@ -1537,7 +1564,9 @@ class TicketDisplayBuilder(tk.Frame):
                     sql = f"{self.sql_query} WHERE ticket_id >= ? AND ticket_id <= ? ORDER BY ticket_id DESC;"
                 params = self.page_index.get(1)
                 if params is not None:
-                    min_id, max_id = min(params[0], params[1]), max(params[0], params[1])
+                    min_id, max_id = min(params[0], params[1]), max(
+                        params[0], params[1]
+                    )
                     params = (min_id, max_id)
                 self.set_page_contents(
                     self.current_page,
@@ -1559,7 +1588,10 @@ class TicketDisplayBuilder(tk.Frame):
         if hasattr(self, "stop_flag") and self.stop_flag:
             self.stop_flag.set()
         # Wait for threads to finish (non-blocking if not started)
-        for t in (getattr(self, "start_paging", None), getattr(self, "end_paging", None)):
+        for t in (
+            getattr(self, "start_paging", None),
+            getattr(self, "end_paging", None),
+        ):
             if t and hasattr(t, "is_alive") and t.is_alive():
                 t.join(timeout=1)
         # New stop flag for new threads
@@ -1691,7 +1723,9 @@ class TicketDisplayBuilder(tk.Frame):
                 if show_internal:
                     show_internal()
                     internal_loadbar = self.widget_registry.get("internal_loadbar")
-                    internal_loadbar_label = self.widget_registry.get("internal_loadbar_label")
+                    internal_loadbar_label = self.widget_registry.get(
+                        "internal_loadbar_label"
+                    )
                     if internal_loadbar:
                         internal_loadbar.config(mode="determinate")
                         internal_loadbar["value"] = 100
@@ -1711,7 +1745,7 @@ class TicketDisplayBuilder(tk.Frame):
             page_jump_frame,
             text="Go",
             command=handle_page_jump_event,
-            font=("Segoe UI", 11),
+            font=("Trebuchet MS", 11),
             cursor="hand2",
         )
         go_btn.pack(side="left", padx=(0, 5))
@@ -1728,7 +1762,7 @@ class TicketDisplayBuilder(tk.Frame):
             tool_bar,
             text="\u25b6",
             command=toggle_page_jump,
-            font=("Segoe UI", 13),
+            font=("Trebuchet MS", 13),
             cursor="hand2",
             width=2,
         )
@@ -1739,7 +1773,7 @@ class TicketDisplayBuilder(tk.Frame):
         label_frame = tk.Frame(self)
         label_frame.pack(fill="x", padx=5, pady=(0, 5))
         self.theme_manager.register(label_frame, "frame")
-        
+
         ticket_bucket_label = tk.Label(
             label_frame,
             text="Ticket Bucket",
@@ -1749,33 +1783,11 @@ class TicketDisplayBuilder(tk.Frame):
         self.widget_registry["ticket_bucket_label"] = ticket_bucket_label
         # Don't pack the label yet - it will be shown after tickets load
 
-        canvas = tk.Canvas(self, bg=self.theme_manager.theme["background"])
-        self.theme_manager.register(canvas, "frame")
-        canvas.pack(fill="both", expand=True, side="left")
-        # Always show the scrollbar for reliable scrolling
-        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        scrollbar.pack(side="right", fill="y")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        self.widget_registry["canvas"] = canvas
-
-        # Simple, direct mouse wheel binding
-        def on_mousewheel(event):
-            print(
-                f"[DEBUG] on_mousewheel: canvas={canvas}, has focus={canvas == canvas.focus_displayof()}"
-            )
-            if canvas != canvas.focus_displayof():
-                canvas.focus_set()
-                # print(f"[DEBUG] Focus set to canvas: {canvas}")
-            if event.num == 4 or event.delta > 0:
-                canvas.yview_scroll(-1, "units")
-            elif event.num == 5 or event.delta < 0:
-                canvas.yview_scroll(1, "units")
-            return "break"
-
-        canvas.bind("<MouseWheel>", on_mousewheel)
-        canvas.bind("<Button-4>", on_mousewheel)
-        canvas.bind("<Button-5>", on_mousewheel)
-
+        # Main container frame (no canvas needed at top level anymore)
+        main_container = tk.Frame(self)
+        main_container.pack(fill="both", expand=True)
+        self.theme_manager.register(main_container, "frame")
+        self.widget_registry["main_container"] = main_container
 
         # Add loadbar_frame to the right side of base_frame (only if not already present)
         if "loadbar_frame" not in self.widget_registry:
@@ -1799,7 +1811,7 @@ class TicketDisplayBuilder(tk.Frame):
             external_loadbar_label = tk.Label(
                 external_loadbar_frame,
                 text="1/2",
-                font=("Segoe UI", 9, "bold"),
+                font=("Trebuchet MS", 9, "bold"),
                 anchor="center",
             )
             external_loadbar_label.pack(side="left", padx=(0, 0), fill="y")
@@ -1817,7 +1829,7 @@ class TicketDisplayBuilder(tk.Frame):
             internal_loadbar_label = tk.Label(
                 internal_loadbar_frame,
                 text="",
-                font=("Segoe UI", 9, "bold"),
+                font=("Trebuchet MS", 9, "bold"),
                 anchor="center",
             )
             internal_loadbar_label.pack(side="left", padx=(0, 0), fill="y")
@@ -1847,24 +1859,115 @@ class TicketDisplayBuilder(tk.Frame):
         self.widget_registry["show_internal_loadbar"] = show_internal_loadbar
         self.widget_registry["hide_internal_loadbar"] = hide_internal_loadbar
 
-        # base_frame = tk.Frame(canvas)
-        # self.widget_registry["base_frame"] = base_frame
-        # self.theme_manager.register(base_frame, "frame")
-        # window_id = canvas.create_window((0, 0), window=base_frame, anchor="nw")
-        # def on_configure(event):
-        #     canvas.configure(scrollregion=canvas.bbox("all"))
-        # base_frame.bind("<Configure>", on_configure)
-        # def on_resize(event):
-        #     canvas.itemconfig(window_id, width=event.width)
-        # canvas.bind("<Configure>", on_resize)
+        filter_panel = tk.Frame(main_container)
+        # --- Scrollable Filter Panel ---
+        filter_panel_container = tk.Frame(main_container)
+        filter_panel_container.pack(side="left", fill="y", padx=100, pady=10)
+        self.widget_registry["filter_panel_container"] = filter_panel_container
+        self.theme_manager.register(filter_panel_container, "frame")
 
-        # Optional: Scroll with mousewheel (for intuitive UX even without visible scrollbar)
-        def _on_mousewheel(event):
-            if canvas != canvas.focus_displayof():
-                canvas.focus_set()
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        filter_canvas = tk.Canvas(filter_panel_container, borderwidth=0, highlightthickness=0, bg=self.theme_manager.theme["background"])
+        filter_canvas.pack(side="left", fill="y", expand=True)
+        self.theme_manager.register(filter_canvas, "frame")
 
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        filter_scrollbar = tk.Scrollbar(filter_panel_container, orient="vertical", command=filter_canvas.yview)
+        filter_scrollbar.pack(side="right", fill="y")
+        filter_canvas.configure(yscrollcommand=filter_scrollbar.set)
+        self.widget_registry["filter_panel_canvas"] = filter_canvas
+        self.widget_registry["filter_panel_scrollbar"] = filter_scrollbar
+
+        filter_panel = tk.Frame(filter_canvas, bg=self.theme_manager.theme["background"])
+        filter_panel_id = filter_canvas.create_window((0, 0), window=filter_panel, anchor="nw")
+        self.widget_registry["filter_panel"] = filter_panel
+        self.theme_manager.register(filter_panel, "frame")
+
+        def on_filter_configure(event):
+            filter_canvas.configure(scrollregion=filter_canvas.bbox("all"))
+        filter_panel.bind("<Configure>", on_filter_configure)
+
+        filter_panel_hovered = {"active": False}
+        def on_filter_enter(event):
+            filter_panel_hovered["active"] = True
+        def on_filter_leave(event):
+            filter_panel_hovered["active"] = False
+        filter_canvas.bind("<Enter>", on_filter_enter)
+        filter_canvas.bind("<Leave>", on_filter_leave)
+
+        def on_filter_mousewheel(event):
+            if filter_panel_hovered["active"]:
+                filter_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                return "break"
+        filter_canvas.bind("<MouseWheel>", on_filter_mousewheel)
+
+        filter_label = tk.Label(
+            filter_panel,
+            text="Filter Tickets",
+            anchor="center",
+            font=("Trebuchet MS", 16, "bold"),
+        )
+        filter_label.pack(fill="x", pady=(0, 5))
+        self.theme_manager.register(filter_label, "label")
+
+        # Query all needed field info
+        sql = """
+        SELECT field_key, field_name, field_type, widget_type, is_editable, allowed_values, current_value
+        FROM fields
+        """
+        result = run_sql_stmt(self.db_path, sql, stmt_type="select")
+        fields = [
+            {
+                "key": row[0],
+                "name": row[1],
+                "type": row[2],
+                "widget": row[3],
+                "editable": row[4],
+                "options": row[5],
+                "value": row[6],
+            }
+            for row in result
+        ]
+
+        # Convert fields list to dict keyed by 'key'
+        fields_dict = {field["key"]: field for field in fields}
+        field_widgets = map_fields_to_widgets(fields_dict, parent=filter_panel)
+        for widget in field_widgets:
+            role = getattr(widget, '_theme_role', 'label')
+            self.theme_manager.register(widget, role)
+
+        ticket_holder = tk.Frame(main_container)
+        self.theme_manager.register(ticket_holder, "frame")
+        ticket_holder.pack(
+            side="right", fill="both", expand=True, padx=(10, 10), pady=10
+        )
+        self.widget_registry["ticket_holder"] = ticket_holder
+
+        # Create scrollable canvas inside ticket_holder
+        ticket_canvas = tk.Canvas(
+            ticket_holder, bg=self.theme_manager.theme["background"]
+        )
+        self.theme_manager.register(ticket_canvas, "frame")
+        ticket_canvas.pack(side="left", fill="both", expand=True)
+
+        ticket_scrollbar = tk.Scrollbar(
+            ticket_holder, orient="vertical", command=ticket_canvas.yview
+        )
+        ticket_scrollbar.pack(side="right", fill="y")
+        ticket_canvas.configure(yscrollcommand=ticket_scrollbar.set)
+        self.widget_registry["ticket_canvas"] = ticket_canvas
+
+        ticket_panel_hovered = {"active": False}
+        def on_ticket_enter(event):
+            ticket_panel_hovered["active"] = True
+        def on_ticket_leave(event):
+            ticket_panel_hovered["active"] = False
+        ticket_canvas.bind("<Enter>", on_ticket_enter)
+        ticket_canvas.bind("<Leave>", on_ticket_leave)
+
+        def _on_ticket_mousewheel(event):
+            if ticket_panel_hovered["active"]:
+                ticket_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                return "break"
+        ticket_canvas.bind_all("<MouseWheel>", _on_ticket_mousewheel)
 
         """ NEED TO FINISH THIS PART / WILL BE FOR LOADING PAGE INDEX AND LOADBAR POPUP DISPLAY / HANDLING """
         # total_count = self.get_total_count()
@@ -1878,7 +1981,7 @@ class TicketDisplayBuilder(tk.Frame):
         overlay = tk.Frame(self)
         overlay.place(x=0, y=0, width=self.winfo_width(), height=self.winfo_height())
         self.theme_manager.register(overlay, "frame")
-        
+
         # Add loading message and progress bar to overlay
         message_label = tk.Label(
             overlay,
@@ -1887,26 +1990,23 @@ class TicketDisplayBuilder(tk.Frame):
         )
         message_label.place(relx=0.5, rely=0.45, anchor="center")
         self.theme_manager.register(message_label, "label")
-        
+
         # Add progress bar below the message
         progress_bar = ttk.Progressbar(
-            overlay,
-            orient="horizontal",
-            length=300,
-            mode="indeterminate"
+            overlay, orient="horizontal", length=300, mode="indeterminate"
         )
         self.theme_manager.register(progress_bar, "loadbar")
         progress_bar.place(relx=0.5, rely=0.55, anchor="center")
         progress_bar.start(10)  # Start animation with 10ms interval
-        
+
         overlay.lift()
         overlay.update_idletasks()
 
         def resize_overlay(event):
             if overlay and overlay.winfo_exists():
                 overlay.place(x=0, y=0, width=event.width, height=event.height)
+
         self.bind("<Configure>", resize_overlay)
 
         print("Polling page index threads (guaranteed call)...")
         self.poll_page_index_threads(overlay)
-

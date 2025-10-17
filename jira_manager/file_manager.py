@@ -44,6 +44,11 @@ def load_data() -> dict:
             "proxy_option": "No",
             "theme": "Dark",
             "thread_count": "safe_mode",
+            "hidden_fields": [
+                "Rank", "development", "Flagged", "Attachment", "Linked Issues", "Comment",
+                "Reporter", "Sprint", "Team", "Parent", "Story point estimate", "Design",
+                "Environment", "Labels", "Assignee", "Issue Type"
+            ]
         }
         save_data(payload)
 

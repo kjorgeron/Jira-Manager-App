@@ -630,19 +630,37 @@ def update_ticket_bucket_with_single(
         card.pack(side="top", fill="x", padx=5, pady=3)
 
 
-def run_database_updates_to_tickets_fields_values(
-    db_path, server, headers, jira_tickets
-):
+# def run_database_updates_to_tickets_fields_values(
+#     db_path, server, headers, jira_tickets
+# ):
+#     print("Running database update")
+#     for ticket in jira_tickets:
+#         key = ticket["key"]
+#         ticket_id = add_or_find_key_return_id(db_path, key)
+#         editable_fields = get_editable_fields_v2(key, server, headers)
+#         mapped_fields = map_fields_for_db(editable_fields, ticket)
+#         for field in mapped_fields:
+#             fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
+#             print(f"{fields_id=}")
+
+def run_database_updates_to_tickets_fields_values(db_path, server, headers, jira_tickets):
     print("Running database update")
     for ticket in jira_tickets:
         key = ticket["key"]
         ticket_id = add_or_find_key_return_id(db_path, key)
         editable_fields = get_editable_fields_v2(key, server, headers)
-        mapped_fields = map_fields_for_db(editable_fields, ticket)
+        
+        # Fetch actual issue data
+        issue_url = f"{server}/rest/api/3/issue/{key}"
+        response = requests.get(issue_url, headers=headers)
+        response.raise_for_status()
+        issue_data = response.json()
+        actual_fields = issue_data.get("fields", {})
+        
+        mapped_fields = map_fields_for_db(editable_fields, actual_fields)
         for field in mapped_fields:
             fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
             print(f"{fields_id=}")
-
 
 def map_fields_for_db(editable_fields, current_issue_fields=None):
     """
@@ -708,50 +726,58 @@ def get_editable_fields_v2(issue_key, base_url, headers):
     return response.json().get("fields", {})
 
 
-def map_fields_to_widgets(editable_fields, current_issue_fields=None):
-    widget_map = {
-        "string": "TextEntry",
-        "text": "RichTextBox",
-        "user": "UserPicker",
-        "array": "MultiSelect",
-        "number": "NumericEntry",
-        "date": "DatePicker",
-        "option": "Dropdown",
-    }
+# def map_fields_to_widgets(editable_fields, current_issue_fields=None):
 
-    field_layout = []
-    for fid, fdata in editable_fields.items():
-        schema = fdata.get("schema", {})
-        ftype = schema.get("type", "string")
-        custom = schema.get("custom")
-        widget = widget_map.get(ftype, "TextEntry")
+#     widget_map = {
+#         "string": "TextEntry",
+#         "text": "RichTextBox",
+#         "user": "UserPicker",
+#         "array": "MultiSelect",
+#         "number": "NumericEntry",
+#         "date": "DatePicker",
+#         "option": "Dropdown",
+#     }
 
-        # Handle custom field types
-        if custom == "com.atlassian.jira.plugin.system.customfieldtypes:labels":
-            widget = "TagInput"
-        elif (
-            custom
-            == "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
-        ):
-            widget = "CheckboxGroup"
+#     # Fields users should not be able to update (system, calculated, or not meaningful for manual edit)
+#     config = load_data()
+#     HIDDEN_FIELDS = config.get("hidden_fields", [])
 
-        # Get initial value from current_issue_fields or fallback to defaultValue or blank
-        if current_issue_fields:
-            value = current_issue_fields.get(fid, "")
-        else:
-            value = fdata.get("defaultValue", "")
+#     field_layout = []
+#     for fid, fdata in editable_fields.items():
+#         field_name = fdata.get("name", fid)
+#         if field_name in HIDDEN_FIELDS:
+#             continue  # Skip fields that should not be user-editable
+#         schema = fdata.get("schema", {})
+#         ftype = schema.get("type", "string")
+#         custom = schema.get("custom")
+#         widget = widget_map.get(ftype, "TextEntry")
 
-        field_layout.append(
-            {
-                "id": fid,
-                "name": fdata.get("name", fid),
-                "widget": widget,
-                "value": value,
-                "allowed": fdata.get("allowedValues", []),
-            }
-        )
+#         # Handle custom field types
+#         if custom == "com.atlassian.jira.plugin.system.customfieldtypes:labels":
+#             widget = "TagInput"
+#         elif (
+#             custom
+#             == "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+#         ):
+#             widget = "CheckboxGroup"
 
-    return field_layout
+#         # Get initial value from current_issue_fields or fallback to defaultValue or blank
+#         if current_issue_fields:
+#             value = current_issue_fields.get(fid, "")
+#         else:
+#             value = fdata.get("defaultValue", "")
+
+#         field_layout.append(
+#             {
+#                 "id": fid,
+#                 "name": field_name,
+#                 "widget": widget,
+#                 "value": value,
+#                 "allowed": fdata.get("allowedValues", []),
+#             }
+#         )
+
+#     return field_layout
 
 
 def initialize_window():
