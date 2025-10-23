@@ -1866,30 +1866,45 @@ class TicketDisplayBuilder(tk.Frame):
         self.widget_registry["filter_panel_container"] = filter_panel_container
         self.theme_manager.register(filter_panel_container, "frame")
 
-        filter_canvas = tk.Canvas(filter_panel_container, borderwidth=0, highlightthickness=0, bg=self.theme_manager.theme["background"])
+        filter_canvas = tk.Canvas(
+            filter_panel_container,
+            borderwidth=0,
+            highlightthickness=0,
+            bg=self.theme_manager.theme["background"],
+        )
         filter_canvas.pack(side="left", fill="y", expand=True)
         self.theme_manager.register(filter_canvas, "frame")
 
-        filter_scrollbar = tk.Scrollbar(filter_panel_container, orient="vertical", command=filter_canvas.yview)
+        filter_scrollbar = tk.Scrollbar(
+            filter_panel_container, orient="vertical", command=filter_canvas.yview
+        )
         filter_scrollbar.pack(side="right", fill="y")
         filter_canvas.configure(yscrollcommand=filter_scrollbar.set)
         self.widget_registry["filter_panel_canvas"] = filter_canvas
         self.widget_registry["filter_panel_scrollbar"] = filter_scrollbar
 
-        filter_panel = tk.Frame(filter_canvas, bg=self.theme_manager.theme["background"])
-        filter_panel_id = filter_canvas.create_window((0, 0), window=filter_panel, anchor="nw")
+        filter_panel = tk.Frame(
+            filter_canvas, bg=self.theme_manager.theme["background"]
+        )
+        filter_panel_id = filter_canvas.create_window(
+            (0, 0), window=filter_panel, anchor="nw"
+        )
         self.widget_registry["filter_panel"] = filter_panel
         self.theme_manager.register(filter_panel, "frame")
 
         def on_filter_configure(event):
             filter_canvas.configure(scrollregion=filter_canvas.bbox("all"))
+
         filter_panel.bind("<Configure>", on_filter_configure)
 
         filter_panel_hovered = {"active": False}
+
         def on_filter_enter(event):
             filter_panel_hovered["active"] = True
+
         def on_filter_leave(event):
             filter_panel_hovered["active"] = False
+
         filter_canvas.bind("<Enter>", on_filter_enter)
         filter_canvas.bind("<Leave>", on_filter_leave)
 
@@ -1897,6 +1912,7 @@ class TicketDisplayBuilder(tk.Frame):
             if filter_panel_hovered["active"]:
                 filter_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
                 return "break"
+
         filter_canvas.bind("<MouseWheel>", on_filter_mousewheel)
 
         filter_label = tk.Label(
@@ -1908,91 +1924,92 @@ class TicketDisplayBuilder(tk.Frame):
         filter_label.pack(fill="x", pady=(0, 5))
         self.theme_manager.register(filter_label, "label")
 
-        # Dynamically build filter fields from DB
+        # --- Dynamic Filter Dropdown Logic (JiraFieldTypeRegistry-based) ---
+        import json
+        from jira_manager.file_manager import load_data
+        from jira_manager.jira_field_types import JiraFieldTypeRegistry
+        config = load_data()
+        HIDDEN_FIELDS = set(config.get("hidden_fields", []))
+        field_type_registry = JiraFieldTypeRegistry()
+
         # 1. Get all distinct field_names
         field_name_rows = run_sql_stmt(self.db_path, "SELECT DISTINCT field_name FROM fields", stmt_type="select")
         fields = []
         for (field_name,) in field_name_rows:
+
+            if field_name in HIDDEN_FIELDS:
+                continue
             # Get metadata for this field (first row for each field_name)
-            meta_row = run_sql_stmt(self.db_path, f"SELECT field_key, field_type, widget_type, is_editable, allowed_values FROM fields WHERE field_name = ? LIMIT 1", stmt_type="select", params=(field_name,))
-            print("META ROW ", meta_row)
+            meta_row = run_sql_stmt(
+                self.db_path,
+                f"SELECT field_key, field_type, widget_type, is_editable, allowed_values FROM fields WHERE field_name = ? LIMIT 1",
+                stmt_type="select",
+                params=(field_name,),
+            )
             if not meta_row:
                 continue
             field_key, field_type, widget_type, is_editable, allowed_values = meta_row[0]
-            # Get all distinct current_value for this field across ALL tickets
-            value_rows = run_sql_stmt(self.db_path, f"SELECT DISTINCT current_value FROM fields WHERE field_name = ? AND current_value IS NOT NULL AND current_value != ''", stmt_type="select", params=(field_name,))
-            options = []
-            import json
-            # If allowed_values is a JSON list, use those as options
+
+            # Gather all unique raw values for this field
+            value_rows = run_sql_stmt(
+                self.db_path,
+                "SELECT DISTINCT current_value FROM fields WHERE field_name = ? AND current_value IS NOT NULL AND current_value != ''",
+                stmt_type="select",
+                params=(field_name,)
+            )
+            raw_values = [val for (val,) in value_rows if val not in (None, "", "null", "None")]
+
+            # If allowed_values is present, add those too
             try:
                 allowed = json.loads(allowed_values) if allowed_values and allowed_values.startswith("[") else None
                 if allowed and isinstance(allowed, list) and len(allowed) > 0:
                     for opt in allowed:
                         if isinstance(opt, dict):
-                            options.append(opt.get("name") or opt.get("value") or str(opt))
+                            raw_values.append(json.dumps(opt))
                         else:
-                            options.append(str(opt))
+                            raw_values.append(str(opt))
             except Exception:
-                allowed = None
-            # Otherwise, use distinct current_value as options
-            if not options:
-                for (val,) in value_rows:
-                    # For user fields, extract displayName/email from all tickets
-                    if field_type == "user" and val:
-                        try:
-                            # Try both single and double quotes for JSON
-                            user = json.loads(val.replace("'", '"'))
-                            display = user.get("displayName") or user.get("emailAddress")
-                            if display:
-                                options.append(display)
-                            else:
-                                options.append(val)
-                        except Exception:
-                            options.append(val)
-                    # For array/multiselect fields, split comma/JSON list
-                    elif field_type == "array" and val:
-                        try:
-                            arr = json.loads(val) if val.startswith("[") else [v.strip() for v in val.split(",") if v.strip()]
-                            options.extend([str(v) for v in arr if v])
-                        except Exception:
-                            options.append(val)
-                    else:
-                        options.append(val)
-            # Remove duplicates and sort
-            options = sorted(set(options))
-            # Always show readable user info for user fields
-            if field_type == "user":
-                readable_options = []
-                for val in options:
-                    try:
-                        user = json.loads(val.replace("'", '"'))
-                        display = user.get("displayName") or user.get("emailAddress") or user.get("name")
-                        print("USER / DISPLAY ", user, display)
-                        if display:
-                            readable_options.append(display)
-                        else:
-                            readable_options.append(val)
-                    except Exception:
-                        readable_options.append(val)
-                options = sorted(set(readable_options))
-            # Limit dropdowns to 20 options; if more, use Entry widget
+                pass
+
+            # Use JiraFieldTypeRegistry to extract display values
+            display_options = []
+            for val in raw_values:
+                try:
+                    _, display_val = field_type_registry.extract_display_value(field_type, val, field_name)
+                    # Filter out empty, null, '"', '[]', and whitespace-only values
+                    if display_val is None:
+                        continue
+                    sval = str(display_val).strip()
+                    if not sval or sval.lower() in ("null", "none") or sval in ('"', "[]"):
+                        continue
+                    display_options.append(sval)
+                except Exception:
+                    continue
+            options = sorted(set(display_options))
+
+            # Always include 'None' as the first option if not present
+            if not options or options[0] != "None":
+                options = ["None"] + options
+
             widget_type_final = widget_type
             if len(options) > 20:
-                widget_type_final = "entry"  # Use Entry widget for large option sets
-            # Use first value as default
-            value = options[0] if options else ""
-            fields.append({
-                "key": field_key,
-                "name": field_name,
-                "type": field_type,
-                "widget": widget_type_final,
-                "editable": is_editable,
-                "options": options,
-                "value": value,
-            })
+                widget_type_final = "entry"
+            value = options[0] if options else "None"
+            # Only show filter if there is at least one real option (not just 'None')
+            if len(options) > 1:
+                fields.append({
+                    "key": field_key,
+                    "name": field_name,
+                    "type": field_type,
+                    "widget": widget_type_final,
+                    "editable": is_editable,
+                    "options": options,
+                    "value": value,
+                })
 
         # Convert fields list to dict keyed by 'key'
         fields_dict = {field["key"]: field for field in fields}
+        from jira_manager.widget_utils import map_fields_to_widgets
         field_widgets = map_fields_to_widgets(fields_dict, parent=filter_panel)
         for widget in field_widgets:
             role = getattr(widget, '_theme_role', 'label')
@@ -2020,10 +2037,13 @@ class TicketDisplayBuilder(tk.Frame):
         self.widget_registry["ticket_canvas"] = ticket_canvas
 
         ticket_panel_hovered = {"active": False}
+
         def on_ticket_enter(event):
             ticket_panel_hovered["active"] = True
+
         def on_ticket_leave(event):
             ticket_panel_hovered["active"] = False
+
         ticket_canvas.bind("<Enter>", on_ticket_enter)
         ticket_canvas.bind("<Leave>", on_ticket_leave)
 
@@ -2031,6 +2051,7 @@ class TicketDisplayBuilder(tk.Frame):
             if ticket_panel_hovered["active"]:
                 ticket_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
                 return "break"
+
         ticket_canvas.bind_all("<MouseWheel>", _on_ticket_mousewheel)
 
         """ NEED TO FINISH THIS PART / WILL BE FOR LOADING PAGE INDEX AND LOADBAR POPUP DISPLAY / HANDLING """

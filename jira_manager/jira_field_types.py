@@ -16,40 +16,163 @@ class JiraFieldType:
         return f"<JiraFieldType {self.name}>"
 
 class JiraFieldTypeRegistry:
-    def extract_display_value(self, field_type, raw_value):
+    def extract_display_value(self, field_type, raw_value, field_name=None):
         """
         Extract a user-friendly display value for a field, using the display_key if available.
         Handles JSON strings and Python dict strings robustly.
+        Handles array, date, datetime, number, boolean, and custom types generically.
         """
         print(f"{field_type=}")
         field_info = self.get(field_type)
-        if not field_info or not raw_value:
+        if not field_info or raw_value is None:
             return raw_value
         key = field_info.display_key
-        if not key:
-            return raw_value
-        try:
-            obj = raw_value
-            if isinstance(raw_value, str):
+
+        # Parse JSON or Python literal if needed
+        obj = raw_value
+        if isinstance(raw_value, str):
+            try:
+                obj = json.loads(raw_value)
+            except Exception:
                 try:
-                    obj = json.loads(raw_value)
+                    obj = ast.literal_eval(raw_value)
                 except Exception:
-                    try:
-                        obj = ast.literal_eval(raw_value)
-                    except Exception:
-                        pass
-            if field_type in ("option_multi", "version", "attachment"):
-                if isinstance(obj, list):
-                    return ", ".join(str(o.get(key, o)) for o in obj if isinstance(o, dict))
-            if field_type.lower() == "comment" and isinstance(obj, dict) and "comments" in obj:
-                return obj["comments"]
+                    pass
+
+
+
+        # Generic handler for Atlassian Document Format (ADF) rich text fields
+        def extract_adf_text(adf):
+            # Recursively extract all text from ADF content
+            if isinstance(adf, dict):
+                if adf.get("type") == "text" and "text" in adf:
+                    return adf["text"]
+                elif "content" in adf:
+                    return " ".join(extract_adf_text(child) for child in adf["content"])
+            elif isinstance(adf, list):
+                return " ".join(extract_adf_text(item) for item in adf)
+            return ""
+
+        # If value is Atlassian Document Format (ADF), extract plain text
+        if isinstance(obj, dict) and obj.get("type") == "doc" and "content" in obj:
+            text = extract_adf_text(obj)
+            return (field_name or field_type, text)
+
+        # Array: extract key and value as tuple(s) if dict, or join if list
+        if field_type == "array":
             if isinstance(obj, dict):
-                val = obj.get(key)
-                if val is not None:
-                    return val
-            return raw_value
-        except Exception:
-            return raw_value
+                # If only one key, return (key, value)
+                if len(obj) == 1:
+                    k, v = next(iter(obj.items()))
+                    return (k, v)
+                # If multiple keys, return list of (key, value) tuples
+                return [(k, v) for k, v in obj.items()]
+            elif isinstance(obj, list):
+                return (field_name or field_type, obj)
+            return (field_name or field_type, obj)
+
+        # For all other types, return (field_name, value) if not a dict with display_key
+        # Datetime
+        if field_type == "datetime":
+            import datetime
+            try:
+                dt = obj
+                if not isinstance(dt, (datetime.datetime, datetime.date)):
+                    dt = datetime.datetime.fromisoformat(str(obj))
+                return (field_name or field_type, dt.strftime("%Y-%m-%d %H:%M:%S"))
+            except Exception:
+                return (field_name or field_type, str(obj))
+
+        # Date
+        if field_type == "date":
+            import datetime
+            try:
+                d = obj
+                if not isinstance(d, datetime.date):
+                    d = datetime.date.fromisoformat(str(obj))
+                return (field_name or field_type, d.strftime("%Y-%m-%d"))
+            except Exception:
+                return (field_name or field_type, str(obj))
+
+        # Number
+        if field_type == "number":
+            try:
+                return (field_name or field_type, str(float(obj)))
+            except Exception:
+                return (field_name or field_type, str(obj))
+
+        # Boolean
+        if field_type == "boolean":
+            return (field_name or field_type, str(bool(obj)))
+
+        # Option multi, version, attachment: join display_key from list of dicts
+        if field_type in ("option_multi", "version", "attachment"):
+            if isinstance(obj, list):
+                return (field_name or field_type, ", ".join(str(o.get(key, o)) for o in obj if isinstance(o, dict)))
+
+        # Comments-page and comment
+        if field_type.lower() in ("comment", "comments-page") and isinstance(obj, dict) and "comments" in obj:
+            return (field_name or field_type, obj["comments"])
+
+        # Generic dict with display_key
+        if key and isinstance(obj, dict):
+            val = obj.get(key)
+            if val is not None:
+                return (field_name or key or field_type, val)
+
+        # Fallback: always return (field_name, value)
+        return (field_name or field_type, str(obj))
+
+        # Datetime
+        if field_type == "datetime":
+            import datetime
+            try:
+                dt = obj
+                if not isinstance(dt, (datetime.datetime, datetime.date)):
+                    dt = datetime.datetime.fromisoformat(str(obj))
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return str(obj)
+
+        # Date
+        if field_type == "date":
+            import datetime
+            try:
+                d = obj
+                if not isinstance(d, datetime.date):
+                    d = datetime.date.fromisoformat(str(obj))
+                return d.strftime("%Y-%m-%d")
+            except Exception:
+                return str(obj)
+
+        # Number
+        if field_type == "number":
+            try:
+                return str(float(obj))
+            except Exception:
+                return str(obj)
+
+        # Boolean
+        if field_type == "boolean":
+            return str(bool(obj))
+
+        # Option multi, version, attachment: join display_key from list of dicts
+        if field_type in ("option_multi", "version", "attachment"):
+            if isinstance(obj, list):
+                return ", ".join(str(o.get(key, o)) for o in obj if isinstance(o, dict))
+
+        # Comments-page and comment
+        if field_type.lower() in ("comment", "comments-page") and isinstance(obj, dict) and "comments" in obj:
+            return obj["comments"]
+
+        # Generic dict with display_key
+        if key and isinstance(obj, dict):
+            val = obj.get(key)
+            if val is not None:
+                return val
+
+        # Fallback: string representation
+        return str(obj)
     """
     Registry for all known Jira field types and their JSON templates.
     """
@@ -96,8 +219,8 @@ class JiraFieldTypeRegistry:
         ))
         self.register(JiraFieldType(
             "array",
-            '"labels": ["bug", "urgent"]',
-            "List of strings.",
+            'Generic array (e.g. {"labels": ["bug", "urgent"]} or {"components": [...]})',
+            "Generic array (list of strings, numbers, or objects).",
             display_key=None
         ))
         self.register(JiraFieldType(
