@@ -704,6 +704,11 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
             current_value = ""
 
         # Prepare one row for each field
+        # Always store current_value as valid JSON
+        try:
+            json_current_value = json.dumps(current_value)
+        except Exception:
+            json_current_value = json.dumps(str(current_value))
         row = {
             "field_key": fid,
             "field_name": fdata.get("name", fid),
@@ -711,7 +716,7 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
             "widget_type": widget,
             "is_editable": bool("set" in operations),
             "allowed_values": json.dumps(fdata.get("allowedValues", [])),
-            "current_value": str(current_value),
+            "current_value": json_current_value,
         }
         field_rows.append(row)
 
@@ -1083,7 +1088,11 @@ def toolbar_action(
 
     # LOGIC FOR JIRA SEARCH PANEL
     if payload["type"] == "search_jiras":
-        panel_choice["ticket_panel"].widget_registry.get("canvas").yview_moveto(0)
+        try:
+            panel_choice["ticket_panel"].widget_registry.get("canvas").yview_moveto(0)
+        except Exception:
+            pass
+
         # HANDLE FOR EMPTY SEARCH BAR
         if payload["jql"] == "Enter proper JQL query":
             run_error(panel_choice, ui_state, widget_registry, "Missing JQL Statement.")

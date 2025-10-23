@@ -1908,24 +1908,88 @@ class TicketDisplayBuilder(tk.Frame):
         filter_label.pack(fill="x", pady=(0, 5))
         self.theme_manager.register(filter_label, "label")
 
-        # Query all needed field info
-        sql = """
-        SELECT field_key, field_name, field_type, widget_type, is_editable, allowed_values, current_value
-        FROM fields
-        """
-        result = run_sql_stmt(self.db_path, sql, stmt_type="select")
-        fields = [
-            {
-                "key": row[0],
-                "name": row[1],
-                "type": row[2],
-                "widget": row[3],
-                "editable": row[4],
-                "options": row[5],
-                "value": row[6],
-            }
-            for row in result
-        ]
+        # Dynamically build filter fields from DB
+        # 1. Get all distinct field_names
+        field_name_rows = run_sql_stmt(self.db_path, "SELECT DISTINCT field_name FROM fields", stmt_type="select")
+        fields = []
+        for (field_name,) in field_name_rows:
+            # Get metadata for this field (first row for each field_name)
+            meta_row = run_sql_stmt(self.db_path, f"SELECT field_key, field_type, widget_type, is_editable, allowed_values FROM fields WHERE field_name = ? LIMIT 1", stmt_type="select", params=(field_name,))
+            print("META ROW ", meta_row)
+            if not meta_row:
+                continue
+            field_key, field_type, widget_type, is_editable, allowed_values = meta_row[0]
+            # Get all distinct current_value for this field across ALL tickets
+            value_rows = run_sql_stmt(self.db_path, f"SELECT DISTINCT current_value FROM fields WHERE field_name = ? AND current_value IS NOT NULL AND current_value != ''", stmt_type="select", params=(field_name,))
+            options = []
+            import json
+            # If allowed_values is a JSON list, use those as options
+            try:
+                allowed = json.loads(allowed_values) if allowed_values and allowed_values.startswith("[") else None
+                if allowed and isinstance(allowed, list) and len(allowed) > 0:
+                    for opt in allowed:
+                        if isinstance(opt, dict):
+                            options.append(opt.get("name") or opt.get("value") or str(opt))
+                        else:
+                            options.append(str(opt))
+            except Exception:
+                allowed = None
+            # Otherwise, use distinct current_value as options
+            if not options:
+                for (val,) in value_rows:
+                    # For user fields, extract displayName/email from all tickets
+                    if field_type == "user" and val:
+                        try:
+                            # Try both single and double quotes for JSON
+                            user = json.loads(val.replace("'", '"'))
+                            display = user.get("displayName") or user.get("emailAddress")
+                            if display:
+                                options.append(display)
+                            else:
+                                options.append(val)
+                        except Exception:
+                            options.append(val)
+                    # For array/multiselect fields, split comma/JSON list
+                    elif field_type == "array" and val:
+                        try:
+                            arr = json.loads(val) if val.startswith("[") else [v.strip() for v in val.split(",") if v.strip()]
+                            options.extend([str(v) for v in arr if v])
+                        except Exception:
+                            options.append(val)
+                    else:
+                        options.append(val)
+            # Remove duplicates and sort
+            options = sorted(set(options))
+            # Always show readable user info for user fields
+            if field_type == "user":
+                readable_options = []
+                for val in options:
+                    try:
+                        user = json.loads(val.replace("'", '"'))
+                        display = user.get("displayName") or user.get("emailAddress") or user.get("name")
+                        print("USER / DISPLAY ", user, display)
+                        if display:
+                            readable_options.append(display)
+                        else:
+                            readable_options.append(val)
+                    except Exception:
+                        readable_options.append(val)
+                options = sorted(set(readable_options))
+            # Limit dropdowns to 20 options; if more, use Entry widget
+            widget_type_final = widget_type
+            if len(options) > 20:
+                widget_type_final = "entry"  # Use Entry widget for large option sets
+            # Use first value as default
+            value = options[0] if options else ""
+            fields.append({
+                "key": field_key,
+                "name": field_name,
+                "type": field_type,
+                "widget": widget_type_final,
+                "editable": is_editable,
+                "options": options,
+                "value": value,
+            })
 
         # Convert fields list to dict keyed by 'key'
         fields_dict = {field["key"]: field for field in fields}

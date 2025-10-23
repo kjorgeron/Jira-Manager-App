@@ -40,7 +40,11 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None, parent=Non
 
         # Decide widget type: Combobox for few options, Entry for many
         if len(options) > 0 and len(options) <= 20:
-            input_widget = tk.ttk.Combobox(parent, values=options, font=("Trebuchet MS", 12), justify="left")
+            # Ensure value is in options for Combobox
+            combo_options = list(options) if options else []
+            if value and value not in combo_options:
+                combo_options.append(value)
+            input_widget = tk.ttk.Combobox(parent, values=combo_options, font=("Trebuchet MS", 12), justify="left")
             if value:
                 input_widget.set(value)
             input_widget._theme_role = "combobox"
