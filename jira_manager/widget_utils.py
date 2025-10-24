@@ -12,14 +12,9 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None, parent=Non
         # Add more mappings as needed
     }
 
-    config = load_data()
-    HIDDEN_FIELDS = config.get("hidden_fields", [])
-
     widgets = []
     for fid, fdata in editable_fields.items():
         field_name = fdata.get("name", fid)
-        if field_name in HIDDEN_FIELDS:
-            continue
         value = fdata.get("value", "")
         options = fdata.get("options", [])
         # If options are not provided, default to empty list
@@ -38,9 +33,8 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None, parent=Non
         label_widget._theme_role = "label"
         widgets.append(label_widget)
 
-        # Decide widget type: Combobox for few options, Entry for many
-        if len(options) > 0 and len(options) <= 20:
-            # Ensure value is in options for Combobox
+        widget_type = fdata.get("widget", "entry")
+        if widget_type == "combobox":
             combo_options = list(options) if options else []
             if value and value not in combo_options:
                 combo_options.append(value)
@@ -50,7 +44,8 @@ def map_fields_to_widgets(editable_fields, current_issue_fields=None, parent=Non
             input_widget._theme_role = "combobox"
             input_widget.pack(fill="x", padx=18, pady=(0,10))
         else:
-            input_widget = EntryWithPlaceholder(parent, placeholder=field_name, initial_text=value)
+            placeholder = fdata.get("placeholder", field_name)
+            input_widget = EntryWithPlaceholder(parent, placeholder=placeholder, initial_text=value)
             input_widget._theme_role = "placeholder_entry"
             input_widget.pack(fill="x", padx=18, pady=(0,10))
         widgets.append(input_widget)

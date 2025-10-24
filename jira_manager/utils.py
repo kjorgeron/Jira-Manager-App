@@ -645,21 +645,96 @@ def update_ticket_bucket_with_single(
 
 def run_database_updates_to_tickets_fields_values(db_path, server, headers, jira_tickets):
     print("Running database update")
+    from jira_manager.file_manager import load_data
+    config = load_data()
+    hidden_fields = set(config.get("hidden_fields", []))
     for ticket in jira_tickets:
         key = ticket["key"]
         ticket_id = add_or_find_key_return_id(db_path, key)
-        editable_fields = get_editable_fields_v2(key, server, headers)
-        
         # Fetch actual issue data
         issue_url = f"{server}/rest/api/3/issue/{key}"
         response = requests.get(issue_url, headers=headers)
         response.raise_for_status()
         issue_data = response.json()
         actual_fields = issue_data.get("fields", {})
-        
-        mapped_fields = map_fields_for_db(editable_fields, actual_fields)
-        for field in mapped_fields:
-            fields_id = add_or_find_field_return_id(db_path, ticket_id, field)
+
+        # Get editable fields metadata for allowedValues, schema, etc.
+        editable_fields = get_editable_fields_v2(key, server, headers)
+
+        # Save all non-hidden fields
+        for fid, value in actual_fields.items():
+            field_name = fid
+            # Try to get display name from editable_fields if available
+            if fid in editable_fields:
+                field_name = editable_fields[fid].get("name", fid)
+            if field_name in hidden_fields:
+                continue
+            # Get schema/type info if available
+            schema = editable_fields.get(fid, {}).get("schema", {})
+            ftype = schema.get("type", "string")
+            custom = schema.get("custom")
+            operations = editable_fields.get(fid, {}).get("operations", [])
+            allowed_values = editable_fields.get(fid, {}).get("allowedValues", [])
+
+            # Widget logic
+            widget_map = {
+                "string": "TextEntry",
+                "text": "RichTextBox",
+                "user": "UserPicker",
+                "array": "MultiSelect",
+                "number": "NumericEntry",
+                "date": "DatePicker",
+                "option": "Dropdown",
+            }
+            widget = widget_map.get(ftype, "TextEntry")
+            if custom == "com.atlassian.jira.plugin.system.customfieldtypes:labels":
+                widget = "TagInput"
+            elif (
+                custom
+                == "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            ):
+                widget = "CheckboxGroup"
+
+            # Auto-detect type for all primitives, arrays, and objects
+            detected_type = ftype
+            val_to_check = value
+            import json, ast
+            if isinstance(val_to_check, str):
+                try:
+                    parsed = json.loads(val_to_check)
+                    val_to_check = parsed
+                except Exception:
+                    try:
+                        parsed = ast.literal_eval(val_to_check)
+                        val_to_check = parsed
+                    except Exception:
+                        pass
+            if isinstance(val_to_check, list):
+                detected_type = "array"
+            elif isinstance(val_to_check, dict):
+                detected_type = "object"
+            elif isinstance(val_to_check, bool):
+                detected_type = "boolean"
+            elif isinstance(val_to_check, int) or isinstance(val_to_check, float):
+                detected_type = "number"
+            elif isinstance(val_to_check, str):
+                detected_type = "string"
+
+            # Always store current_value as valid JSON
+            try:
+                json_current_value = json.dumps(value)
+            except Exception:
+                json_current_value = json.dumps(str(value))
+            row = {
+                "field_key": fid,
+                "field_name": field_name,
+                "field_type": detected_type,
+                "widget_type": widget,
+                "is_editable": bool("set" in operations),
+                "allowed_values": json.dumps(allowed_values),
+                "current_value": json_current_value,
+            }
+            fields_id = add_or_find_field_return_id(db_path, ticket_id, row)
             print(f"{fields_id=}")
 
 def map_fields_for_db(editable_fields, current_issue_fields=None):
@@ -669,7 +744,14 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
     insert_fields_into_db(sqlite_connection, ticket_id, mapped_rows)
     """
     field_rows = []
+    import json, ast
+    from jira_manager.file_manager import load_data
+    config = load_data()
+    hidden_fields = set(config.get("hidden_fields", []))
     for fid, fdata in editable_fields.items():
+        field_name = fdata.get("name", fid)
+        if field_name in hidden_fields:
+            continue
         schema = fdata.get("schema", {})
         ftype = schema.get("type", "string")
         custom = schema.get("custom")
@@ -703,7 +785,30 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
         else:
             current_value = ""
 
-        # Prepare one row for each field
+        # Auto-detect type for all primitives, arrays, and objects
+        detected_type = ftype
+        val_to_check = current_value
+        if isinstance(val_to_check, str):
+            try:
+                parsed = json.loads(val_to_check)
+                val_to_check = parsed
+            except Exception:
+                try:
+                    parsed = ast.literal_eval(val_to_check)
+                    val_to_check = parsed
+                except Exception:
+                    pass
+        if isinstance(val_to_check, list):
+            detected_type = "array"
+        elif isinstance(val_to_check, dict):
+            detected_type = "object"
+        elif isinstance(val_to_check, bool):
+            detected_type = "boolean"
+        elif isinstance(val_to_check, int) or isinstance(val_to_check, float):
+            detected_type = "number"
+        elif isinstance(val_to_check, str):
+            detected_type = "string"
+
         # Always store current_value as valid JSON
         try:
             json_current_value = json.dumps(current_value)
@@ -712,7 +817,7 @@ def map_fields_for_db(editable_fields, current_issue_fields=None):
         row = {
             "field_key": fid,
             "field_name": fdata.get("name", fid),
-            "field_type": ftype,
+            "field_type": detected_type,
             "widget_type": widget,
             "is_editable": bool("set" in operations),
             "allowed_values": json.dumps(fdata.get("allowedValues", [])),

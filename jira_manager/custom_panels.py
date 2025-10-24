@@ -1878,7 +1878,7 @@ class TicketDisplayBuilder(tk.Frame):
         filter_scrollbar = tk.Scrollbar(
             filter_panel_container, orient="vertical", command=filter_canvas.yview
         )
-        filter_scrollbar.pack(side="right", fill="y")
+        # HIDE filter scrollbar: do not pack it
         filter_canvas.configure(yscrollcommand=filter_scrollbar.set)
         self.widget_registry["filter_panel_canvas"] = filter_canvas
         self.widget_registry["filter_panel_scrollbar"] = filter_scrollbar
@@ -1929,16 +1929,12 @@ class TicketDisplayBuilder(tk.Frame):
         from jira_manager.file_manager import load_data
         from jira_manager.jira_field_types import JiraFieldTypeRegistry
         config = load_data()
-        HIDDEN_FIELDS = set(config.get("hidden_fields", []))
         field_type_registry = JiraFieldTypeRegistry()
 
         # 1. Get all distinct field_names
         field_name_rows = run_sql_stmt(self.db_path, "SELECT DISTINCT field_name FROM fields", stmt_type="select")
         fields = []
         for (field_name,) in field_name_rows:
-
-            if field_name in HIDDEN_FIELDS:
-                continue
             # Get metadata for this field (first row for each field_name)
             meta_row = run_sql_stmt(
                 self.db_path,
@@ -1991,13 +1987,23 @@ class TicketDisplayBuilder(tk.Frame):
             if not options or options[0] != "None":
                 options = ["None"] + options
 
-            widget_type_final = widget_type
-            if len(options) > 20:
+            # Only Summary and Description get entry, all others are combobox
+            if field_name.lower() == "summary":
                 widget_type_final = "entry"
+                placeholder_text = "Type to filter by summary keywords..."
+            elif field_name.lower() == "description":
+                widget_type_final = "entry"
+                placeholder_text = "Type to filter by description keywords..."
+            else:
+                widget_type_final = "combobox"
+                placeholder_text = None
             value = options[0] if options else "None"
+            # For entry fields, use empty string if value is 'None' so placeholder is shown
+            if widget_type_final == "entry" and (not value or value == "None"):
+                value = ""
             # Only show filter if there is at least one real option (not just 'None')
-            if len(options) > 1:
-                fields.append({
+            if len(options) > 1 or widget_type_final == "entry":
+                field_dict = {
                     "key": field_key,
                     "name": field_name,
                     "type": field_type,
@@ -2005,10 +2011,17 @@ class TicketDisplayBuilder(tk.Frame):
                     "editable": is_editable,
                     "options": options,
                     "value": value,
-                })
+                }
+                if widget_type_final == "entry" and placeholder_text:
+                    field_dict["placeholder"] = placeholder_text
+                fields.append(field_dict)
 
         # Convert fields list to dict keyed by 'key'
-        fields_dict = {field["key"]: field for field in fields}
+        # Move all entry widgets to the top, then comboboxes
+        entry_fields = [f for f in fields if f["widget"] == "entry"]
+        other_fields = [f for f in fields if f["widget"] != "entry"]
+        ordered_fields = entry_fields + other_fields
+        fields_dict = {field["key"]: field for field in ordered_fields}
         from jira_manager.widget_utils import map_fields_to_widgets
         field_widgets = map_fields_to_widgets(fields_dict, parent=filter_panel)
         for widget in field_widgets:
@@ -2016,6 +2029,12 @@ class TicketDisplayBuilder(tk.Frame):
             self.theme_manager.register(widget, role)
 
         ticket_holder = tk.Frame(main_container)
+
+        # Add a vertical divider between filter and ticket panels
+        divider = tk.Frame(main_container, width=2, bd=0, relief="flat")
+        divider.pack(side="left", fill="y", pady=10)
+        self.theme_manager.register(divider, "divider")
+
         self.theme_manager.register(ticket_holder, "frame")
         ticket_holder.pack(
             side="right", fill="both", expand=True, padx=(10, 10), pady=10
@@ -2032,7 +2051,7 @@ class TicketDisplayBuilder(tk.Frame):
         ticket_scrollbar = tk.Scrollbar(
             ticket_holder, orient="vertical", command=ticket_canvas.yview
         )
-        ticket_scrollbar.pack(side="right", fill="y")
+        # HIDE ticket scrollbar: do not pack it
         ticket_canvas.configure(yscrollcommand=ticket_scrollbar.set)
         self.widget_registry["ticket_canvas"] = ticket_canvas
 
